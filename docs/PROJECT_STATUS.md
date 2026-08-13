@@ -1,6 +1,7 @@
 # 좀비 영상 → 유니티 아바타 파이프라인 — 진행 상황 정리
 
-작성일: 2026-08-11
+작성일: 2026-08-11 (최종 갱신: 2026-08-13)
+레포: [Video2UnityAvatar-Pipeline](https://github.com/chaeee01/Video2UnityAvatar-Pipeline) — 초기 이름 `3DGS-Character-Generation-Pipeline`에서 개명. SuGaR(3DGS) 기반 복원을 설계에서 제외하면서 이름이 실제 구성과 어긋나 정리함.
 목표: 좀비 영상 한 편을 입력하면 SAM2로 객체를 분리하고, TRELLIS로 외형을, WHAM으로 동작을 복원한 뒤 유니티 에셋(아바타 + 애니메이션)으로 반입하는 파이프라인 구축.
 
 ---
@@ -107,16 +108,21 @@ WHAM betas(체형) + 키프레임 pose(자세) → 그 좀비와 같은 자세·
 ## 6. 자산 목록
 
 ### 스크립트 (작성 완료)
+
+작성된 스크립트는 모두 **레포 `scripts/`에 통합됨** (폐기분은 `scripts/deprecated/`). 볼륨·맥북에 흩어져 있던 사본을 회수해 단일 출처로 정리했다.
+
 | 파일 | 용도 | 상태 |
 |---|---|---|
 | setup_wham.sh / run_wham.sh | WHAM 볼륨 설치·실행 | 검증됨 |
 | overlay_vis.py | SMPL 2D 재투영 검증 | 검증됨 |
+| quick_vis.py | SMPL 스켈레톤 프리뷰 (matplotlib 애니메이션) | 검증됨 |
 | wham_to_smplfbx.py | WHAM pkl → 변환용 형식 | 검증됨 |
 | smpl_pkl_to_fbx.py | pkl → FBX (bpy) | 변환 성공, 리타게팅 미해결 |
-| retarget_smpl_to_mixamo.py / v2 | SMPL→Mixamo 리타게팅 | 폐기 |
+| retarget_smpl_to_mixamo.py / v2 | SMPL→Mixamo 리타게팅 | 폐기 (`scripts/deprecated/`) |
 | glb_tex.py | GLB 텍스처 추출 | 검증됨 |
-| setup_trellis.sh / run_trellis.py | TRELLIS 로컬 설치·실행 | 미실행 (Space로 대체 중) |
-| gate1~3, orchestrator, config.yaml | 품질 게이트·자동화 골격 | 코드만 존재, 미연결 |
+| check_tex.py | Blender 텍스처 진단 | 검증됨 |
+| setup_trellis.sh / run_trellis.py | TRELLIS 로컬 설치·실행 | 미실행 (Space로 대체 중), 레포 미반입 |
+| gate1~3, orchestrator, config.yaml | 품질 게이트·자동화 골격 | 코드만 존재, 미연결. 자리는 `pipeline/qa/`에 확보 |
 
 ### 데이터 (Network Volume + 맥북)
 - `/workspace/data/05_wham/zombie_sample1/` — wham_output.pkl, overlay.mp4 등
@@ -138,7 +144,13 @@ WHAM betas(체형) + 키프레임 pose(자세) → 그 좀비와 같은 자세·
 
 ---
 
-## 8. 다음 단계 (우선순위)
+## 8. 최근 작업
+
+- **2026-08-13 — 레포 정리 완료**: 브랜치 통합(SAM2 노트북 6개를 main으로 merge 후 원격 브랜치 4개 삭제), 구조 재편(`docs/` `notebooks/sam2/` `scripts/` `pipeline/qa/` `docker/`), 흩어져 있던 스크립트 8종 회수, 레포 개명 및 README 갱신.
+
+---
+
+## 9. 다음 단계 (우선순위)
 
 1. **SMPL 리깅 1단계**: betas + pose → SMPL 메쉬 생성 스크립트 (smplx 패키지, 맥북)
 2. 2단계: TRELLIS 메쉬와 정렬 (ICP/바운딩박스)
