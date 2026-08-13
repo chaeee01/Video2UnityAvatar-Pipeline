@@ -1,8 +1,6 @@
-# 3DGS-Character-Generation-Pipeline
+# Video2UnityAvatar-Pipeline
 
 [Software Maestro] 좀비 영상 한 편을 입력하면 유니티 아바타 에셋(캐릭터 + 애니메이션)으로 자동 변환하는 파이프라인.
-
-> 레포 이름의 `3DGS`는 초기 설계(Gaussian Splatting 기반 복원)의 흔적입니다. 현재 설계는 아래와 같이 메쉬 생성 기반으로 전환되었습니다.
 
 ## 파이프라인
 
@@ -17,8 +15,16 @@
 
 각 단계 사이에는 품질 게이트(G0~G4)가 있어, 불합격 시 해당 단계로 재진입합니다.
 
-**리깅 방식**: Mixamo 리타게팅은 자세 붕괴로 폐기했고, 골격을 SMPL로 통일하는 직접 리깅으로 전환했습니다
-(→ [`scripts/deprecated/README.md`](scripts/deprecated/README.md)).
+## 설계 변천
+
+| 버전 | 구성 | 변경 사유 |
+|---|---|---|
+| v1 | SAM2 + SuGaR + Unique3D + WHAM (4모델) | 초기 설계. SuGaR로 배경까지 3D 복원 |
+| v2 | SAM2 + TRELLIS + WHAM (3모델) | 최종 목표가 아바타라 배경 3D가 불필요하고, SuGaR는 정적 장면 전제라 움직이는 인물에 부적합해 제외. Unique3D는 라이선스·유지보수 문제로 TRELLIS로 교체 |
+| **v3 (현재)** | v2 + SMPL 골격 직접 리깅 | Mixamo 리타게팅이 자세 붕괴로 실패해 폐기. 골격을 SMPL로 통일해 리타게팅 단계 자체를 제거 |
+
+상세 이력과 각 결정의 검증 근거는 [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md)에 있습니다.
+폐기한 리타게팅 시도는 [`scripts/deprecated/README.md`](scripts/deprecated/README.md)를 참고하세요.
 
 ## 레포 구조
 
