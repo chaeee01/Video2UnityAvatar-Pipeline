@@ -1,0 +1,10 @@
+*.mp4
+*.pkl
+*.fbx
+*.glb
+*.blend
+*.pt
+*.pth
+*.png
+.DS_Store
+__pycache__/
