@@ -47,3 +47,10 @@ GPU 작업은 RunPod(RTX 4090, EU-RO-1) + Network Volume(`/workspace`)에서 mic
 - 검증 완료: WHAM 동작 복원, TRELLIS 외형 복원, 유니티 에셋 반입
 - 진행 중: SMPL 골격 직접 리깅 (메쉬 생성 → 정렬 → 웨이트 전이)
 - 예정: TRELLIS 로컬 설치, 품질 게이트 연결, 오케스트레이터 가동, Dockerfile 고정
+
+### WHAM 검증 결과
+
+![WHAM 2D 재투영 검증](docs/assets/wham_overlay.gif)
+
+WHAM이 추정한 SMPL 파라미터에서 공식 J_regressor로 관절을 추출해 원본 영상에 2D 재투영한 결과입니다.
+스켈레톤이 좀비 위에 정합하는 것으로 동작 복원이 정상임을 확인했습니다 (`scripts/overlay_vis.py`).
