@@ -76,11 +76,16 @@
 
 ### WHAM 동작의 유니티 반입 — 미해결 (유일한 미완 구간)
 - pkl → FBX 변환 자체는 성공: Blender bpy 스크립트로 SMPL Unity FBX 템플릿에 동작을 구움. Blender에서 팔다리 동작 정상 재생 확인.
-- 실패 지점: SMPL 골격(24본) 동작을 Mixamo 골격(65본) 캐릭터로 옮기는 리타게팅.
-  - Unity Humanoid 리타게팅: 근육 변환 과정에서 관절 동작 소실, 루트 회전만 잔존.
-  - Blender 행렬 계산 리타게팅: 자세 붕괴(팔 엉킴). rest 방향 offset 계산의 리그별 예외 처리 실패.
-  - Blender 컨스트레인트 방식: 실패.
-- 결정: 리타게팅 경로 폐기. Mixamo 리깅은 최종 파이프라인에 들어가지 않으므로 이 다리를 고치는 데 추가 투자하지 않음.
+- 실패 지점: SMPL 골격(24본) 동작을 Mixamo 골격(65본) 캐릭터로 옮기는 리타게팅. 세 가지 방식을 시도해 모두 실패.
+
+  | 방식 | 구현 | 결과 |
+  |---|---|---|
+  | Unity Humanoid 리타게팅 | Unity 에디터에서 직접 시도 (스크립트 없음) | 근육(muscle) 변환 과정에서 관절 동작 소실, 루트 회전만 잔존 |
+  | Blender 행렬 계산 | `retarget_smpl_to_mixamo.py` — rest 방향 offset 보정 (`offset = src_rest⁻¹ @ tgt_rest`) | 자세 붕괴(팔 엉킴). 리그별 rest 방향 예외 처리 실패 |
+  | Blender 컨스트레인트 | `retarget_constraint_based.py` — world space Copy Rotation 후 NLA 베이킹 | 두 리그의 rest가 모두 T포즈라 world space 회전 복사가 성립한다는 전제였으나 마찬가지로 자세 붕괴 |
+
+  스크립트는 `scripts/deprecated/`에 사유와 함께 보존 ([README](../scripts/deprecated/README.md)).
+- 결정: 리타게팅 경로 폐기. Mixamo 리깅은 최종 파이프라인에 들어가지 않으므로 이 다리를 고치는 데 추가 투자하지 않음 (→ 4절 v4 전환).
 
 ---
 
