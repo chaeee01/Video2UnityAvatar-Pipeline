@@ -8,7 +8,7 @@
 
 ## 1. 최종 파이프라인 설계
 
-초기 설계(SuGaR 포함 4개 레포)에서 두 차례 수정을 거쳐 확정된 구조.
+기획(v1) 이후 세 차례 개정을 거쳐 확정된 v4 구조. 버전별 구조도는 [`assets/`](assets/)에 있다 ([v1](assets/pipeline_v1.png) · [v2](assets/pipeline_v2.png) · [v3](assets/pipeline_v3.png) · [v4](assets/pipeline_v4.png)).
 
 ```
 입력 영상
@@ -16,16 +16,24 @@
   → S0 전처리 (fps/해상도 정규화)
   → S1 PySceneDetect (컷 분할)
   → S2 SAM2 (마스킹·트래킹)
-      ├→ G1a 외형용 프레임 평가 → S3 TRELLIS → G2 메쉬 평가 → S4 리깅
-      └→ G1m 동작용 클립 평가 → S5 WHAM → G3 동작 평가 → S6 좌표변환/FBX
-  → S7 유니티 반입 → G4 최종 통합 평가 → (불합격 시 게이트별 재진입)
+      ├→ G1a 외형용 프레임 평가 → S3 TRELLIS → G2 메쉬 평가 → S4 SMPL 골격 직접 리깅
+      └→ G1m 동작용 클립 평가 → S5 WHAM → G3 동작 평가 → S6 좌표변환
+                                          └─ betas 전달 ─→ S4
+  → S7 동작 결합(리타게팅 없음) → G4 최종 통합 평가 → (불합격 시 게이트별 재진입)
 ```
 
-설계 변경 이력:
-- SuGaR/COLMAP 제외 — 정적 장면 전제라 움직이는 인물에 부적합하고, 최종 목표(아바타)에 배경 3D가 불필요.
-- Unique3D → TRELLIS.2 교체 — MIT 라이선스(상업 이용 가능), 단일/다중 뷰 지원, 유지보수 활발. Hunyuan3D는 한국 지역 사용 제한으로 배제.
-- 품질 게이트 G0~G4와 재시도 오케스트레이터 추가. 외형용(G1a)과 동작용(G1m) 평가를 분리 — 두 모델이 요구하는 입력 조건이 다르기 때문(외형: 선명한 1프레임 / 동작: 가림 없는 시퀀스).
-- 리깅 방식을 Mixamo → SMPL 골격 직접 리깅으로 전환 결정 (아래 4절).
+### 버전별 설계 변경 이력
+
+| 버전 | 핵심 구성 | 전환 사유 |
+|---|---|---|
+| v1 (기획, 미실행) | SAM2 + SuGaR + WHAM, 가우시안 LOD 렌더링 | 조사 단계에서 SuGaR의 동적 인물 부적합 확인(정적 장면 전제), 최종 목표가 아바타라 배경 3D 불필요 → 착수 전 배제 |
+| v2 | Mixamo 자동 리깅 + Unity Humanoid 리타게팅 | 실행 결과 근육 변환에서 관절 동작 소실, 루트 회전만 잔존 → 폐기 (3절) |
+| v3 | 품질 게이트(G0~G4)·재시도 오케스트레이터 추가 | 평가·재시도 체계 확립. 리깅 방식은 v2 유지 |
+| v4 (현재) | SMPL 골격 직접 리깅, betas 전달로 골격 통일 | 리타게팅 단계의 구조적 제거 (4절) |
+
+각 버전에 공통으로 적용된 결정:
+- Unique3D/SF3D → TRELLIS 교체 — MIT 라이선스(상업 이용 가능), 단일/다중 뷰 지원, 유지보수 활발. Hunyuan3D는 한국 지역 사용 제한으로 배제.
+- 외형용(G1a)과 동작용(G1m) 평가 분리(v3~) — 두 모델이 요구하는 입력 조건이 다르기 때문(외형: 선명한 1프레임 / 동작: 가림 없는 시퀀스).
 
 ---
 
@@ -76,9 +84,11 @@
 
 ---
 
-## 4. 방향 전환: SMPL 골격 직접 리깅
+## 4. v4로의 전환: SMPL 골격 직접 리깅
 
-리타게팅 실패가 역설적으로 방향을 확정함 — 골격을 SMPL로 통일하면 리타게팅 문제 자체가 소멸.
+v2/v3의 리타게팅 실패가 역설적으로 방향을 확정함 — 골격을 SMPL로 통일하면 리타게팅 문제 자체가 소멸.
+v3까지는 외형 경로(Mixamo 65본)와 동작 경로(SMPL 24본)의 골격이 달라 S7에서 반드시 리타게팅을 거쳐야 했다.
+v4는 동작 경로의 betas(체형)를 외형 경로의 리깅 단계(S4)로 전달해 양쪽 골격을 SMPL로 통일하고, S7을 리타게팅이 아닌 단순 동작 결합으로 바꾼다.
 
 ```
 WHAM betas(체형) + 키프레임 pose(자세) → 그 좀비와 같은 자세·체형의 SMPL 메쉬 생성
@@ -86,6 +96,8 @@ WHAM betas(체형) + 키프레임 pose(자세) → 그 좀비와 같은 자세·
   → 웨이트 전이 (Blender Data Transfer, Nearest Face Interpolated)
   → SMPL 골격을 가진 좀비 → WHAM 동작 무변환 재생 → Unity Humanoid 반입
 ```
+
+구조도: [pipeline_v4.png](assets/pipeline_v4.png) — G3에서 S4로 향하는 `betas 전달` 경로가 v3 대비 유일한 신규 연결이며, 이 한 줄이 리타게팅 단계를 제거한다.
 
 기대 효과: Mixamo(수동, API 없음) 제거로 완전 자동화 가능. UniRig(스키닝 모델 미공개) 의존 불필요.
 
@@ -118,7 +130,7 @@ WHAM betas(체형) + 키프레임 pose(자세) → 그 좀비와 같은 자세·
 | quick_vis.py | SMPL 스켈레톤 프리뷰 (matplotlib 애니메이션) | 검증됨 |
 | wham_to_smplfbx.py | WHAM pkl → 변환용 형식 | 검증됨 |
 | smpl_pkl_to_fbx.py | pkl → FBX (bpy) | 변환 성공, 리타게팅 미해결 |
-| retarget_smpl_to_mixamo.py / v2 | SMPL→Mixamo 리타게팅 | 폐기 (`scripts/deprecated/`) |
+| retarget_smpl_to_mixamo.py / retarget_constraint_based.py | SMPL→Mixamo 리타게팅 (행렬 offset / 컨스트레인트) | 폐기 (`scripts/deprecated/`) |
 | glb_tex.py | GLB 텍스처 추출 | 검증됨 |
 | check_tex.py | Blender 텍스처 진단 | 검증됨 |
 | setup_trellis.sh / run_trellis.py | TRELLIS 로컬 설치·실행 | 미실행 (Space로 대체 중), 레포 미반입 |

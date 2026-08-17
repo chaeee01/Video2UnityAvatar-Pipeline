@@ -2,26 +2,63 @@
 
 [Software Maestro] 좀비 영상 한 편을 입력하면 유니티 아바타 에셋(캐릭터 + 애니메이션)으로 자동 변환하는 파이프라인.
 
-## 파이프라인
+## 파이프라인 설계
+
+### 현재 설계 (v4)
+![Pipeline v4](docs/assets/pipeline_v4.png)
 
 ```
 입력 영상
-  → SAM2      (segmentation)      인물 마스킹·트래킹
-  ├→ TRELLIS  (mesh generation)   키프레임 1장 → 3D 메쉬 + 텍스처
-  └→ WHAM     (motion estimation) 클립 → SMPL 동작 (pose/betas/trans)
-  → Blender 처리                  SMPL 직접 리깅 (메쉬 정렬 + 웨이트 전이) → FBX
-  → Unity 반입                    Humanoid 아바타 + 애니메이션
+  → G0  입력 검증          해상도, 압축 아티팩트, 대상 존재
+  → S0  전처리             fps / 해상도 / 색공간 정규화
+  → S1  PySceneDetect      컷 감지, 클립 분할
+  → S2  SAM2               분할·트래킹 (마스크와 원본 클립 모두 보존)
+      │
+      ├─[마스크]→ G1a 외형용 클립 평가   선명도, 시야각, 잘림
+      │           → S3  TRELLIS          단일/다중 뷰 → 메쉬 + 텍스처
+      │           → G2  메쉬 품질        LPIPS, CLIP-I, 실루엣 IoU, UV 왜곡
+      │           → S4  SMPL 골격 직접 리깅  ←──────┐
+      │              betas + pose로 SMPL 메쉬 생성  │
+      │              TRELLIS 메쉬와 정렬 → 웨이트 전이│
+      │           → G2r 리깅 검증        SMPL 24본 계층, 정렬 오차
+      │                                              │ betas 전달
+      └─[원본]──→ G1m 동작용 클립 평가   bbox 높이, 가림, 인원수
+                  → S5  WHAM             betas, pose, transl 추정
+                  → G3  동작 품질        재투영 PCK, MPJPE, 발 접지 ─┘
+                  → S6  좌표 변환        Y-up, 미터 단위, pose 시퀀스
+  → S7  동작 결합            골격이 동일하므로 리타게팅 없음
+                             SMPL pose를 리깅 메쉬에 직접 적용
+  → G4  최종 통합 평가       메쉬 관통, 발 접지, 원본 클립 대조
+  → 에셋 반입 완료
+       └→ (불합격 시) R. 재시도 오케스트레이터 → 실패 원인별 게이트 재진입
 ```
 
-각 단계 사이에는 품질 게이트(G0~G4)가 있어, 불합격 시 해당 단계로 재진입합니다.
+WHAM이 추출한 체형 파라미터(betas)를 외형 경로의 리깅 단계에 전달해
+두 경로의 골격을 SMPL로 통일한다. 골격이 동일하므로 골격 간 리타게팅
+단계가 구조적으로 제거된다.
 
-## 설계 변천
-
-| 버전 | 구성 | 변경 사유 |
+### 설계 변천
+| 버전 | 핵심 구성 | 전환 사유 |
 |---|---|---|
-| v1 | SAM2 + SuGaR + Unique3D + WHAM (4모델) | 초기 설계. SuGaR로 배경까지 3D 복원 |
-| v2 | SAM2 + TRELLIS + WHAM (3모델) | 최종 목표가 아바타라 배경 3D가 불필요하고, SuGaR는 정적 장면 전제라 움직이는 인물에 부적합해 제외. Unique3D는 라이선스·유지보수 문제로 TRELLIS로 교체 |
-| **v3 (현재)** | v2 + SMPL 골격 직접 리깅 | Mixamo 리타게팅이 자세 붕괴로 실패해 폐기. 골격을 SMPL로 통일해 리타게팅 단계 자체를 제거 |
+| v1 (기획, 미실행) | SAM2 + SuGaR + WHAM, 가우시안 LOD 렌더링 | 조사 단계에서 SuGaR의 동적 인물 부적합 확인, 배경 3D 불필요 → 착수 전 배제 |
+| v2 | Mixamo 리깅 + Unity Humanoid 리타게팅 | 실행 결과 근육 변환에서 관절 동작 소실 → 폐기 |
+| v3 | 품질 게이트(G0~G4)·재시도 오케스트레이터 추가 | 평가·재시도 체계 확립, 리깅 방식은 v2 유지 |
+| v4 (현재) | SMPL 골격 직접 리깅, betas 전달로 골격 통일 | 리타게팅 단계의 구조적 제거 |
+
+<details><summary>v1 구조도 (기획)</summary>
+
+![v1](docs/assets/pipeline_v1.png)
+</details>
+
+<details><summary>v2 구조도 (리타게팅 방식)</summary>
+
+![v2](docs/assets/pipeline_v2.png)
+</details>
+
+<details><summary>v3 구조도 (게이트 추가)</summary>
+
+![v3](docs/assets/pipeline_v3.png)
+</details>
 
 상세 이력과 각 결정의 검증 근거는 [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md)에 있습니다.
 폐기한 리타게팅 시도는 [`scripts/deprecated/README.md`](scripts/deprecated/README.md)를 참고하세요.

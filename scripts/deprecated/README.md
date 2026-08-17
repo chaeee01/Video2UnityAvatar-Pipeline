@@ -4,15 +4,16 @@ SMPL 골격(24본) 동작을 Mixamo 골격(65본) 캐릭터로 옮기기 위해 
 
 | 파일 | 방식 |
 |---|---|
-| `retarget_smpl_to_mixamo.py` | Unity Humanoid 근육(muscle) 변환 경유 |
-| `retarget_v2.py` | Blender 행렬 계산 + rest 방향 offset 보정 |
+| `retarget_smpl_to_mixamo.py` | Blender 행렬 계산 — rest 방향 offset 보정 (`offset = src_rest⁻¹ @ tgt_rest`) |
+| `retarget_constraint_based.py` | Blender 컨스트레인트 — world space Copy Rotation 후 NLA 베이킹 |
 
 ## 폐기 사유
 
-두 방식 모두 자세가 붕괴했습니다.
+세 가지 방식을 시도했고 모두 자세가 붕괴했습니다.
 
-- **Unity Humanoid 근육 변환**: 변환 과정에서 관절 동작이 소실되고 루트 회전만 남았습니다.
-- **rest 방향 보정 (Blender 행렬 계산)**: 팔이 엉키는 자세 붕괴가 발생했고, 리그별 rest 방향 offset의 예외 처리에 실패했습니다.
+- **Unity Humanoid 근육(muscle) 변환**: 변환 과정에서 관절 동작이 소실되고 루트 회전만 남았습니다. Unity 에디터에서 직접 시도한 경로라 이 폴더에 스크립트는 없습니다.
+- **rest 방향 offset 보정** (`retarget_smpl_to_mixamo.py`): 팔이 엉키는 자세 붕괴가 발생했고, 리그별 rest 방향 offset의 예외 처리에 실패했습니다.
+- **컨스트레인트 + 베이킹** (`retarget_constraint_based.py`): 두 리그의 rest가 모두 T포즈라 world space Copy Rotation이 성립한다는 전제로 작성했으나, 마찬가지로 자세가 붕괴했습니다.
 
 ## 대체 방향
 

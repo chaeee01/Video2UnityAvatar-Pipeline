@@ -6,5 +6,6 @@
 *.pt
 *.pth
 *.png
+!docs/assets/*.png
 .DS_Store
 __pycache__/
