@@ -1,6 +1,6 @@
 # 좀비 영상 → 유니티 아바타 파이프라인 — 진행 상황 정리
 
-작성일: 2026-08-11 (최종 갱신: 2026-08-13)
+작성일: 2026-08-11 (최종 갱신: 2026-08-18)
 레포: [Video2UnityAvatar-Pipeline](https://github.com/chaeee01/Video2UnityAvatar-Pipeline) — 초기 이름 `3DGS-Character-Generation-Pipeline`에서 개명. SuGaR(3DGS) 기반 복원을 설계에서 제외하면서 이름이 실제 구성과 어긋나 정리함.
 목표: 좀비 영상 한 편을 입력하면 SAM2로 객체를 분리하고, TRELLIS로 외형을, WHAM으로 동작을 복원한 뒤 유니티 에셋(아바타 + 애니메이션)으로 반입하는 파이프라인 구축.
 
