@@ -164,6 +164,9 @@ WHAM betas(체형) + 키프레임 pose(자세) → 그 좀비와 같은 자세·
 ## 8. 최근 작업
 
 - **2026-08-13 — 레포 정리 완료**: 브랜치 통합(SAM2 노트북 6개를 main으로 merge 후 원격 브랜치 4개 삭제), 구조 재편(`docs/` `notebooks/sam2/` `scripts/` `pipeline/qa/` `docker/`), 흩어져 있던 스크립트 8종 회수, 레포 개명 및 README 갱신.
+- **2026-08-18**: TRELLIS-SMPL 정렬 검증 통과. 자세 일치 육안 확인 — 상체 기울기·스트라이드·팔 위치 대응, 어긋남은 의복 두께 수준. 파라미터: Rot X -90°, Scale 0.588 (TRELLIS 1.001/SMPL 1.702), Location Y -2.58.
+
+![정렬 검증](assets/align_check_frame.png)
 
 ---
 
