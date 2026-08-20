@@ -136,6 +136,7 @@ WHAM betas(체형) + 키프레임 pose(자세) → 그 좀비와 같은 자세·
 | wham_to_smplfbx.py | WHAM pkl → 변환용 형식 | 검증됨 |
 | smpl_pkl_to_fbx.py | pkl → FBX (bpy) | 변환 성공, 리타게팅 미해결 |
 | retarget_smpl_to_mixamo.py / retarget_constraint_based.py | SMPL→Mixamo 리타게팅 (행렬 offset / 컨스트레인트) | 폐기 (`scripts/deprecated/`) |
+| generate_smpl_mesh.py | SMPL 메쉬 생성 (키프레임 자세 + T포즈 + 관절 추출) | 검증됨 |
 | align_smpl_to_trellis.py | TRELLIS-SMPL 자동 정렬 (bbox 기반 스케일·이동, IoU 검증) | 검증됨 |
 | create_smpl_armature.py | SMPL 아마추어 생성·바인딩 (관절 좌표계 자동 보정) | 검증됨 |
 | glb_tex.py | GLB 텍스처 추출 | 검증됨 |
