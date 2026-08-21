@@ -146,7 +146,7 @@ WHAM betas(체형) + 키프레임 pose(자세) → 그 좀비와 같은 자세·
 
 ### 데이터 (Network Volume + 맥북)
 - `/workspace/data/05_wham/zombie_sample1/` — wham_output.pkl, overlay.mp4 등
-- 맥북: wham_output.pkl, zombie_anim2.fbx(동작 정상), GLB 원본, zombie_tex_0/1.png, Mixamo FBX 2종
+- 맥북: wham_output.pkl, zombie_anim2.fbx(동작 정상), GLB 원본, zombie_tex_0/1.png(구 버전 출력명, 현재는 `{glb명}_tex_N.png` 규칙), Mixamo FBX 2종
 - Unity 프로젝트: 텍스처 연결된 좀비 + Mixamo 애니메이션 작동 상태
 
 ### 도구·계정
