@@ -101,5 +101,11 @@ WHAM이 추정한 SMPL 파라미터에서 공식 J_regressor로 관절을 추출
 TRELLIS 생성 메쉬 → Mixamo 리깅 → 텍스처 → Unity Humanoid 반입.
 제3자 애니메이션이 그대로 재생되어 표준 Humanoid 규격 충족을 확인.
 
-### 통합 (SMPL 리깅 + WHAM 동작) — 진행 중
-<!-- SMPL 리깅 완료 후 여기에 최종 데모 추가 -->
+### 통합 (SMPL 리깅 + WHAM 동작) — 완료
+| 원본 영상 | Unity 재생 (리타게팅 없음) |
+|---|---|
+| ![](docs/assets/source_video.gif) | ![](docs/assets/unity_wham_demo.gif) |
+
+영상에서 추정한 WHAM 동작(69프레임)을 SMPL 골격으로 리깅된 TRELLIS
+좀비에 직접 적용해 Unity에서 재생. 골격 통일(v4 설계)로 리타게팅
+단계 없이 원본 보행 패턴이 재현된다.

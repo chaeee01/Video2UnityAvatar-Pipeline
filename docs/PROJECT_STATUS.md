@@ -1,6 +1,6 @@
 # 좀비 영상 → 유니티 아바타 파이프라인 — 진행 상황 정리
 
-작성일: 2026-08-11 (최종 갱신: 2026-08-13)
+작성일: 2026-08-11 (최종 갱신: 2026-08-20)
 레포: [Video2UnityAvatar-Pipeline](https://github.com/chaeee01/Video2UnityAvatar-Pipeline) — 초기 이름 `3DGS-Character-Generation-Pipeline`에서 개명. SuGaR(3DGS) 기반 복원을 설계에서 제외하면서 이름이 실제 구성과 어긋나 정리함.
 목표: 좀비 영상 한 편을 입력하면 SAM2로 객체를 분리하고, TRELLIS로 외형을, WHAM으로 동작을 복원한 뒤 유니티 에셋(아바타 + 애니메이션)으로 반입하는 파이프라인 구축.
 
@@ -136,6 +136,9 @@ WHAM betas(체형) + 키프레임 pose(자세) → 그 좀비와 같은 자세·
 | wham_to_smplfbx.py | WHAM pkl → 변환용 형식 | 검증됨 |
 | smpl_pkl_to_fbx.py | pkl → FBX (bpy) | 변환 성공, 리타게팅 미해결 |
 | retarget_smpl_to_mixamo.py / retarget_constraint_based.py | SMPL→Mixamo 리타게팅 (행렬 offset / 컨스트레인트) | 폐기 (`scripts/deprecated/`) |
+| generate_smpl_mesh.py | SMPL 메쉬 생성 (키프레임 자세 + T포즈 + 관절 추출) | 검증됨 |
+| align_smpl_to_trellis.py | TRELLIS-SMPL 자동 정렬 (bbox 기반 스케일·이동, IoU 검증) | 검증됨 |
+| create_smpl_armature.py | SMPL 아마추어 생성·바인딩 (관절 좌표계 자동 보정) | 검증됨 |
 | glb_tex.py | GLB 텍스처 추출 | 검증됨 |
 | check_tex.py | Blender 텍스처 진단 | 검증됨 |
 | setup_trellis.sh / run_trellis.py | TRELLIS 로컬 설치·실행 | 미실행 (Space로 대체 중), 레포 미반입 |
@@ -143,7 +146,7 @@ WHAM betas(체형) + 키프레임 pose(자세) → 그 좀비와 같은 자세·
 
 ### 데이터 (Network Volume + 맥북)
 - `/workspace/data/05_wham/zombie_sample1/` — wham_output.pkl, overlay.mp4 등
-- 맥북: wham_output.pkl, zombie_anim2.fbx(동작 정상), GLB 원본, zombie_tex_0/1.png, Mixamo FBX 2종
+- 맥북: wham_output.pkl, zombie_anim2.fbx(동작 정상), GLB 원본, zombie_tex_0/1.png(구 버전 출력명, 현재는 `{glb명}_tex_N.png` 규칙), Mixamo FBX 2종
 - Unity 프로젝트: 텍스처 연결된 좀비 + Mixamo 애니메이션 작동 상태
 
 ### 도구·계정
@@ -164,6 +167,49 @@ WHAM betas(체형) + 키프레임 pose(자세) → 그 좀비와 같은 자세·
 ## 8. 최근 작업
 
 - **2026-08-13 — 레포 정리 완료**: 브랜치 통합(SAM2 노트북 6개를 main으로 merge 후 원격 브랜치 4개 삭제), 구조 재편(`docs/` `notebooks/sam2/` `scripts/` `pipeline/qa/` `docker/`), 흩어져 있던 스크립트 8종 회수, 레포 개명 및 README 갱신.
+- **2026-08-18**: TRELLIS-SMPL 정렬 검증 통과. 자세 일치 육안 확인 — 상체 기울기·스트라이드·팔 위치 대응, 어긋남은 의복 두께 수준. 파라미터: Rot X -90°, Scale 0.588 (TRELLIS 1.001/SMPL 1.702), Location Y -2.58.
+
+![정렬 검증](assets/align_check_frame.png)
+
+- **2026-08-20**: 정렬 자동화 검증 — 자동 계산이 수동 측정 재현 (scale 0.5884, offset Y -2.629, bbox IoU 0.717). IoU가 정렬 게이트 판정 지표 후보로 확보됨.
+
+| 항목 | 수동 측정 (08-18) | 자동 계산 (08-20) | 판정 |
+|---|---|---|---|
+| 스케일 | 0.588 | 0.5884 | 일치 |
+| 이동 Y | -2.58 | -2.629 | 일치 (육안 측정 오차 수준) |
+| 이동 X/Z | — | 0.013 / 0.021 | 육안으로 못 잡던 미세 오프셋 보정 |
+| 겹침 | 육안 확인 | IoU 0.717 | 기준(0.5) 상회 |
+
+이미지는 08-18 수동 정렬 캡처와 시각적으로 동일하여 생략. 정렬 상태는 `~/Desktop/aligned.blend` 참조.
+
+### 설계 판단 두 가지
+
+**웨이트 바인딩**: SMPL 공식 LBS 웨이트는 볼륨의 SMPL_NEUTRAL.pkl에만 있어 로컬 작업에서는 Blender Automatic Weights로 바인딩. SMPL 몸체는 토폴로지가 균일해 자동 웨이트 품질이 실용 수준. 스크립트에 `--weights` 옵션을 두어 추후 공식 웨이트(npy)로 교체 가능하게 설계.
+
+**관절 좌표계 자동 보정**: joints json(OBJ 원본 좌표)과 정렬된 메쉬의 좌표계 차이를 수동으로 추정하지 않고, 후보 회전 4개를 시험해 관절-메쉬 최근접 거리 최솟값을 자동 선택. 리타게팅 단계에서 축 추정 실패를 세 차례 겪은 데 대한 재발 방지 설계.
+
+| 후보 회전 | 평균 관절-메쉬 거리 | 판정 |
+|---|---|---|
+| identity | 0.0279 | ✅ 선택 |
+| X+90 | 3.2521 | 탈락 |
+| X-90 | 3.2275 | 탈락 |
+| X180 | 5.0325 | 탈락 |
+
+선택 후보와 차순위가 100배 차이로 판정 명확. 거리 0.028은 관절 중심과 피부 표면 간 해부학적 간격 수준으로, 관절이 메쉬 내부 정위치에 배치됨을 의미.
+
+**포즈 시험 통과**: L_Shoulder·R_Shoulder·R_Knee 회전 시 해당 부위 메쉬가 관절 경계에서 분리되어 자연스럽게 변형됨을 육안 확인.
+
+![포즈 시험 - R_Knee](assets/pose_test_knee.png)
+
+- **2026-08-21**: 캐릭터 에셋 4종 완성 (외형+리깅+텍스처, 애니메이션 없음). 좀비 파이프라인의 외형 경로가 신규 입력 4종에 그대로 재현됨. Mixamo 텍스처 소실 → GLB 추출 재연결 패턴도 동일.
+
+![캐릭터 에셋 4종](assets/char_assets_4.png)
+
+- **2026-08-24**: 4단계 통과 — WHAM 69프레임이 리깅 좀비에서 원본 영상과 동일 패턴으로 재생. 웨이트 전이는 2단계 방식(0.08 정밀 + 전파) 확정. 발견: 찢어진 옷자락은 본체와 분리된 고립 섬(5.4만 정점)이라 자동 전이의 구조적 예외 — 별도 과제로 분리, G1a/G2 게이트에 부유 지오메트리 플래그 요건 추가.
+
+![Blender 재생 검증 (Unity 반입 전 단계)](assets/wham_playback_blender.gif)
+
+- **2026-08-24**: M1 달성 — Unity 반입 완료. Generic Rig로 임포트(rest가 T포즈가 아니므로 Humanoid 근육 변환 회피), Animator 재생으로 원본 영상 동작 재현 확인. 수동 파이프라인 전 구간(영상→SAM2→TRELLIS/WHAM→SMPL 리깅→Unity) 관통.
 
 ---
 
