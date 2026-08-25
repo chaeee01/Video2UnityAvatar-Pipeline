@@ -20,14 +20,14 @@
 - [x] 8/25 화: Unity 반입 — FBX export(동작 포함), Humanoid 설정, 텍스처 연결  → 08-24 완료
 - [x] 8/26 수: 통합 데모 GIF(원본 영상 vs Unity 좀비 나란히) → README "통합" 섹션 채움  → 08-24 완료
 - [x] 8/26 수: **feature/smpl-rigging → main PR 머지** (리깅 전체 검증 완료 시점)  → 08-24 완료
-- [ ] 8/26 수: SAM2 RunPod 이전 — 볼륨에 sam2 환경 설치, try6 → `scripts/run_sam2.py` 정제  
-- [ ] 8/27 목: SAM2 검증(기존 영상 마스크 재현, Colab 결과와 대조) + 커밋  
+- [x] 8/26 수: SAM2 RunPod 이전 — 볼륨에 sam2 환경 설치, try6 → `scripts/run_sam2.py` 정제  → 08-25 완료  
+- [x] 8/27 목: SAM2 검증(기존 영상 마스크 재현, Colab 결과와 대조) + 커밋  → 08-25 완료  
 - [ ] 8/27 목: 수동 파이프라인 runbook 작성 — 영상→에셋 전 단계 명령·순서 문서화 (`docs/RUNBOOK.md`)  
 - [ ] 8/28 금: 좀비 영상 4종 소싱 + 입력 조건 검증(90~600프레임, 팔 벌린 키프레임 등 — G0/G1 수동 적용)  
 - [ ] 8/28 금: **M1 점검** — 완료 조건 대조, 미달 항목 주말 처리 계획  
 - [ ] Jira: 다음 주 카드 발행 (좀비 4종 소싱 반영)
 
-**M1 체크리스트**: ☑ WHAM 동작 좀비 Unity 재생 ☑ 통합 GIF ☑ main 머지 □ runbook □ SAM2 레포 반입
+**M1 체크리스트**: ☑ WHAM 동작 좀비 Unity 재생 ☑ 통합 GIF ☑ main 머지 □ runbook ☑ SAM2 레포 반입
 
 \[8/30 or 8/31 멘토링 회의. 작업리스트 확정\]
 
