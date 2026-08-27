@@ -1,0 +1,346 @@
+# RUNBOOK — 영상 1편 → Unity 에셋 (수동 파이프라인)
+
+좀비 영상 한 편을 넣어 Unity에서 재생되는 애니메이션 에셋을 얻기까지의 실행 절차서.
+자동화(M2) 전까지 사람이 직접 밟는 순서를 그대로 적었다. 설계 배경은
+[PROJECT_STATUS.md](PROJECT_STATUS.md), 일정은 [ROADMAP.md](ROADMAP.md) 참조.
+
+**소요 시간 기준** — 69프레임 테스트 영상 기준이며, 실전 영상은 길이에 비례해 늘어난다:
+Pod 준비 ~5분 · SAM2 ~2분(모델 로딩 포함) · TRELLIS Space 2~10분(대기열에 따라 변동) ·
+WHAM 수 분 · 리깅 4단계 ~10분 · Unity ~15분.
+
+**전제**: 맥북(Blender 4.5 LTS, Unity), RunPod 계정, Network Volume `pipeline-vol`(100GB,
+EU-RO-1), SMPL/SMPLify 계정 인증 완료.
+
+---
+
+## 0. 입력 조건 (G0/G1 수동 적용)
+
+영상을 고르는 단계. 여기서 거른 만큼 뒤 단계가 편해진다.
+
+| 항목 | 조건 | 근거 |
+|---|---|---|
+| 길이 | 90프레임(3초) 이상 ~ 600프레임 이하 | WHAM 추적 안정성 / 처리 시간 |
+| fps | 30fps | 동작 재생 기준 |
+| 해상도 | 720p 이상 | 마스크·메쉬 품질 |
+| 인물 | 1명, 컷 전환 없음 | SAM2 단일 객체 추적 전제 |
+| 크기 | 인물 bbox 높이 256px 이상, 발끝까지 프레임 안 | WHAM 관절 추정 |
+| 가림 | 30% 미만 | 〃 |
+| 카메라 | 고정 (DPVO 미설치, `--estimate_local_only`) | 카메라 이동 시 추가 설치 필요 |
+
+**키프레임 조건 (TRELLIS용)** — 클립 안에 아래를 만족하는 프레임이 1장 이상 있어야 한다:
+전신, 모션블러 없음, **팔이 몸통에서 떨어진 자세**, 정면~3/4 측면.
+
+> 팔 벌린 자세는 취향이 아니라 요건이다. 팔이 몸통에 붙어 있으면 3단계 웨이트 전이에서
+> 팔-몸통 근접부 웨이트가 번진다.
+
+### 확인 포인트
+- `ffprobe <video>`로 fps·해상도·길이를 **실측**한다. 표기와 다를 수 있다.
+- 방위각 45° 이상 차이 나는 양질 프레임이 2장 이상이면 TRELLIS 다중 뷰 경로를 쓸 수 있다.
+
+### 흔한 실패
+- **fps를 표기만 믿음** — 테스트 클립 `zombie_sample1.mp4`는 30fps인 줄 알았으나 실측 24fps였다.
+  뒤 단계의 프레임 번호 계산이 전부 어긋난다.
+- **69프레임짜리로 진행** — 현재 테스트 클립은 90프레임 기준 미달이다. 검증용으로는 쓰되
+  실제 에셋 제작에는 5~10초 클립을 새로 구한다.
+
+---
+
+## 1. Pod 준비
+
+1. RunPod → **Storage** → `pipeline-vol` → **Deploy**. 볼륨에서 배포해야 `/workspace`가 붙는다.
+   (Pods 메뉴에서 새로 만들면 볼륨이 연결되지 않는다.)
+2. GPU 선택: **RTX 4090** ($0.69/hr) 기본. 리전은 볼륨과 같은 **EU-RO-1** 고정 — 다른 리전은
+   애초에 이 볼륨을 붙일 수 없다. VRAM 24GB면 SAM2·WHAM 모두 충분하고, 더 큰 카드는 낭비다.
+3. SSH(Direct TCP)로 접속하고 VSCode Remote-SSH를 붙인다.
+4. 환경 활성화 — 단계마다 **다른 환경**을 쓴다:
+
+```bash
+export MAMBA_ROOT_PREFIX=/workspace/micromamba
+eval "$(/workspace/micromamba/bin/micromamba shell hook -s bash)"
+
+micromamba activate sam2   # 2단계 (python 3.10, torch cu121)
+micromamba activate wham   # 4·5단계 (python 3.9, torch 2.0.0+cu118)
+```
+
+레포 의존성이 충돌(torch 1.11~2.5, CUDA 11.3~12.4)해서 단일 환경으로 합칠 수 없다.
+환경 분리는 우회가 아니라 확정된 원칙이다.
+
+### 확인 포인트
+- `ls /workspace/repos` → `WHAM`, `sam2`가 보이면 볼륨이 제대로 붙은 것이다.
+- `python -c "import torch; print(torch.cuda.is_available(), torch.__version__)"` → `True`.
+- 볼륨은 Pod을 지워도 유지된다(검증 완료). 환경을 다시 만들 필요 없다.
+
+### 흔한 실패
+- **포트 혼동** — Jupyter 포트(8888)는 **브라우저 프록시 전용**이다. `ssh`·`scp`는 RunPod 콘솔의
+  **"SSH over exposed TCP"** 에 표시된 포트를 써야 한다. 8888로 `scp`하면 `Connection refused`가 난다.
+  포트와 IP는 Pod을 재배포할 때마다 바뀌므로 접속 전 콘솔에서 다시 확인한다.
+- **환경 혼동** — `wham` 환경에서 `run_sam2.py`를 돌리면 torch 버전이 맞지 않아 죽는다.
+  프롬프트의 환경 이름을 확인하는 습관을 들인다.
+- **레포를 볼륨 밖에 clone** — `cd /workspace/repos` 없이 clone하면 `/root` 아래로 들어간다.
+  `/workspace` 밖은 Pod을 Terminate하면 **사라진다**. 레포는 항상
+  `/workspace/repos/Video2UnityAvatar-Pipeline`에 둔다.
+- **Stop으로 두기** — Stop은 스토리지가 2배로 과금된다. 작업이 끝나면 반드시 **Terminate**.
+
+---
+
+## 2. SAM2 — 객체 분리 (S2)
+
+```bash
+micromamba activate sam2
+python /workspace/repos/Video2UnityAvatar-Pipeline/scripts/run_sam2.py \
+    --video /workspace/data/00_raw/zombie_sample1.mp4 \
+    --out   /workspace/data/02_sam2/zombie_sample1 \
+    --point 640,360
+```
+
+`--point`는 **첫 프레임에서 좀비가 있는 픽셀 좌표**다. 생략하면 프레임 중앙을 쓴다.
+좌표를 모르겠으면 첫 프레임을 열어 좀비 몸통 한가운데를 찍어 그 좌표를 넣는다.
+
+**산출물** (`--out` 아래):
+
+| 경로 | 용도 |
+|---|---|
+| `masks/00000.png …` | 프레임별 마스크 (흑백) |
+| `<영상명>_masked.mp4` | 배경 검게 지운 클립 → **4단계 WHAM 입력** |
+| `keyframes/key1_f00007.png …` | 알파 키프레임 후보 → **3단계 TRELLIS 입력** |
+| `keyframes/candidates.json` | 후보 선정 근거(프레임·점수·bbox) |
+
+### 확인 포인트
+- 추적 속도 **12it/s** 근처면 정상 (4090, 69프레임 기준).
+- `masks/` 장수 = 원본 프레임 수. 중간에 비면 추적이 끊긴 것이다.
+- 마스킹 클립을 재생해 **좀비만 남고 배경이 검은지**, 중간에 마스크가 튀지 않는지 본다.
+- 키프레임 후보를 열어 **팔이 벌어진 프레임인지** 확인한다. 자동 점수(마스크 폭/높이 × 채움률)가
+  항상 최선을 고르지는 않는다 — `candidates.json`을 보고 직접 골라도 된다.
+
+### 흔한 실패
+- **config-체크포인트 짝 어긋남** — `--model-cfg`와 `--checkpoint`는 **같은 세대**여야 한다.
+  현재 기본값은 `configs/sam2.1/sam2.1_hiera_l.yaml` + `sam2.1_hiera_large.pt` 조합이다.
+  구버전 `sam2_hiera_t.yaml`에 2.1 체크포인트를 물리면 로드 단계에서 죽는다.
+- **`--point`가 배경을 찍음** — 첫 프레임에서 좀비가 화면 중앙에 없으면 기본값이 배경을 잡아
+  엉뚱한 것을 추적한다. 마스크가 이상하면 제일 먼저 이걸 의심한다.
+- **재생 안 되는 클립** — ffmpeg가 없으면 스크립트가 **에러로 멈춘다**(의도된 동작). 예전엔 조용히
+  mp4v로 떨어졌는데 그 결과물이 브라우저·Jupyter에서 재생되지 않아 한참 헤맸다.
+
+---
+
+## 3. TRELLIS — 외형 복원 (S3)
+
+현재는 **HF Space 수동**이다. 로컬 설치는 W2 과제(자동화의 전제 조건).
+
+1. 2단계에서 고른 키프레임 PNG를 맥북으로 내려받는다.
+2. TRELLIS HF Space에 업로드 → 생성 → **GLB 다운로드**.
+3. 좋은 프레임이 2장 이상이면 다중 뷰로 넣는다(방위각 45° 이상 차이).
+
+### 확인 포인트
+- GLB를 Blender에 임포트해 **뒷면**을 본다. 앞면만 그럴듯한 경우가 있다.
+- 얼굴 디테일은 기대하지 않는다 — 좀비 컨셉에서는 허용 범위로 판단했다.
+- 텍스처가 GLB 안에 임베드돼 있는지 확인 (2048×2048 WebP 2장: baseColor, metallicRoughness).
+
+### 흔한 실패
+- **텍스처 소실** — GLB를 FBX로 변환하거나 Mixamo를 경유하면 텍스처가 떨어져 나간다.
+  FBX에서 되살리려 하지 말고 **원본 GLB에서 직접 추출**한다:
+
+  ```bash
+  python scripts/glb_tex.py char1.glb ~/Desktop/char_textures/char1
+  ```
+
+  캐릭터가 여러 개면 출력 폴더를 반드시 나눈다(파일명이 겹친다).
+- **Space 대기열** — 무료 Space는 붐비면 오래 걸린다. 생성 결과를 못 받으면 시간을 두고 재시도.
+
+---
+
+## 4. WHAM — 동작 복원 (S5)
+
+```bash
+micromamba activate wham
+bash /workspace/repos/Video2UnityAvatar-Pipeline/scripts/run_wham.sh \
+    /workspace/data/02_sam2/zombie_sample1/zombie_sample1_masked.mp4
+```
+
+산출물은 `/workspace/data/05_wham/<영상명>/`에 떨어진다:
+`wham_output.pkl`(pose·trans·betas·verts), `overlay.mp4`(재투영 시각화).
+
+### 확인 포인트
+- pkl 형상: `pose (T,72)`, `trans (T,3)`, `betas (T,10)`, `verts (T,6890,3)`.
+- **트랙 1개**여야 한다. 2개 이상이면 다른 객체를 사람으로 잡은 것이다.
+- 포즈 표준편차가 0.4 이상이면 동작이 확실히 잡힌 것 (테스트 클립 0.44).
+- `overlay.mp4`를 재생해 **관절이 좀비 위에 얹혀 있는지** 눈으로 본다. 이게 가장 확실한 검증이다.
+
+### 흔한 실패
+- **원본 영상을 그대로 넣음** — 배경이 남아 있으면 추적이 흔들린다. 2단계의 마스킹 클립을 넣는다.
+- **카메라가 움직이는 영상** — `--estimate_local_only`는 카메라 고정 전제다. 흔들리는 영상은
+  DPVO를 따로 설치해야 한다.
+
+---
+
+## 5. SMPL 리깅 4단계 (S4 + S7)
+
+v4의 핵심 구간. 골격을 SMPL로 통일해 **리타게팅 없이** 동작을 재생한다.
+5-1은 Pod(wham 환경), 5-2~5-5는 **맥북 Blender 4.5 LTS**에서 돈다.
+
+### 5-1. SMPL 메쉬 생성 (Pod)
+
+```bash
+python scripts/generate_smpl_mesh.py \
+    --pkl /workspace/data/05_wham/zombie_sample1/wham_output.pkl \
+    --frame 3
+```
+
+`--frame`은 **TRELLIS에 넣은 키프레임과 같은 번호**여야 한다. 애매하면 `overlay.mp4`에서 그 장면을 찾는다.
+출력(`/workspace/data/06_smpl_mesh/`): `smpl_frame3.obj`, `smpl_tpose.obj`, `joints_frame3.json`, `smpl_faces.npy`.
+
+**확인 포인트** — `smpl_frame3.obj`를 열어 TRELLIS 좀비와 **같은 자세**인지 본다. 이게 맞아야 다음 정렬이 쉬워진다.
+
+### 5-2. 정렬 (맥북)
+
+```bash
+/Applications/Blender4.5.app/Contents/MacOS/Blender --background \
+    --python scripts/align_smpl_to_trellis.py -- \
+    --trellis ~/Downloads/<TRELLIS>.glb \
+    --smpl ~/Desktop/06_smpl_mesh/smpl_frame3.obj \
+    --out ~/Desktop/aligned.blend
+```
+
+**확인 포인트** — 출력되는 **bbox IoU ≥ 0.5**. 테스트 기준 0.717이었다.
+`aligned_params.json`에 scale·offset이 기록되니 이전 실행과 대조할 수 있다.
+
+### 5-3. 아마추어 생성 + 바인딩 (맥북)
+
+```bash
+/Applications/Blender4.5.app/Contents/MacOS/Blender --background \
+    --python scripts/create_smpl_armature.py -- \
+    --blend ~/Desktop/aligned.blend \
+    --joints ~/Desktop/06_smpl_mesh/joints_frame3.json \
+    --out ~/Desktop/rigged.blend
+```
+
+**확인 포인트**
+- 후보 회전 4개 중 선택된 것의 **평균 관절-메쉬 거리 ≤ 0.2** (경고 임계값). 테스트 기준 0.028이었고
+  차순위와 100배 차이였다. 차이가 작으면 좌표계 판정이 애매하다는 뜻이니 결과를 눈으로 확인한다.
+- Blender에서 열어 Pose Mode → `R_Knee`나 `L_Shoulder`를 돌려 본다. **관절 경계에서 메쉬가 자연스럽게 갈라지면** 통과.
+
+### 5-4. 웨이트 전이 (맥북)
+
+```bash
+/Applications/Blender4.5.app/Contents/MacOS/Blender --background \
+    --python scripts/transfer_weights.py -- \
+    --blend ~/Desktop/rigged.blend \
+    --out ~/Desktop/transferred.blend
+```
+
+SMPL 몸체의 웨이트를 TRELLIS 메쉬로 옮긴다. 1차는 0.08m 안쪽만 정밀 전이, 2차는 메쉬 엣지를
+따라(BFS) 전파한다. 공간상 가깝지만 천으로는 떨어진 부위로 웨이트가 건너뛰는 것을 막기 위해서다.
+
+**확인 포인트** — **웨이트 무배정 0%**. 남은 정점이 있으면 로그에 뜬다.
+
+### 5-5. WHAM 동작 베이킹 (맥북)
+
+```bash
+/Applications/Blender4.5.app/Contents/MacOS/Blender --background \
+    --python scripts/apply_wham_pose.py -- \
+    --blend ~/Desktop/transferred.blend \
+    --npz ~/Desktop/wham_pose.npz \
+    --out ~/Desktop/animated.blend \
+    --ref-frame 3
+```
+
+`--ref-frame`은 **5-1의 `--frame`과 같은 번호**여야 한다. 리그의 rest 자세가 그 프레임이라,
+각 프레임 회전을 그 기준의 상대 회전(delta)으로 바꿔 적용하기 때문이다.
+
+`wham_pose.npz`는 WHAM 결과에서 `pose`·`trans`만 뽑은 파일이다. 먼저 변환한다:
+
+```bash
+python3 scripts/convert_wham_npz.py \
+    --pkl ~/Desktop/05_wham/zombie_sample1/wham_output.pkl \
+    --out ~/Desktop/wham_pose.npz
+```
+
+출력되는 프레임 수가 WHAM 클립 길이와 같은지 확인한다. 트랙이 2개 이상이면 경고가 뜨는데,
+사람이 아닌 것을 잡았다는 신호이므로 `overlay.mp4`부터 다시 본다.
+
+**확인 포인트** — Blender에서 재생해 **원본 영상과 같은 보행 패턴**이 나오는지 본다.
+
+### 흔한 실패 (5단계 공통)
+- **Blender 5.2 사용** — 5.2의 FBX 임포터에 조명 객체 파싱 버그가 있다. **4.5 LTS**로 돈다.
+- **`--frame`과 `--ref-frame` 불일치** — 자세가 어긋난 채로 베이킹되어 동작이 뭉개진다.
+- **찢어진 옷자락이 팔을 따라감** — TRELLIS가 본체와 분리해 생성한 고립 섬(테스트 좀비 기준
+  5.4만 정점)은 엣지로 도달할 수 없어 직선거리 폴백이 걸리고, 그 결과 팔에 오배정된다.
+  **구조적 예외이며 미해결**이다 (EH-157). 자락이 크게 흔들리면 이 문제다.
+
+---
+
+## 6. Unity 반입 (S7)
+
+```bash
+/Applications/Blender4.5.app/Contents/MacOS/Blender --background \
+    --python scripts/export_unity_fbx.py -- \
+    --blend ~/Desktop/animated.blend \
+    --out ~/Desktop/zombie_wham.fbx
+```
+
+메쉬 + SMPL 골격 + 웨이트 + 베이킹된 애니메이션이 함께 나간다(보조 메쉬 `SMPL_body`는 제외).
+
+Unity에서:
+1. FBX를 임포트하고 Rig → **Animation Type: Generic**으로 설정한다.
+
+   > **Generic vs Humanoid — 의도된 트레이드오프.** 현재 리그는 rest가 키프레임 자세라
+   > **Generic**으로 반입한다(WHAM 동작 무손실). **Humanoid**(제3자 애니메이션 호환)가 필요하면
+   > `smpl_tpose.obj` 기반으로 **T포즈 rest 리그를 재생성**해야 한다 — 별도 과제 EH-211.
+   > Humanoid로 억지 설정하면 근육 변환 과정에서 동작이 왜곡된다.
+
+2. Material 생성 → URP **Base Map**에 3단계에서 추출한 baseColor 텍스처를 연결한다.
+3. Animator Controller를 만들어 FBX 안의 클립을 물리고 재생한다.
+
+### 확인 포인트
+- 재생했을 때 **원본 영상과 같은 보행 패턴**이 나오면 통과.
+- 메쉬 관통, 발이 바닥을 뚫거나 뜨는지 본다 (G4 항목).
+
+### 흔한 실패
+- **Humanoid로 설정** — 위 트레이드오프 상자를 보라. 동작이 미끄러지거나 팔이 접히면 이걸 의심한다.
+- **텍스처가 회색으로 나옴** — Material 연결을 빠뜨린 것이다. FBX에 텍스처가 임베드돼 있지 않으면
+  3단계에서 추출한 PNG를 직접 연결한다.
+
+---
+
+## 7. 회수 · 정리
+
+Terminate 전에 **반드시** 결과를 맥북으로 내린다. Pod을 지우면 `/workspace` 밖은 사라진다.
+
+```bash
+scp -P <포트> -r root@<IP>:/workspace/data/02_sam2/<이름>/keyframes ~/Desktop/
+scp -P <포트> -r root@<IP>:/workspace/data/05_wham/<이름>       ~/Desktop/
+scp -P <포트> -r root@<IP>:/workspace/data/06_smpl_mesh         ~/Desktop/
+```
+
+회수 목록 체크:
+
+- [ ] SAM2 키프레임 후보 + 마스킹 클립
+- [ ] `wham_output.pkl` + `overlay.mp4`
+- [ ] `smpl_frame<N>.obj`, `smpl_tpose.obj`, `joints_frame<N>.json`
+- [ ] TRELLIS GLB (맥북에서 받았다면 이미 있음)
+- [ ] 최종 `zombie_wham.fbx` + 텍스처 PNG
+- [ ] **Pod Terminate** (Stop 아님 — 스토리지 2배 과금)
+
+`/workspace` 안에 둔 것은 볼륨에 남으므로 다시 받을 필요는 없다. 애매하면 내려두는 편이 싸다.
+
+### 흔한 실패
+- **맥북 쪽 권한(TCC)** — macOS가 터미널의 `~/Downloads`·`~/Desktop` 접근을 막으면 `scp`와 스크립트가
+  `Operation not permitted`로 실패한다. 파일이 보이는데 열리지 않으면 이것이다.
+  시스템 설정 → 개인정보 보호 및 보안 → **전체 디스크 접근 권한**에서 터미널을 허용하고 재시작한다.
+- **Terminate 잊음** — 초당 과금이다. 작업이 끝났으면 바로 지운다.
+
+---
+
+## 부록: 단계별 산출물 한눈에
+
+| 단계 | 입력 | 출력 | 위치 |
+|---|---|---|---|
+| 2. SAM2 | 원본 mp4 | 마스크, 마스킹 클립, 키프레임 후보 | Pod `/workspace/data/02_sam2/` |
+| 3. TRELLIS | 키프레임 PNG | GLB (+ 텍스처 PNG) | 맥북 |
+| 4. WHAM | 마스킹 클립 | `wham_output.pkl`, `overlay.mp4` | Pod `/workspace/data/05_wham/` |
+| 5-1. SMPL 메쉬 | pkl | obj, joints json | Pod `/workspace/data/06_smpl_mesh/` |
+| 5-2. 정렬 | GLB + obj | `aligned.blend` | 맥북 |
+| 5-3. 아마추어 | `aligned.blend` + joints | `rigged.blend` | 맥북 |
+| 5-4. 웨이트 | `rigged.blend` | `transferred.blend` | 맥북 |
+| 5-5. 베이킹 | `transferred.blend` + npz | `animated.blend` | 맥북 |
+| 6. Unity | `animated.blend` | `zombie_wham.fbx` | 맥북 |
