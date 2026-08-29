@@ -1,5 +1,14 @@
 # Video2UnityAvatar-Pipeline
 
+## 프로젝트 맥락
+
+모든 세션 시작 시:
+
+- 프로젝트 상태는 `docs/PROJECT_STATUS.md`의 "최근 작업" 절 참조.
+- 현재 계획 위치는 `docs/ROADMAP.md` 참조.
+- 절차 질문은 `docs/RUNBOOK.md` 참조.
+- 실험 작업은 `feature/` 브랜치에서 진행하고, 검증 후 `main`에 머지하는 것이 규칙.
+
 ## Jira 연동
 
 Jira 작업 시 프로젝트 루트의 `.env`에서 자격증명을 읽어 REST API를 호출한다.
