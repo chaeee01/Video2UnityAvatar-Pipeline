@@ -71,9 +71,17 @@ def setup_env(args):
     os.environ.setdefault("TORCH_HOME", f"{VOL}/.cache/torch")
     os.environ.setdefault("TORCH_EXTENSIONS_DIR", f"{VOL}/.cache/torch_extensions")
     os.environ.setdefault("U2NET_HOME", f"{VOL}/.cache/u2net")
-    # nvdiffrast JIT 빌드가 환경 안의 nvcc 를 쓰도록
+    # nvdiffrast JIT 빌드가 환경 안의 nvcc 와 헤더를 쓰도록 (setup_trellis.sh 의 export 와 같은 3줄).
+    # conda-forge 는 헤더·라이브러리를 targets/ 아래에 두고 include/ 로 링크를 걸어 두는데,
+    # 링크가 없는 버전도 있어 경로를 직접 얹는다. 기존 값이 있으면 그 앞에 붙인다.
     if "CONDA_PREFIX" in os.environ:
-        os.environ.setdefault("CUDA_HOME", os.environ["CONDA_PREFIX"])
+        prefix = os.environ["CONDA_PREFIX"]
+        targets = f"{prefix}/targets/x86_64-linux"
+        os.environ.setdefault("CUDA_HOME", prefix)
+        for var, paths in (("CPATH", [f"{targets}/include"]),
+                           ("LIBRARY_PATH", [f"{targets}/lib", f"{targets}/lib/stubs"])):
+            cur = os.environ.get(var, "")
+            os.environ[var] = ":".join(paths + ([cur] if cur else []))
     sys.path.insert(0, args.trellis_root)
 
 
