@@ -101,7 +101,10 @@ fi
 if [ $CHECK_ONLY = 0 ]; then
     log "[4/8] 기본 패키지"
     pip install "numpy<2" pillow imageio imageio-ffmpeg tqdm easydict opencv-python-headless scipy ninja \
-        rembg onnxruntime trimesh open3d xatlas pyvista pymeshfix igraph transformers
+        rembg onnxruntime trimesh open3d xatlas pyvista pymeshfix igraph "transformers<5"
+    # transformers 5.x 는 torch>=2.5 를 요구해 torch 2.4 에서 PyTorch 백엔드를 스스로 끈다
+    # ("Disabling PyTorch because ..."). 이미지 경로는 transformers 를 타지 않아 지금은
+    # 무해하지만, 텍스트 경로(trellis_text_to_3d)를 쓰면 깨진다. 재설치 재현성을 위해 고정.
     # utils3d 는 upstream 이 커밋을 고정해 둔 것. 최신을 받으면 API 가 달라 postprocessing 이 깨진다.
     python -c "import utils3d" 2>/dev/null || \
         pip install git+https://github.com/EasternJournalist/utils3d.git@9a4eb15e4021b67b12c460c7057d642626897ec8
