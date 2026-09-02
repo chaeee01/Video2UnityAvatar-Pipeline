@@ -160,7 +160,14 @@ import numpy; print("numpy", numpy.__version__)
 for m in ["xformers", "kaolin", "spconv", "nvdiffrast", "diffoctreerast",
           "diff_gaussian_rasterization", "utils3d", "rembg", "open3d"]:
     mod = importlib.import_module(m)
-    print(f"  {m:28s} {getattr(mod, '__version__', 'ok')}")
+    # utils3d 처럼 모듈 수준 __getattr__ 로 하위 모듈을 lazy import 하는 패키지는
+    # 없는 속성에 ModuleNotFoundError 를 던진다. getattr 의 기본값은 AttributeError
+    # 만 잡아주므로 여기서 죽는다. import 성공 여부가 검증 목적이니 버전은 부가정보로.
+    try:
+        v = mod.__version__
+    except Exception:
+        v = "ok"
+    print(f"  {m:28s} {v}")
 from trellis.pipelines import TrellisImageTo3DPipeline
 from trellis.utils import postprocessing_utils
 print("trellis import ok")
