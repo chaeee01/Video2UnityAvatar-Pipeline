@@ -1,0 +1,31 @@
+# 환경 상수만 담는다. 단계별 생성 파라미터는 각 스크립트의 인자 소관이다.
+# 경계와 근거는 docs/CONVENTIONS.md 5절 참조.
+
+volume:     /workspace
+repos:      /workspace/repos
+logs:       /workspace/logs
+cache:      /workspace/.cache
+micromamba: /workspace/micromamba/bin/micromamba
+mamba_root: /workspace/micromamba
+
+envs:
+  sam2:    sam2
+  wham:    wham
+  trellis: trellis
+
+data_root:    /workspace/data
+local_mirror: ~/data
+
+# 폴더 번호는 산출물 생성 순서. S번호와 1:1이 아니다 (CONVENTIONS.md 1절).
+data:
+  raw:       00_raw        # G0 입력
+  pre:       01_pre        # S0 · S1
+  sam2:      02_sam2       # S2
+  trellis:   03_trellis    # S3
+  wham:      04_wham       # S5
+  smpl_mesh: 05_smpl_mesh  # S4 입력
+  rig:       06_rig        # S4 · S6 · S7 중간물
+  unity:     07_unity      # S7 최종
+
+video:
+  fps: 24

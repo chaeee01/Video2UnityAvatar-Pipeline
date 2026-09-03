@@ -7,6 +7,7 @@
 - 프로젝트 상태는 `docs/PROJECT_STATUS.md`의 "최근 작업" 절 참조.
 - 현재 계획 위치는 `docs/ROADMAP.md` 참조.
 - 절차 질문은 `docs/RUNBOOK.md` 참조.
+- 경로·CLI 규약은 `docs/CONVENTIONS.md` 참조.
 - 실험 작업은 `feature/` 브랜치에서 진행하고, 검증 후 `main`에 머지하는 것이 규칙.
 
 ### 파이프라인 v4 단계 (출처: README.md "현재 설계 (v4)")
@@ -43,18 +44,7 @@ WHAM(S5)의 betas를 S4로 전달해 두 경로의 골격을 SMPL로 통일한�
 
 볼륨 공통 — micromamba는 `/workspace/micromamba/bin/micromamba`(전 환경 공통), 레포는 `/workspace/repos/`(이 레포는 `/workspace/repos/Video2UnityAvatar-Pipeline`), 로그는 `/workspace/logs/`, 캐시는 `/workspace/.cache/`(pip, huggingface, torch, torch_extensions, u2net).
 
-| 번호 | 경로 | 근거 |
-|---|---|---|
-| 00 | `data/00_raw` | run_sam2.py |
-| 01 | 미정 | 계획 (ROADMAP W2 목), 미구현 |
-| 02 | `data/02_sam2` | run_sam2.py, run_trellis.py |
-| 03 | `data/03_trellis` | run_trellis.py, setup_trellis.sh |
-| 04 | 미정 | 계획 (ROADMAP W2 목), 미구현 |
-| 05 | `data/05_wham` | run_wham.sh, generate_smpl_mesh.py, convert_wham_npz.py |
-| 06 | `data/06_smpl_mesh` | generate_smpl_mesh.py |
-| 07 | 미정 (`07_unity` 예정) | 계획 (ROADMAP W2 목), 미구현 |
-
-S번호와 `data/` 번호는 1:1이 아니다 (예: `06_smpl_mesh`는 S4 산출물). 번호를 추정하지 말 것.
+`data/` 번호는 `00_raw` · `01_pre` · `02_sam2` · `03_trellis` · `04_wham` · `05_smpl_mesh` · `06_rig` · `07_unity` 순이다. 폴더 번호는 산출물 생성 순서이고 **S번호와는 독립된 식별자**라 1:1이 아니다 — 번호를 보고 단계를 추정하지 말 것. 번호별 내용·구번호 대응표·맥북 미러(`~/data/`) 규약은 `docs/CONVENTIONS.md` 참조.
 
 `sam2` 환경은 setup 스크립트가 없다 — 수동 설치라 재현 절차 미확보.
 
