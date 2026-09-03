@@ -39,10 +39,12 @@ from tqdm import tqdm
 
 def parse_args():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--video", default="/workspace/data/00_raw/zombie_sample1.mp4",
-                    help="입력 영상")
-    ap.add_argument("--out", default="/workspace/data/02_sam2/zombie_sample1",
-                    help="출력 폴더")
+    # 샘플명을 기본값에 박지 않는다 (docs/CONVENTIONS.md 2절). 규약 경로는
+    # /workspace/data/00_raw/<샘플>.mp4 -> /workspace/data/02_sam2/<샘플>/ 이다.
+    ap.add_argument("--video", required=True,
+                    help="입력 영상 (예: /workspace/data/00_raw/zombie_sample1.mp4)")
+    ap.add_argument("--out", required=True,
+                    help="출력 폴더 (예: /workspace/data/02_sam2/zombie_sample1)")
     ap.add_argument("--point", default=None,
                     help="첫 프레임의 좀비 좌표 'x,y'. 생략 시 프레임 중앙")
     ap.add_argument("--sam2-root", default="/workspace/repos/sam2",

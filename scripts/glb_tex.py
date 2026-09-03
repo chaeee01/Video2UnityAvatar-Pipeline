@@ -1,10 +1,22 @@
-import sys, os, io, json, struct
+"""
+GLB 에 임베드된 텍스처를 PNG 로 추출한다 (S3 보조).
+
+  python glb_tex.py <glb> [출력폴더]
+
+인자는 위치 인자다 — run_trellis.py 가 이 순서로 호출하고 RUNBOOK 예시도 같다.
+여러 GLB 를 돌릴 때는 캐릭터별로 출력 폴더를 나눠야 파일명이 겹치지 않는다.
+"""
+import argparse, os, io, json, struct
 from PIL import Image
 
-glb = sys.argv[1]
-# 두 번째 인자로 출력 폴더 지정 (없으면 기존 기본값). 여러 GLB를 돌릴 때
-# 캐릭터별 폴더를 줘야 파일명이 겹치지 않는다.
-out = os.path.expanduser(sys.argv[2] if len(sys.argv) > 2 else "~/Desktop/zombie_textures")
+ap = argparse.ArgumentParser(description="GLB 임베드 텍스처를 PNG 로 추출")
+ap.add_argument("glb", help="입력 GLB 파일")
+ap.add_argument("out", nargs="?", default="~/Desktop/zombie_textures",
+                help="출력 폴더 (기본: ~/Desktop/zombie_textures)")
+a = ap.parse_args()
+
+glb = os.path.expanduser(a.glb)
+out = os.path.expanduser(a.out)
 os.makedirs(out, exist_ok=True)
 prefix = os.path.splitext(os.path.basename(glb))[0]
 

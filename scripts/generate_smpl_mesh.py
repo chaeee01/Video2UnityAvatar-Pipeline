@@ -2,7 +2,7 @@
 """
 SMPL 리깅 1단계: WHAM 결과에서 SMPL 메쉬를 뽑아냅니다.
 
-출력 (기본 /workspace/data/06_smpl_mesh/):
+출력 (기본 /workspace/data/05_smpl_mesh/):
   smpl_frame<N>.obj   키프레임 자세의 SMPL 메쉬 — TRELLIS 메쉬와 정렬할 대상
   smpl_tpose.obj      같은 체형(betas)의 T포즈 메쉬 — 골격 기준 확인용
   joints_frame<N>.json  24관절 3D 위치 — 이후 아마추어 생성에 사용
@@ -10,7 +10,7 @@ SMPL 리깅 1단계: WHAM 결과에서 SMPL 메쉬를 뽑아냅니다.
 
 실행 (Pod, wham 환경):
   python generate_smpl_mesh.py \
-      --pkl /workspace/data/05_wham/zombie_sample1/wham_output.pkl \
+      --pkl /workspace/data/04_wham/zombie_sample1/wham_output.pkl \
       --frame 0
 
 --frame 은 TRELLIS에 넣었던 키프레임과 같은 프레임 번호를 지정하세요.
@@ -39,7 +39,8 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--pkl", required=True)
     ap.add_argument("--frame", type=int, default=0)
-    ap.add_argument("--out", default="/workspace/data/06_smpl_mesh")
+    ap.add_argument("--out", default="/workspace/data/05_smpl_mesh",
+                    help="출력 폴더 (규약 경로, docs/CONVENTIONS.md 1절)")
     ap.add_argument("--smpl-dir", default=SMPL_DIR)
     a = ap.parse_args()
 

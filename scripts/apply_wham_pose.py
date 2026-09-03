@@ -36,7 +36,7 @@ def parse_args():
     ap.add_argument("--out", required=True)
     ap.add_argument("--rig-name", default="SMPL_rig")
     ap.add_argument("--smpl-name", default="SMPL_body")
-    ap.add_argument("--ref-frame", type=int, default=3,
+    ap.add_argument("--frame", type=int, default=3,
                     help="리그 rest 에 해당하는 프레임 (메쉬 생성 프레임)")
     ap.add_argument("--fps", type=int, default=24)
     return ap.parse_args(argv)
@@ -77,7 +77,7 @@ def main():
     pose = data["pose"].reshape(-1, 24, 3)   # (T,24,3)
     trans = data["trans"]                    # (T,3)
     T = len(pose)
-    ref = a.ref_frame
+    ref = a.frame
     print(f"[1/3] pose {pose.shape}, 기준 프레임 {ref}")
 
     # 좌표 변환: WHAM 공간 -> 아마추어(월드) 공간

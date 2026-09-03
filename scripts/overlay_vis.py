@@ -6,11 +6,14 @@ PARENTS = [-1,0,0,0,1,2,3,4,5,6,7,8,9,9,9,12,13,14,16,17,18,19,20,21]
 ap = argparse.ArgumentParser()
 ap.add_argument("--pkl", required=True)
 ap.add_argument("--video", required=True)
-ap.add_argument("--smpl", default="/workspace/repos/WHAM/dataset/body_models/smpl/SMPL_NEUTRAL.pkl")
+# --smpl-model: align_smpl_to_trellis.py 의 --smpl(SMPL OBJ 메쉬)과 이름이 겹치지 않도록
+# 구분한다. 여기서 받는 건 SMPL 공식 모델 pkl 이다.
+ap.add_argument("--smpl-model", default="/workspace/repos/WHAM/dataset/body_models/smpl/SMPL_NEUTRAL.pkl",
+                help="SMPL 공식 모델 pkl (J_regressor 용)")
 a = ap.parse_args()
 
 # SMPL 공식 J_regressor 로 정점에서 관절 추출
-with open(a.smpl, "rb") as f:
+with open(a.smpl_model, "rb") as f:
     smpl = pickle.load(f, encoding="latin1")
 J = smpl["J_regressor"]
 if hasattr(J, "toarray"):
