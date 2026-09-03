@@ -6,9 +6,9 @@ aligned.blend(2단계 출력)를 열어 joints json의 24관절 위치에 SMPL �
 
   /Applications/Blender4.5.app/Contents/MacOS/Blender --background \
       --python create_smpl_armature.py -- \
-      --blend ~/Desktop/aligned.blend \
-      --joints ~/Desktop/06_smpl_mesh/joints_frame3.json \
-      --out ~/Desktop/rigged.blend
+      --blend ~/data/06_rig/zombie_sample1/aligned.blend \
+      --joints ~/data/05_smpl_mesh/zombie_sample1/joints_frame3.json \
+      --out ~/data/06_rig/zombie_sample1/rigged.blend
 
 좌표계 자동 보정:
   json 관절은 OBJ 원본 좌표계이고 메쉬는 정렬 변환이 적용된 상태입니다.

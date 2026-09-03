@@ -7,8 +7,8 @@ TRELLIS 좀비뿐입니다.
 
   /Applications/Blender4.5.app/Contents/MacOS/Blender --background \
       --python export_unity_fbx.py -- \
-      --blend ~/Desktop/animated.blend \
-      --out ~/Desktop/zombie_wham.fbx
+      --blend ~/data/06_rig/zombie_sample1/animated.blend \
+      --out ~/data/07_unity/zombie_sample1/zombie_wham.fbx
 """
 import argparse
 import sys

@@ -6,9 +6,9 @@ SMPL 리깅 2단계: TRELLIS 메쉬와 SMPL 메쉬 자동 정렬.
 
   /Applications/Blender4.5.app/Contents/MacOS/Blender --background \
       --python align_smpl_to_trellis.py -- \
-      --trellis ~/Downloads/sample_2026-08-03T073636.203.glb \
-      --smpl ~/Desktop/06_smpl_mesh/smpl_frame3.obj \
-      --out ~/Desktop/aligned.blend
+      --trellis ~/data/03_trellis/zombie_sample1/zombie_sample1.glb \
+      --smpl ~/data/05_smpl_mesh/zombie_sample1/smpl_frame3.obj \
+      --out ~/data/06_rig/zombie_sample1/aligned.blend
 
 검증된 기본값: --rot-x -90 (WHAM 카메라 좌표계 -> Z-up 보정)
 

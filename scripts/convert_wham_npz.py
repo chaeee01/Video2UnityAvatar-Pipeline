@@ -6,8 +6,8 @@ apply_wham_pose.py 가 읽는 형식으로 맞춰 주는 다리 역할입니다.
 하던 변환을 스크립트로 고정했습니다.
 
   python convert_wham_npz.py \
-      --pkl /workspace/data/05_wham/zombie_sample1/wham_output.pkl \
-      --out ~/Desktop/wham_pose.npz
+      --pkl ~/data/04_wham/zombie_sample1/wham_output.pkl \
+      --out ~/data/06_rig/zombie_sample1/wham_pose.npz
 
 출력 npz 키:
   pose   (T, 72)  프레임별 24관절 axis-angle

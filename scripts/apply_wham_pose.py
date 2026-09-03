@@ -8,9 +8,9 @@ transferred.blend 의 SMPL_rig 에 WHAM pose(69프레임)를 키프레임으로 
 
   /Applications/Blender4.5.app/Contents/MacOS/Blender --background \
       --python apply_wham_pose.py -- \
-      --blend ~/Desktop/transferred.blend \
-      --npz ~/Desktop/wham_pose.npz \
-      --out ~/Desktop/animated.blend
+      --blend ~/data/06_rig/zombie_sample1/transferred.blend \
+      --npz ~/data/06_rig/zombie_sample1/wham_pose.npz \
+      --out ~/data/06_rig/zombie_sample1/animated.blend
 """
 import argparse
 import sys

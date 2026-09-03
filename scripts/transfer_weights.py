@@ -9,8 +9,8 @@ SMPL 리깅 3단계-③ (v3): SMPL 웨이트를 TRELLIS 메쉬로 2단계 전이
 
   /Applications/Blender4.5.app/Contents/MacOS/Blender --background \
       --python transfer_weights.py -- \
-      --blend ~/Desktop/rigged.blend \
-      --out ~/Desktop/transferred.blend
+      --blend ~/data/06_rig/zombie_sample1/rigged.blend \
+      --out ~/data/06_rig/zombie_sample1/transferred.blend
 """
 import argparse
 import sys
