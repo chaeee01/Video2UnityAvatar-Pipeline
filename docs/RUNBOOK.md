@@ -58,15 +58,16 @@ EU-RO-1), SMPL/SMPLify 계정 인증 완료.
 export MAMBA_ROOT_PREFIX=/workspace/micromamba
 eval "$(/workspace/micromamba/bin/micromamba shell hook -s bash)"
 
-micromamba activate sam2   # 2단계 (python 3.10, torch cu121)
-micromamba activate wham   # 4·5단계 (python 3.9, torch 2.0.0+cu118)
+micromamba activate sam2      # 2단계 (python 3.10, torch cu121)
+micromamba activate trellis   # 3단계 (python 3.10, torch 2.4.0+cu121, CUDA 툴체인 내장)
+micromamba activate wham      # 4·5단계 (python 3.9, torch 2.0.0+cu118)
 ```
 
 레포 의존성이 충돌(torch 1.11~2.5, CUDA 11.3~12.4)해서 단일 환경으로 합칠 수 없다.
 환경 분리는 우회가 아니라 확정된 원칙이다.
 
 ### 확인 포인트
-- `ls /workspace/repos` → `WHAM`, `sam2`가 보이면 볼륨이 제대로 붙은 것이다.
+- `ls /workspace/repos` → `WHAM`, `sam2`, `TRELLIS`가 보이면 볼륨이 제대로 붙은 것이다.
 - `python -c "import torch; print(torch.cuda.is_available(), torch.__version__)"` → `True`.
 - 볼륨은 Pod을 지워도 유지된다(검증 완료). 환경을 다시 만들 필요 없다.
 
@@ -125,27 +126,58 @@ python /workspace/repos/Video2UnityAvatar-Pipeline/scripts/run_sam2.py \
 
 ## 3. TRELLIS — 외형 복원 (S3)
 
-현재는 **HF Space 수동**이다. 로컬 설치는 W2 과제(자동화의 전제 조건).
+```bash
+micromamba activate trellis
+python /workspace/repos/Video2UnityAvatar-Pipeline/scripts/run_trellis.py \
+    --image /workspace/data/02_sam2/zombie_sample1/keyframes/key3_f00007.png \
+    --out   /workspace/data/03_trellis/zombie_sample1 \
+    --video
+```
 
-1. 2단계에서 고른 키프레임 PNG를 맥북으로 내려받는다.
-2. TRELLIS HF Space에 업로드 → 생성 → **GLB 다운로드**.
-3. 좋은 프레임이 2장 이상이면 다중 뷰로 넣는다(방위각 45° 이상 차이).
+`--image`는 2단계 `keyframes/`에서 고른 RGBA PNG다. 좋은 프레임이 2장 이상이면 여러 개를
+넘긴다(방위각 45° 이상 차이). `--video`는 턴테이블 mp4를 함께 렌더한다(+1~2분, 육안 확인용).
+
+**산출물** (`--out` 아래):
+
+| 경로 | 용도 |
+|---|---|
+| `<이름>.glb` | 메쉬 + 베이크 텍스처 → **5-2 정렬 입력** |
+| `textures/<이름>_tex_0.png` | 2048² 텍스처 → **Unity Material** |
+| `input_0.png` | 모델이 실제로 본 전처리 입력(알파 crop → 518²). G1a 디버깅용 |
+| `params.json` | 입력·파라미터·시간·VRAM·메쉬 통계 |
+| `preview_gs.mp4` / `preview_mesh.mp4` | `--video` 지정 시 턴테이블 |
+
+**소요 시간** (4090, 키프레임 1장, 2026-09-02 실측):
+
+| 구간 | 첫 실행 | 이후 |
+|---|---|---|
+| 모델 다운로드 + 로드 | ~80s | 볼륨 캐시라 대부분 생략 |
+| 생성 | ~6s | ~6s |
+| GLB 변환 (단순화 + 2048² 베이킹) | ~20s | ~20s |
+| **총계** | **~111s** | **~26s** |
 
 ### 확인 포인트
+- `params.json`의 `input_has_alpha`가 `true`인지 본다. `false`면 rembg가 배경을 뗀 것이라
+  마스크 품질을 의심해야 한다 (로그에 `[경고] 알파 없음`이 찍힌다).
+- `peak_vram_gb` **~9.7GB** (24GB 중 40%). 크게 벗어나면 파라미터가 달라진 것이다.
+- 정점·면 수도 `params.json`에 남는다 (실측 4,770 / 6,552). 이전 실행과 대조한다.
 - GLB를 Blender에 임포트해 **뒷면**을 본다. 앞면만 그럴듯한 경우가 있다.
 - 얼굴 디테일은 기대하지 않는다 — 좀비 컨셉에서는 허용 범위로 판단했다.
-- 텍스처가 GLB 안에 임베드돼 있는지 확인 (2048×2048 WebP 2장: baseColor, metallicRoughness).
 
 ### 흔한 실패
+- **환경 혼동** — `trellis` 환경에서 돌려야 한다. `wham`/`sam2`에는 TRELLIS가 없다.
+- **알파 없는 입력** — SAM2 키프레임은 RGBA라 정상이지만, 다른 경로로 만든 PNG를 넣으면
+  rembg(u2net)를 타서 마스크가 달라진다. 경고를 흘려보내지 않는다.
+- **transformers 배너** — 실행 첫머리의 `[transformers] Disabling PyTorch …` 두 줄은
+  무해하다. 이미지 경로는 transformers를 타지 않는다.
 - **텍스처 소실** — GLB를 FBX로 변환하거나 Mixamo를 경유하면 텍스처가 떨어져 나간다.
   FBX에서 되살리려 하지 말고 **원본 GLB에서 직접 추출**한다:
 
   ```bash
-  python scripts/glb_tex.py char1.glb ~/Desktop/char_textures/char1
+  python scripts/glb_tex.py char1.glb ~/data/03_trellis/char1/textures
   ```
 
   캐릭터가 여러 개면 출력 폴더를 반드시 나눈다(파일명이 겹친다).
-- **Space 대기열** — 무료 Space는 붐비면 오래 걸린다. 생성 결과를 못 받으면 시간을 두고 재시도.
 
 ---
 
@@ -157,7 +189,8 @@ bash /workspace/repos/Video2UnityAvatar-Pipeline/scripts/run_wham.sh \
     /workspace/data/02_sam2/zombie_sample1/zombie_sample1_masked.mp4
 ```
 
-산출물은 `/workspace/data/05_wham/<영상명>/`에 떨어진다:
+출력 폴더는 `--out`으로 바꿀 수 있고, 기본값은 규약 경로 `/workspace/data/04_wham`이다.
+산출물은 `/workspace/data/04_wham/<영상명>/`에 떨어진다:
 `wham_output.pkl`(pose·trans·betas·verts), `overlay.mp4`(재투영 시각화).
 
 ### 확인 포인트
@@ -182,12 +215,12 @@ v4의 핵심 구간. 골격을 SMPL로 통일해 **리타게팅 없이** 동작�
 
 ```bash
 python scripts/generate_smpl_mesh.py \
-    --pkl /workspace/data/05_wham/zombie_sample1/wham_output.pkl \
+    --pkl /workspace/data/04_wham/zombie_sample1/wham_output.pkl \
     --frame 3
 ```
 
 `--frame`은 **TRELLIS에 넣은 키프레임과 같은 번호**여야 한다. 애매하면 `overlay.mp4`에서 그 장면을 찾는다.
-출력(`/workspace/data/06_smpl_mesh/`): `smpl_frame3.obj`, `smpl_tpose.obj`, `joints_frame3.json`, `smpl_faces.npy`.
+출력(`/workspace/data/05_smpl_mesh/`): `smpl_frame3.obj`, `smpl_tpose.obj`, `joints_frame3.json`, `smpl_faces.npy`.
 
 **확인 포인트** — `smpl_frame3.obj`를 열어 TRELLIS 좀비와 **같은 자세**인지 본다. 이게 맞아야 다음 정렬이 쉬워진다.
 
@@ -196,9 +229,9 @@ python scripts/generate_smpl_mesh.py \
 ```bash
 /Applications/Blender4.5.app/Contents/MacOS/Blender --background \
     --python scripts/align_smpl_to_trellis.py -- \
-    --trellis ~/Downloads/<TRELLIS>.glb \
-    --smpl ~/Desktop/06_smpl_mesh/smpl_frame3.obj \
-    --out ~/Desktop/aligned.blend
+    --trellis ~/data/03_trellis/zombie_sample1/zombie_sample1.glb \
+    --smpl ~/data/05_smpl_mesh/zombie_sample1/smpl_frame3.obj \
+    --out ~/data/06_rig/zombie_sample1/aligned.blend
 ```
 
 **확인 포인트** — 출력되는 **bbox IoU ≥ 0.5**. 테스트 기준 0.717이었다.
@@ -209,9 +242,9 @@ python scripts/generate_smpl_mesh.py \
 ```bash
 /Applications/Blender4.5.app/Contents/MacOS/Blender --background \
     --python scripts/create_smpl_armature.py -- \
-    --blend ~/Desktop/aligned.blend \
-    --joints ~/Desktop/06_smpl_mesh/joints_frame3.json \
-    --out ~/Desktop/rigged.blend
+    --blend ~/data/06_rig/zombie_sample1/aligned.blend \
+    --joints ~/data/05_smpl_mesh/zombie_sample1/joints_frame3.json \
+    --out ~/data/06_rig/zombie_sample1/rigged.blend
 ```
 
 **확인 포인트**
@@ -224,8 +257,8 @@ python scripts/generate_smpl_mesh.py \
 ```bash
 /Applications/Blender4.5.app/Contents/MacOS/Blender --background \
     --python scripts/transfer_weights.py -- \
-    --blend ~/Desktop/rigged.blend \
-    --out ~/Desktop/transferred.blend
+    --blend ~/data/06_rig/zombie_sample1/rigged.blend \
+    --out ~/data/06_rig/zombie_sample1/transferred.blend
 ```
 
 SMPL 몸체의 웨이트를 TRELLIS 메쉬로 옮긴다. 1차는 0.08m 안쪽만 정밀 전이, 2차는 메쉬 엣지를
@@ -238,21 +271,21 @@ SMPL 몸체의 웨이트를 TRELLIS 메쉬로 옮긴다. 1차는 0.08m 안쪽만
 ```bash
 /Applications/Blender4.5.app/Contents/MacOS/Blender --background \
     --python scripts/apply_wham_pose.py -- \
-    --blend ~/Desktop/transferred.blend \
-    --npz ~/Desktop/wham_pose.npz \
-    --out ~/Desktop/animated.blend \
-    --ref-frame 3
+    --blend ~/data/06_rig/zombie_sample1/transferred.blend \
+    --npz ~/data/06_rig/zombie_sample1/wham_pose.npz \
+    --out ~/data/06_rig/zombie_sample1/animated.blend \
+    --frame 3
 ```
 
-`--ref-frame`은 **5-1의 `--frame`과 같은 번호**여야 한다. 리그의 rest 자세가 그 프레임이라,
+`--frame`은 **5-1의 `--frame`과 같은 번호**여야 한다. 리그의 rest 자세가 그 프레임이라,
 각 프레임 회전을 그 기준의 상대 회전(delta)으로 바꿔 적용하기 때문이다.
 
 `wham_pose.npz`는 WHAM 결과에서 `pose`·`trans`만 뽑은 파일이다. 먼저 변환한다:
 
 ```bash
 python3 scripts/convert_wham_npz.py \
-    --pkl ~/Desktop/05_wham/zombie_sample1/wham_output.pkl \
-    --out ~/Desktop/wham_pose.npz
+    --pkl ~/data/04_wham/zombie_sample1/wham_output.pkl \
+    --out ~/data/06_rig/zombie_sample1/wham_pose.npz
 ```
 
 출력되는 프레임 수가 WHAM 클립 길이와 같은지 확인한다. 트랙이 2개 이상이면 경고가 뜨는데,
@@ -262,7 +295,7 @@ python3 scripts/convert_wham_npz.py \
 
 ### 흔한 실패 (5단계 공통)
 - **Blender 5.2 사용** — 5.2의 FBX 임포터에 조명 객체 파싱 버그가 있다. **4.5 LTS**로 돈다.
-- **`--frame`과 `--ref-frame` 불일치** — 자세가 어긋난 채로 베이킹되어 동작이 뭉개진다.
+- **5-1과 5-5의 `--frame` 불일치** — 자세가 어긋난 채로 베이킹되어 동작이 뭉개진다.
 - **찢어진 옷자락이 팔을 따라감** — TRELLIS가 본체와 분리해 생성한 고립 섬(테스트 좀비 기준
   5.4만 정점)은 엣지로 도달할 수 없어 직선거리 폴백이 걸리고, 그 결과 팔에 오배정된다.
   **구조적 예외이며 미해결**이다 (EH-157). 자락이 크게 흔들리면 이 문제다.
@@ -274,8 +307,8 @@ python3 scripts/convert_wham_npz.py \
 ```bash
 /Applications/Blender4.5.app/Contents/MacOS/Blender --background \
     --python scripts/export_unity_fbx.py -- \
-    --blend ~/Desktop/animated.blend \
-    --out ~/Desktop/zombie_wham.fbx
+    --blend ~/data/06_rig/zombie_sample1/animated.blend \
+    --out ~/data/07_unity/zombie_sample1/zombie_wham.fbx
 ```
 
 메쉬 + SMPL 골격 + 웨이트 + 베이킹된 애니메이션이 함께 나간다(보조 메쉬 `SMPL_body`는 제외).
@@ -307,26 +340,34 @@ Unity에서:
 Terminate 전에 **반드시** 결과를 맥북으로 내린다. Pod을 지우면 `/workspace` 밖은 사라진다.
 
 ```bash
-scp -P <포트> -r root@<IP>:/workspace/data/02_sam2/<이름>/keyframes ~/Desktop/
-scp -P <포트> -r root@<IP>:/workspace/data/05_wham/<이름>       ~/Desktop/
-scp -P <포트> -r root@<IP>:/workspace/data/06_smpl_mesh         ~/Desktop/
+mkdir -p ~/data/02_sam2 ~/data/03_trellis ~/data/04_wham ~/data/05_smpl_mesh
+
+scp -r runpod:/workspace/data/02_sam2/<이름>      ~/data/02_sam2/
+scp -r runpod:/workspace/data/03_trellis/<이름>   ~/data/03_trellis/
+scp -r runpod:/workspace/data/04_wham/<이름>      ~/data/04_wham/
+scp -r runpod:/workspace/data/05_smpl_mesh/<이름> ~/data/05_smpl_mesh/
 ```
+
+IP·포트를 명령에 적지 않는다. 접속 정보는 `~/.ssh/config`의 `Host runpod` 한 곳에서만
+관리하고, Pod을 새로 띄우면 그 항목의 `HostName`·`Port`만 갱신한다.
 
 회수 목록 체크:
 
 - [ ] SAM2 키프레임 후보 + 마스킹 클립
 - [ ] `wham_output.pkl` + `overlay.mp4`
 - [ ] `smpl_frame<N>.obj`, `smpl_tpose.obj`, `joints_frame<N>.json`
-- [ ] TRELLIS GLB (맥북에서 받았다면 이미 있음)
+- [ ] TRELLIS GLB + `textures/` + `params.json`
 - [ ] 최종 `zombie_wham.fbx` + 텍스처 PNG
 - [ ] **Pod Terminate** (Stop 아님 — 스토리지 2배 과금)
 
 `/workspace` 안에 둔 것은 볼륨에 남으므로 다시 받을 필요는 없다. 애매하면 내려두는 편이 싸다.
 
 ### 흔한 실패
-- **맥북 쪽 권한(TCC)** — macOS가 터미널의 `~/Downloads`·`~/Desktop` 접근을 막으면 `scp`와 스크립트가
-  `Operation not permitted`로 실패한다. 파일이 보이는데 열리지 않으면 이것이다.
+- **맥북 쪽 권한(TCC)** — macOS가 터미널의 `~/Downloads`·`~/Desktop`·`~/Documents` 접근을 막으면
+  `scp`와 스크립트가 `Operation not permitted`로 실패한다. 파일이 보이는데 열리지 않으면 이것이다.
   시스템 설정 → 개인정보 보호 및 보안 → **전체 디스크 접근 권한**에서 터미널을 허용하고 재시작한다.
+  규약 경로 `~/data`는 TCC 보호 대상이 아니라 이 문제를 피한다 — 예전 산출물이 `~/Desktop`에
+  남아 있을 때만 해당된다.
 - **Terminate 잊음** — 초당 과금이다. 작업이 끝났으면 바로 지운다.
 
 ---
@@ -336,9 +377,9 @@ scp -P <포트> -r root@<IP>:/workspace/data/06_smpl_mesh         ~/Desktop/
 | 단계 | 입력 | 출력 | 위치 |
 |---|---|---|---|
 | 2. SAM2 | 원본 mp4 | 마스크, 마스킹 클립, 키프레임 후보 | Pod `/workspace/data/02_sam2/` |
-| 3. TRELLIS | 키프레임 PNG | GLB (+ 텍스처 PNG) | 맥북 |
-| 4. WHAM | 마스킹 클립 | `wham_output.pkl`, `overlay.mp4` | Pod `/workspace/data/05_wham/` |
-| 5-1. SMPL 메쉬 | pkl | obj, joints json | Pod `/workspace/data/06_smpl_mesh/` |
+| 3. TRELLIS | 키프레임 PNG | GLB, 텍스처 PNG, `params.json` | Pod `/workspace/data/03_trellis/` |
+| 4. WHAM | 마스킹 클립 | `wham_output.pkl`, `overlay.mp4` | Pod `/workspace/data/04_wham/` |
+| 5-1. SMPL 메쉬 | pkl | obj, joints json | Pod `/workspace/data/05_smpl_mesh/` |
 | 5-2. 정렬 | GLB + obj | `aligned.blend` | 맥북 |
 | 5-3. 아마추어 | `aligned.blend` + joints | `rigged.blend` | 맥북 |
 | 5-4. 웨이트 | `rigged.blend` | `transferred.blend` | 맥북 |
