@@ -2,7 +2,7 @@
 """
 SMPL 리깅 1단계: WHAM 결과에서 SMPL 메쉬를 뽑아냅니다.
 
-출력 (기본 /workspace/data/05_smpl_mesh/):
+출력 (기본 /workspace/data/05_smpl_mesh/<샘플명>/):
   smpl_frame<N>.obj   키프레임 자세의 SMPL 메쉬 — TRELLIS 메쉬와 정렬할 대상
   smpl_tpose.obj      같은 체형(betas)의 T포즈 메쉬 — 골격 기준 확인용
   joints_frame<N>.json  24관절 3D 위치 — 이후 아마추어 생성에 사용
@@ -10,8 +10,10 @@ SMPL 리깅 1단계: WHAM 결과에서 SMPL 메쉬를 뽑아냅니다.
 
 실행 (Pod, wham 환경):
   python generate_smpl_mesh.py \
-      --pkl /workspace/data/04_wham/zombie_sample1/wham_output.pkl \
+      --pkl /workspace/data/04_wham/zombie_sample1_masked/wham_output.pkl \
       --frame 0
+  # 산출물은 <out>/<샘플명>/ 에 들어간다. 샘플명은 --name 으로 지정하거나
+  # --pkl 상위 폴더명에서 유추한다 (zombie_sample1_masked → zombie_sample1).
 
 --frame 은 TRELLIS에 넣었던 키프레임과 같은 프레임 번호를 지정하세요.
 어느 프레임인지 애매하면 overlay.mp4를 보고 그 장면의 번호를 찾으면 됩니다.
@@ -40,12 +42,20 @@ def main() -> None:
     ap.add_argument("--pkl", required=True)
     ap.add_argument("--frame", type=int, default=0)
     ap.add_argument("--out", default="/workspace/data/05_smpl_mesh",
-                    help="출력 폴더 (규약 경로, docs/CONVENTIONS.md 1절)")
+                    help="출력 루트 (규약 경로, docs/CONVENTIONS.md 1절)")
+    ap.add_argument("--name", default=None,
+                    help="샘플명. 생략 시 --pkl 의 상위 폴더명에서 유추 "
+                         "(예: 04_wham/zombie1_masked/... → zombie1)")
     ap.add_argument("--smpl-dir", default=SMPL_DIR)
     a = ap.parse_args()
 
-    out = Path(a.out)
+    # 산출물은 샘플별 폴더에 넣는다. smpl_tpose.obj·smpl_faces.npy 는 파일명에
+    # 샘플 구분이 없어, 평평하게 쓰면 다음 샘플이 이전 것을 덮어쓴다.
+    # WHAM 출력 폴더는 마스킹 클립 이름(<샘플>_masked)을 따르므로 접미사를 뗀다.
+    name = a.name or Path(a.pkl).parent.name.removesuffix("_masked")
+    out = Path(a.out) / name
     out.mkdir(parents=True, exist_ok=True)
+    print(f"샘플명: {name}  →  {out}")
 
     track = next(iter(joblib.load(a.pkl).values()))
     verts = np.asarray(track["verts"])          # (T, 6890, 3)
