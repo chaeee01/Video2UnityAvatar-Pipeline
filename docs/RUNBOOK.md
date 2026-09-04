@@ -20,7 +20,7 @@ EU-RO-1), SMPL/SMPLify 계정 인증 완료.
 | 항목 | 조건 | 근거 |
 |---|---|---|
 | 길이 | 90프레임(3초) 이상 ~ 600프레임 이하 | WHAM 추적 안정성 / 처리 시간 |
-| fps | 30fps | 동작 재생 기준 |
+| fps | 24fps | 동작 재생 기준 (`docs/CONVENTIONS.md` 6절 표준, 소싱 4종 실측치) |
 | 해상도 | 720p 이상 | 마스크·메쉬 품질 |
 | 인물 | 1명, 컷 전환 없음 | SAM2 단일 객체 추적 전제 |
 | 크기 | 인물 bbox 높이 256px 이상, 발끝까지 프레임 안 | WHAM 관절 추정 |
@@ -86,6 +86,17 @@ micromamba activate wham      # 4·5단계 (python 3.9, torch 2.0.0+cu118)
 
 ## 2. SAM2 — 객체 분리 (S2)
 
+먼저 **첫 프레임을 뽑아 좀비 좌표를 확인한다.** `--point` 는 추적 시작점이라
+빗나가면 전 프레임이 어긋난다. 중앙 기본값에 기대지 말고 눈으로 확인한다.
+
+```bash
+ffmpeg -v error -y -i /workspace/data/00_raw/<샘플>.mp4 \
+    -vf "select=eq(n\,0)" -vframes 1 /workspace/data/02_sam2/<샘플>/frame0.png
+scp runpod:/workspace/data/02_sam2/<샘플>/frame0.png ~/data/02_sam2/<샘플>/
+```
+
+맥북에서 열어 좀비 몸통 한가운데 픽셀 좌표를 읽고, 그 값을 `--point` 에 넣는다.
+
 ```bash
 micromamba activate sam2
 python /workspace/repos/Video2UnityAvatar-Pipeline/scripts/run_sam2.py \
@@ -107,8 +118,11 @@ python /workspace/repos/Video2UnityAvatar-Pipeline/scripts/run_sam2.py \
 | `keyframes/candidates.json` | 후보 선정 근거(프레임·점수·bbox) |
 
 ### 확인 포인트
-- 추적 속도 **12it/s** 근처면 정상 (4090, 69프레임 기준).
-- `masks/` 장수 = 원본 프레임 수. 중간에 비면 추적이 끊긴 것이다.
+- **`masks/` 장수 = 원본 프레임 수.** 중간에 비면 추적이 끊긴 것이다. 이것이 가장 확실한 지표다.
+  (진행바의 it/s 는 `nohup` 으로 파일에 리다이렉트하면 버퍼링돼 로그에 남지 않는다.
+  참고값: 4090에서 240프레임 약 9분.)
+- 마스크 몇 장을 원본 프레임에 겹쳐 **전신을 잡았는지** 눈으로 본다 — 손끝·발끝·옷자락 포함,
+  배경 혼입 없음.
 - 마스킹 클립을 재생해 **좀비만 남고 배경이 검은지**, 중간에 마스크가 튀지 않는지 본다.
 - 키프레임 후보를 열어 **팔이 벌어진 프레임인지** 확인한다. 자동 점수(마스크 폭/높이 × 채움률)가
   항상 최선을 고르지는 않는다 — `candidates.json`을 보고 직접 골라도 된다.
@@ -151,10 +165,10 @@ python /workspace/repos/Video2UnityAvatar-Pipeline/scripts/run_trellis.py \
 
 | 구간 | 첫 실행 | 이후 |
 |---|---|---|
-| 모델 다운로드 + 로드 | ~80s | 볼륨 캐시라 대부분 생략 |
+| 모델 다운로드 + 로드 | ~80s | **~56s** (다운로드만 생략, 볼륨→GPU 로드는 매번 발생) |
 | 생성 | ~6s | ~6s |
 | GLB 변환 (단순화 + 2048² 베이킹) | ~20s | ~20s |
-| **총계** | **~111s** | **~26s** |
+| **총계** | **~111s** | **~85s** |
 
 ### 확인 포인트
 - `params.json`의 `input_has_alpha`가 `true`인지 본다. `false`면 rembg가 배경을 뗀 것이라
@@ -191,13 +205,29 @@ bash /workspace/repos/Video2UnityAvatar-Pipeline/scripts/run_wham.sh \
 
 출력 폴더는 `--out`으로 바꿀 수 있고, 기본값은 규약 경로 `/workspace/data/04_wham`이다.
 산출물은 `/workspace/data/04_wham/<영상명>/`에 떨어진다:
-`wham_output.pkl`(pose·trans·betas·verts), `overlay.mp4`(재투영 시각화).
+`wham_output.pkl`(pose·trans·betas·verts), `tracking_results.pth`, `slam_results.pth`.
+
+**재투영 오버레이는 따로 만든다.** WHAM 의 `--visualize` 는 pytorch3d 를 요구하는데
+py39+cu118 빌드가 torch 2.1.2 이상만 있어 torchvision 0.15.1(torch 2.0.0 고정)과 공존할 수
+없다. `run_wham.sh` 에서 `--visualize` 를 뺐고, 대신 이 스크립트로 `overlay.mp4` 를 만든다:
+
+```bash
+python scripts/overlay_vis.py \
+    --pkl   /workspace/data/04_wham/<영상명>/wham_output.pkl \
+    --video /workspace/data/02_sam2/<샘플>/<샘플>_masked.mp4
+```
+
+pkl 이 있는 폴더에 `overlay.mp4` 가 생긴다. WHAM 내장 렌더러(3D 메쉬)와 달리
+**2D 관절 스켈레톤 재투영**이라 그림이 다르지만, 관절 정합 확인이라는 목적은 같다.
+`skeleton_preview.mp4` 등 `--visualize` 의 다른 부산물은 더 이상 생기지 않는다.
 
 ### 확인 포인트
 - pkl 형상: `pose (T,72)`, `trans (T,3)`, `betas (T,10)`, `verts (T,6890,3)`.
 - **트랙 1개**여야 한다. 2개 이상이면 다른 객체를 사람으로 잡은 것이다.
 - 포즈 표준편차가 0.4 이상이면 동작이 확실히 잡힌 것 (테스트 클립 0.44).
 - `overlay.mp4`를 재생해 **관절이 좀비 위에 얹혀 있는지** 눈으로 본다. 이게 가장 확실한 검증이다.
+  판정 기준은 **몸통·대관절은 엄격, 말단은 관대** — 손목·손끝이 가끔 이탈하는 것은 WHAM 말단
+  관절의 알려진 특성이라 허용한다. 골반·척추·무릎·어깨가 어긋나면 불합격이다.
 
 ### 흔한 실패
 - **원본 영상을 그대로 넣음** — 배경이 남아 있으면 추적이 흔들린다. 2단계의 마스킹 클립을 넣는다.
@@ -215,12 +245,17 @@ v4의 핵심 구간. 골격을 SMPL로 통일해 **리타게팅 없이** 동작�
 
 ```bash
 python scripts/generate_smpl_mesh.py \
-    --pkl /workspace/data/04_wham/zombie_sample1/wham_output.pkl \
+    --pkl /workspace/data/04_wham/zombie_sample1_masked/wham_output.pkl \
     --frame 3
 ```
 
+WHAM 출력 폴더는 마스킹 클립 이름(`<샘플>_masked`)을 따르므로 `--pkl` 경로에 `_masked` 가 붙는다.
+산출물 폴더의 샘플명은 거기서 접미사를 떼어 유추하며, 틀리면 `--name` 으로 지정한다.
+
 `--frame`은 **TRELLIS에 넣은 키프레임과 같은 번호**여야 한다. 애매하면 `overlay.mp4`에서 그 장면을 찾는다.
-출력(`/workspace/data/05_smpl_mesh/`): `smpl_frame3.obj`, `smpl_tpose.obj`, `joints_frame3.json`, `smpl_faces.npy`.
+출력(`/workspace/data/05_smpl_mesh/<샘플명>/`): `smpl_frame3.obj`, `smpl_tpose.obj`, `joints_frame3.json`, `smpl_faces.npy`.
+샘플별 폴더에 넣는 이유는 `smpl_tpose.obj`·`smpl_faces.npy` 에 샘플 구분이 없어 평평하게 쓰면
+다음 샘플이 이전 것을 덮어쓰기 때문이다.
 
 **확인 포인트** — `smpl_frame3.obj`를 열어 TRELLIS 좀비와 **같은 자세**인지 본다. 이게 맞아야 다음 정렬이 쉬워진다.
 
@@ -379,7 +414,7 @@ IP·포트를 명령에 적지 않는다. 접속 정보는 `~/.ssh/config`의 `H
 | 2. SAM2 | 원본 mp4 | 마스크, 마스킹 클립, 키프레임 후보 | Pod `/workspace/data/02_sam2/` |
 | 3. TRELLIS | 키프레임 PNG | GLB, 텍스처 PNG, `params.json` | Pod `/workspace/data/03_trellis/` |
 | 4. WHAM | 마스킹 클립 | `wham_output.pkl`, `overlay.mp4` | Pod `/workspace/data/04_wham/` |
-| 5-1. SMPL 메쉬 | pkl | obj, joints json | Pod `/workspace/data/05_smpl_mesh/` |
+| 5-1. SMPL 메쉬 | pkl | obj, joints json | Pod `/workspace/data/05_smpl_mesh/<샘플명>/` |
 | 5-2. 정렬 | GLB + obj | `aligned.blend` | 맥북 |
 | 5-3. 아마추어 | `aligned.blend` + joints | `rigged.blend` | 맥북 |
 | 5-4. 웨이트 | `rigged.blend` | `transferred.blend` | 맥북 |
