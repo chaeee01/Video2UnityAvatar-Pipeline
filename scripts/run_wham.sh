@@ -21,8 +21,11 @@ eval "$($VOL/micromamba/bin/micromamba shell hook -s bash)"
 micromamba activate wham
 cd $VOL/repos/WHAM
 mkdir -p "$OUT"
+# --visualize 는 pytorch3d 를 요구하는데, conda-forge 의 py39+cu118 pytorch3d 빌드는
+# torch 2.1.2 이상만 있어 torchvision 0.15.1(torch 2.0.0 고정)과 공존할 수 없다.
+# 재투영 육안 검증은 scripts/overlay_vis.py 로 대행한다 (cv2 기반, pytorch3d 불필요).
 python demo.py --video "$VIDEO" --output_pth "$OUT" \
-    --visualize --save_pkl --estimate_local_only \
+    --save_pkl --estimate_local_only \
     2>&1 | tee $VOL/logs/wham_$(date +%Y%m%d_%H%M%S).log
 echo "완료:"
 find "$OUT" -type f | tail -20
