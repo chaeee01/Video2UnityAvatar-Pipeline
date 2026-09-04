@@ -5,7 +5,10 @@
 #
 # 기본 출력은 규약 경로 /workspace/data/04_wham (docs/CONVENTIONS.md 1절).
 # 산출물은 그 아래 <영상명>/ 에 떨어진다 (WHAM demo.py 동작).
-set -e
+# pipefail 없이는 `python ... | tee` 의 종료 코드가 tee(0)의 것이 되어
+# demo.py 가 죽어도 스크립트가 계속 진행한다 (2026-09-04 리허설에서 실패를
+# "완료" 로 오보한 사고).
+set -eo pipefail
 VIDEO="${1:?입력 영상 경로를 지정하세요}"
 shift
 VOL=/workspace
@@ -27,5 +30,14 @@ mkdir -p "$OUT"
 python demo.py --video "$VIDEO" --output_pth "$OUT" \
     --save_pkl --estimate_local_only \
     2>&1 | tee $VOL/logs/wham_$(date +%Y%m%d_%H%M%S).log
-echo "완료:"
-find "$OUT" -type f | tail -20
+# 현재 샘플 폴더만 검사한다. $OUT 전체를 나열하면 이전 샘플 산출물까지 섞여
+# 실패한 실행이 성공처럼 보인다.
+NAME=$(basename "${VIDEO%.*}")
+RESULT="$OUT/$NAME"
+if [ -f "$RESULT/wham_output.pkl" ]; then
+    echo "완료: $RESULT"
+    find "$RESULT" -type f -printf "  %10s  %p\n" | sort -k2
+else
+    echo "실패: $RESULT/wham_output.pkl 이 생성되지 않았습니다" >&2
+    exit 1
+fi
