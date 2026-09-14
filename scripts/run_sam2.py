@@ -55,6 +55,9 @@ def parse_args():
     ap.add_argument("--obj-id", type=int, default=1)
     ap.add_argument("--topk", type=int, default=5,
                     help="저장할 키프레임 후보 개수")
+    ap.add_argument("--keyframe-min-gap", type=int, default=20,
+                    help="후보 사이 최소 프레임 간격 (기본 20). 0 이면 제약 없음 — "
+                         "옛 동작이다. 근거는 docs/CONVENTIONS.md 7절")
     ap.add_argument("--save-rgba", action="store_true",
                     help="전 프레임 RGBA PNG 도 저장 (노트북 동작)")
     ap.add_argument("--keep-frames", action="store_true",
@@ -108,6 +111,34 @@ def keyframe_score(mask):
 
     TRELLIS 입력은 팔을 벌린 자세가 유리하므로(G1a 기준) 마스크 폭/높이 비를
     주 지표로 삼고, 피사체가 너무 작거나 잘린 프레임은 면적으로 걸러낸다.
+
+    ── 자세 항 미구현 (2026-09-14 판단) ─────────────────────────────────────
+    이 점수는 폭을 보상하는데, 폭은 "옆으로 벌린 팔" 과 "카메라 쪽으로 뻗은 팔" 을
+    구분하지 못한다. 후자는 단축·자기가림으로 단일 뷰 재구성에 불리할 것으로
+    보이므로 자세 항을 넣자는 제안이 있었다. 지금은 넣지 않는다.
+
+    이유는 검증 대상이 없기 때문이다. walker 에서 top1(f80)과 채택안(f222)의
+    성분을 실측하면 이렇다:
+
+        frame  bw/bh   fill   score  solidity
+        f80    0.504  0.425  0.2144  0.514   ← 제약 없을 때의 1등
+        f164   0.607  0.348  0.2112  0.468   ← 팔을 옆으로 가장 많이 벌림
+        f222   0.373  0.517  0.1929  0.644   ← 실제 채택, 결과물 양호
+
+    solidity(면적/볼록껍질)가 셋을 가장 잘 가르지만, 어느 방향이 좋은지는 모른다.
+    팔을 몸에 붙이면 solidity 가 높아지는데 그것도 팔-몸통 분리를 어렵게 해
+    나쁠 수 있다. 즉 곡선의 모양을 모르는 채 단조 함수를 넣는 셈이다.
+    f222 결과가 좋았다는 것은 알지만 f80 으로 생성해 본 적이 없어 비교가 없다.
+
+    필요한 실험: walker 를 f80 · f164 · f222 세 키프레임으로 각각 생성해 3자
+    비교한다(약 12분). 그 결과가 나오면 자세 항의 방향과 세기를 근거 있게 정할 수
+    있다. 그 전에 넣으면 시험할 수 없는 게이트가 되고, 이는 "게이트 자체의 오탐
+    시험을 설계에 포함한다" 는 원칙에 어긋난다.
+
+    한편 2026-09-10 에 관측된 문제("후보 5장이 사실상 같은 장면")는 점수 방향이
+    아니라 뭉침이 원인이었고, pick_keyframes() 의 간격 제약으로 해소된다 —
+    제약을 걸면 walker 후보가 [80, 164, 117, 139, 222] 로 벌어져 f222 가
+    후보 안에 들어온다.
     """
     ys, xs = np.nonzero(mask)
     if len(xs) == 0:
@@ -118,6 +149,34 @@ def keyframe_score(mask):
         return 0.0, None
     fill = len(xs) / float(bw * bh)      # 마스크가 bbox 를 채운 정도
     return (bw / bh) * fill, (int(x0), int(y0), int(bw), int(bh))
+
+
+def pick_keyframes(scores, topk, min_gap):
+    """점수 상위 topk 를 고르되 후보 사이를 min_gap 프레임 이상 띄운다.
+
+    점수만으로 뽑으면 인접 프레임이 뭉쳐 사실상 같은 장면 K장이 나온다. 2026-09-10
+    기준 6샘플 전수에서 재현됐다 — zombie1 은 227·228·229·230·231 로 연속 5장,
+    walker 는 77~81, dog 는 0~4 였다. 다중 뷰 입력을 쓰려 해도 고를 것이 없고,
+    단일 뷰로 쓸 때도 "5개 후보 중 선택" 이 아니라 사실상 선택지가 하나였다.
+
+    간격 제약의 비용은 거의 없다. 1등과 분산 5등의 점수차가 stalker 0.0011,
+    walker 0.0209, listener 0.0259, dog 0.0881 로, 점수를 거의 잃지 않으면서
+    진짜 다른 장면을 얻는다.
+
+    greedy: 최고점을 고르고 그 주변 +-min_gap 을 후보에서 빼고 반복한다.
+    후보가 모자라면 남는 만큼만 돌려준다(무리해서 채우지 않는다).
+    """
+    ranked = sorted((s for s in scores if s["bbox"]),
+                    key=lambda s: s["score"], reverse=True)
+    if min_gap <= 0:
+        return ranked[:topk]
+    picked = []
+    for cand in ranked:
+        if len(picked) >= topk:
+            break
+        if all(abs(cand["frame"] - p["frame"]) >= min_gap for p in picked):
+            picked.append(cand)
+    return picked
 
 
 def main():
@@ -196,8 +255,7 @@ def main():
         raise RuntimeError(f"ffmpeg 인코딩 실패: {final_mp4}")
 
     # 키프레임 후보: 점수 상위 K개를 알파 PNG 로 저장
-    ranked = sorted((s for s in scores if s["bbox"]),
-                    key=lambda s: s["score"], reverse=True)[:args.topk]
+    ranked = pick_keyframes(scores, args.topk, args.keyframe_min_gap)
     for rank, s in enumerate(ranked, 1):
         idx = s["frame"]
         src = cv2.imread(os.path.join(frames_dir, f"{idx:05d}.jpg"))
@@ -208,8 +266,9 @@ def main():
         rgba[m, 3] = 255
         cv2.imwrite(os.path.join(keys_dir, f"key{rank}_f{idx:05d}.png"), rgba)
     with open(os.path.join(keys_dir, "candidates.json"), "w") as f:
-        json.dump({"topk": ranked, "all": scores}, f, indent=2)
-    print(f"[4/4] 키프레임 후보 {len(ranked)}장 → {keys_dir}")
+        json.dump({"topk": ranked, "all": scores,
+                   "min_gap": args.keyframe_min_gap}, f, indent=2)
+    print(f"[4/4] 키프레임 후보 {len(ranked)}장 (최소 간격 {args.keyframe_min_gap}) → {keys_dir}")
     print("      " + ", ".join(f"f{s['frame']}({s['score']})" for s in ranked))
 
     if not args.keep_frames:
