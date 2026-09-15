@@ -59,6 +59,12 @@ COVERAGE_MIN = 7.0
 COVERAGE_WARN = 9.0
 EMPTY_MAX = 0
 PARTS_MAX = 1.5
+
+# 이 값들은 잠정이다. 2026-09-15 에 볼륨 실데이터 9건으로 전수 시험해 9/9 정답이었으나
+# 표본이 한 촬영 세팅(1280x720, 회색 배경, 중앙 인물)에 몰려 있다.
+# 재보정 조건: 신규 10건이 누적됐을 때 / PASS 판정 뒤 하류 단계가 실패했을 때.
+THRESHOLD_STATUS = ("잠정 (표본 9건, 단일 촬영 세팅). "
+                    "재보정: 신규 10건 누적 시 / PASS 후 하류 실패 발생 시")
 EMPTY_COVERAGE = 0.5      # 이 값 미만이면 그 프레임은 "비었다"
 MIN_BLOB_AREA = 50        # 이보다 작은 조각은 압축 잡음으로 보고 세지 않는다
 
@@ -186,6 +192,7 @@ def main():
         "thresholds": {
             "coverage_min": COVERAGE_MIN, "coverage_warn": COVERAGE_WARN,
             "empty_max": EMPTY_MAX, "parts_max": PARTS_MAX,
+            "status": THRESHOLD_STATUS,
         },
         "source": source,
     }
