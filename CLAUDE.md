@@ -35,7 +35,7 @@ WHAM(S5)의 betas를 S4로 전달해 두 경로의 골격을 SMPL로 통일한�
 
 ### 실행 환경
 
-- 레포별 의존성 충돌(torch 1.11~2.5, CUDA 11.3~12.4)로 단일 환경이 불가능하다. micromamba로 환경을 분리한다 — `wham` / `sam2` / `trellis`. 우회가 아니라 확정된 원칙.
+- 레포별 의존성 충돌(torch 1.11-2.5, CUDA 11.3-12.4)로 단일 환경이 불가능하다. micromamba로 환경을 분리한다 — `wham` / `sam2` / `trellis`. 우회가 아니라 확정된 원칙.
 - GPU 작업은 RunPod(RTX 4090, EU-RO-1) + Network Volume `/workspace`.
 - 볼륨에 직접 설치한다. Dockerfile은 환경 확정 후 굳힌다.
 - 로컬 작업은 Blender 4.5 LTS. 5.2는 FBX 임포터에 조명 객체 파싱 버그가 있다.
@@ -63,6 +63,7 @@ WHAM(S5)의 betas를 S4로 전달해 두 경로의 골격을 SMPL로 통일한�
 | 중간 결과 | feature에 커밋·푸시 | 코멘트 (수치·로그 경로) |
 | 검증 통과 | main 머지 + 같은 머지에 PROJECT_STATUS "최근 작업" 항목 | 카드 → 완료 |
 | 검증 실패 | feature 유지 | 코멘트에 원인 |
+| 커밋 전 | 문서 외 변경은 관련 시험 실행 (`tests/`) | — |
 | 주간 마무리 | PROJECT_STATUS 주간 요약 + ROADMAP 체크 | 다음 주 카드 정리 |
 
 - PROJECT_STATUS는 feature 브랜치에서 고치지 않고 main 머지 때 갱신한다.

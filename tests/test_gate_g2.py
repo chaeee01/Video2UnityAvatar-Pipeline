@@ -7,6 +7,7 @@ G2 는 미러의 GLB 실물로 돌린다(측정+판정 통합). 실측 metallic 
 
 G2r 은 관통 4회의 기록된 수치로 판정 로직만 시험한다.
 """
+import glob
 import json
 import os
 import subprocess
@@ -20,23 +21,36 @@ import gate_g2r
 
 GEN2 = os.path.expanduser("~/data/03_trellis/gen2")
 
+
+def find_glb(stem):
+    """gen2 아래에서 <stem>.glb 를 재귀로 찾는다 — 배치 이동에 강건해야 한다.
+
+    경로를 하드코딩하지 않는 이유: 산출물 폴더는 배치 단위로 옮겨 다닌다.
+    2026-09-16 에 walker·stalker·dog 이 발표용으로 gen2/zombie2/ 아래로 묶이면서
+    하드코딩 경로가 전부 빗나가 시험이 4/8 로 떨어졌다. 데이터는 온전했고
+    시험만 깨진 것이다 — 시험지가 어디로 옮겨졌다고 시험이 실패하면 안 된다.
+    규약(gen2/<샘플>)은 그대로이고, 임시 묶음에도 견디도록 탐색으로 바꾼다.
+    """
+    hits = sorted(glob.glob(os.path.join(GEN2, "**", f"{stem}.glb"), recursive=True))
+    return hits[0] if hits else os.path.join(GEN2, stem, f"{stem}.glb")
+
 # (표시명, GLB 경로, 기대 판정, 근거)
 G2_CASES = [
-    ("walker 512",        f"{GEN2}/zombie_walker/zombie_walker.glb",   "PASS", "metallic 0.2 — 무광 셔츠"),
-    ("zombie1 512",       f"{GEN2}/zombie1/zombie1.glb",               "PASS", "metallic 1.0"),
-    ("stalker 512",       f"{GEN2}/zombie_stalker/zombie_stalker.glb", "FAIL", "metallic 254.7 — 전신 금속 오판"),
-    ("dog 512",           f"{GEN2}/zombie_dog/zombie_dog.glb",         "FAIL", "metallic 51.5 — 번들거림"),
-    ("zombie1 1024",      f"{GEN2}/zombie1_1024/zombie1_1024.glb",     "FAIL", "metallic 254.7"),
-    ("zombie1 1024 보정", f"{GEN2}/zombie1_1024/zombie1_1024_dielectric.glb", "PASS",
+    ("walker 512",        find_glb("zombie_walker"),   "PASS", "metallic 0.2 — 무광 셔츠"),
+    ("zombie1 512",       find_glb("zombie1"),               "PASS", "metallic 1.0"),
+    ("stalker 512",       find_glb("zombie_stalker"), "FAIL", "metallic 254.7 — 전신 금속 오판"),
+    ("dog 512",           find_glb("zombie_dog"),         "FAIL", "metallic 51.5 — 번들거림"),
+    ("zombie1 1024",      find_glb("zombie1_1024"),     "FAIL", "metallic 254.7"),
+    ("zombie1 1024 보정", find_glb("zombie1_1024_dielectric"), "PASS",
      "같은 텍스처지만 metallicFactor 0 — 유효 metallic 이 0 이므로 통과해야 한다"),
-    ("walker 1024 s1",    f"{GEN2}/_probe_walker_1024_s1/_probe_walker_1024_s1.glb", "FAIL",
+    ("walker 1024 s1",    find_glb("_probe_walker_1024_s1"), "FAIL",
      "metallic 143.4 — 1024 계통 상승"),
 ]
 
 # 측정 자체가 실패하는 경우. 게이트가 "못 재서 통과" 하면 안 된다 —
 # 2026-09-15 오탐 시험에서 실제로 그렇게 통과하던 것을 잡았다.
 G2_UNMEASURABLE = [
-    ("텍스처 없음", f"{GEN2}/zombie_walker/zombie_walker.glb", "FAIL",
+    ("텍스처 없음", find_glb("zombie_walker"), "FAIL",
      "--textures 를 빈 폴더로 줘 측정 불가 상태를 만든다"),
 ]
 
