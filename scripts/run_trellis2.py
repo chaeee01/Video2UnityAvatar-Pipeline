@@ -55,7 +55,7 @@ def parse_args():
     ap.add_argument("--pipeline-type", default="1024",
                     choices=["512", "1024", "1024_cascade", "1536_cascade"],
                     help="해상도 다이얼. 기본 1024 — 512 는 얇은 천을 몸에 융합시키고 "
-                         "색 채도를 56~69%% 잃는다 (docs/CONVENTIONS.md 8절)")
+                         "색 채도를 56-69%% 잃는다 (docs/CONVENTIONS.md 8절)")
     ap.add_argument("--force-dielectric", dest="force_dielectric",
                     action="store_true", default=True,
                     help="material 의 metallicFactor 를 0 으로 눌러 저장 (기본 켜짐). "

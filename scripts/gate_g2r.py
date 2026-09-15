@@ -52,7 +52,7 @@ def judge(m):
         reasons.append("aligned_params.json 에 scale 이 없다")
     elif not (SCALE_MIN <= s <= SCALE_MAX):
         reasons.append(
-            f"정렬 스케일 {s} 이 구조 상수 범위 {SCALE_MIN}~{SCALE_MAX} 밖이다 — "
+            f"정렬 스케일 {s} 이 구조 상수 범위 {SCALE_MIN}-{SCALE_MAX} 밖이다 — "
             f"상류(SMPL 생성 또는 TRELLIS 스케일) 오류 신호")
     iou = m.get("bbox_iou")
     if iou is None:

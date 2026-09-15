@@ -57,7 +57,7 @@ def parse_args():
                     help="저장할 키프레임 후보 개수")
     ap.add_argument("--keyframe-min-gap", type=int, default=20,
                     help="후보 사이 최소 프레임 간격 (기본 20). 0 이면 제약 없음 — "
-                         "옛 동작이다. 근거는 docs/CONVENTIONS.md 7절")
+                         "옛 동작이다. 근거는 pick_keyframes() 독스트링")
     ap.add_argument("--save-rgba", action="store_true",
                     help="전 프레임 RGBA PNG 도 저장 (노트북 동작)")
     ap.add_argument("--keep-frames", action="store_true",

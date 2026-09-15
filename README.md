@@ -42,7 +42,7 @@ WHAM이 추출한 체형 파라미터(betas)를 외형 경로의 리깅 단계�
 |---|---|---|
 | v1 (기획, 미실행) | SAM2 + SuGaR + WHAM, 가우시안 LOD 렌더링 | 조사 단계에서 SuGaR의 동적 인물 부적합 확인, 배경 3D 불필요 → 착수 전 배제 |
 | v2 | Mixamo 리깅 + SMPL→Mixamo 리타게팅 | 세 방식(Unity Humanoid, 행렬 계산, 컨스트레인트) 모두 자세 붕괴로 실패 → 폐기 ([상세](docs/PROJECT_STATUS.md#3-단계별-검증-결과)) |
-| v3 | 품질 게이트(G0~G4)·재시도 오케스트레이터 추가 | 평가·재시도 체계 확립, 리깅 방식은 v2 유지 |
+| v3 | 품질 게이트(G0-G4)·재시도 오케스트레이터 추가 | 평가·재시도 체계 확립, 리깅 방식은 v2 유지 |
 | v4 (현재) | SMPL 골격 직접 리깅, betas 전달로 골격 통일 | 리타게팅 단계의 구조적 제거 |
 
 <details><summary>v1 구조도 (기획)</summary>
@@ -68,7 +68,7 @@ WHAM이 추출한 체형 파라미터(betas)를 외형 경로의 리깅 단계�
 | 경로 | 내용 |
 |---|---|
 | `docs/` | 프로젝트 문서. 설계·검증 결과·다음 단계는 [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md) |
-| `notebooks/sam2/` | SAM2 전처리 Colab 시행착오 노트북 (try1~try6) |
+| `notebooks/sam2/` | SAM2 전처리 Colab 시행착오 노트북 (try1-try6) |
 | `scripts/` | 검증된 실행 스크립트 (WHAM 실행, pkl→FBX 변환, 텍스처 추출 등) |
 | `scripts/deprecated/` | 폐기된 시도 — SMPL→Mixamo 리타게팅 계열 |
 | `pipeline/qa/` | 품질 게이트 및 재시도 오케스트레이터 |
@@ -76,7 +76,7 @@ WHAM이 추출한 체형 파라미터(betas)를 외형 경로의 리깅 단계�
 
 ## 실행 환경
 
-레포별 의존성이 충돌(torch 1.11~2.5, CUDA 11.3~12.4)하여 단일 환경을 쓰지 않고, 모델별로 환경을 분리합니다.
+레포별 의존성이 충돌(torch 1.11-2.5, CUDA 11.3-12.4)하여 단일 환경을 쓰지 않고, 모델별로 환경을 분리합니다.
 GPU 작업은 RunPod(RTX 4090, EU-RO-1) + Network Volume(`/workspace`)에서 micromamba로 구성합니다.
 
 ## 상태
