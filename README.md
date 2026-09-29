@@ -25,7 +25,7 @@
       └─[원본]──→ G1m 동작용 클립 평가   bbox 높이, 가림, 인원수
                   → S5  WHAM             betas, pose, transl 추정
                   → G3  동작 품질        재투영 PCK, MPJPE, 발 접지 ─┘
-                  → S6  좌표 변환        Y-up, 미터 단위, pose 시퀀스
+                  → S6  좌표 변환        Y-up, TRELLIS 정규화 단위, pose 시퀀스
   → S7  동작 결합            골격이 동일하므로 리타게팅 없음
                              SMPL pose를 리깅 메쉬에 직접 적용
   → G4  최종 통합 평가       메쉬 관통, 발 접지, 원본 클립 대조
@@ -81,9 +81,11 @@ GPU 작업은 RunPod(RTX 4090, EU-RO-1) + Network Volume(`/workspace`)에서 mic
 
 ## 상태
 
-- 검증 완료: WHAM 동작 복원, TRELLIS 외형 복원, 유니티 에셋 반입
-- 진행 중: SMPL 골격 직접 리깅 (메쉬 생성 → 정렬 → 웨이트 전이)
-- 예정: TRELLIS 로컬 설치, 품질 게이트 연결, 오케스트레이터 가동, Dockerfile 고정
+- 검증 완료: WHAM 동작 복원, TRELLIS 외형 복원, **SMPL 골격 직접 리깅(S4)**, 유니티 에셋 반입.
+  영상 한 편이 Unity 에셋까지 관통하는 수동 파이프라인이 완성됐다 (M1, 8/28)
+- 검증 완료: **TRELLIS 로컬 설치**(9/9 TRELLIS.2 전환), **품질 게이트 5종**(9/15 — G0/S2·G2·G2r)
+- 진행 중: Docker 환경 고정, 오케스트레이터 연결
+- 예정: G1m·G3·G4 게이트, E2E 자동 실행, 재시도 경로 검증 (M2)
 
 ## 검증 결과
 
