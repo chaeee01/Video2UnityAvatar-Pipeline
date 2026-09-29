@@ -46,7 +46,7 @@ WHAM(S5)의 betas를 S4로 전달해 두 경로의 골격을 SMPL로 통일한�
 
 `data/` 번호는 `00_raw` · `01_pre` · `02_sam2` · `03_trellis` · `04_wham` · `05_smpl_mesh` · `06_rig` · `07_unity` 순이다. 폴더 번호는 산출물 생성 순서이고 **S번호와는 독립된 식별자**라 1:1이 아니다 — 번호를 보고 단계를 추정하지 말 것. 번호별 내용·구번호 대응표·맥북 미러(`~/data/`) 규약은 `docs/CONVENTIONS.md` 참조.
 
-`sam2` 환경은 setup 스크립트가 없다 — 수동 설치라 재현 절차 미확보.
+환경 setup 스크립트는 `scripts/setup_{wham,sam2,trellis,trellis2}.sh` 4종이다. `sam2` 는 원래 수동 설치라 스크립트가 없었으나 2026-09-29 에 Pod 환경을 역추적해 복원했다 (EH-226). 환경 아카이브·복원 절차는 `docs/RUNBOOK.md` 8절 참조.
 
 ### RunPod 원격 작업
 

@@ -571,6 +571,62 @@ IP·포트를 명령에 적지 않는다. 접속 정보는 `~/.ssh/config`의 `H
 
 ---
 
+## 8. 환경 아카이브 · 복원
+
+Pod 환경을 통째로 tar 로 떠서 보관하고, 새 Pod 에서 그대로 되살린다. 처음부터 설치하는 것보다
+빠르고, 무엇보다 **pip 인덱스나 upstream 레포 상태와 무관하게 같은 바이트가 복원된다.**
+
+> **같은 절대 경로로 복원하는 것이 전제다.** conda 환경은 경로 의존적이다 — bin/ 스크립트
+> shebang 44개와 conda 메타데이터에 절대 경로가 박혀 있다. RunPod 은 볼륨이 **항상
+> `/workspace`** 에 붙으므로 실무에서 문제가 되지 않는다. 다른 경로에 풀면 환경이 원본 경로를
+>계속 참조하며, 원본이 없는 기계에서는 깨진다 (2026-09-29 실측).
+
+**Docker 이미지는 Pod 안에서 만들 수 없다.** Pod 자체가 도커 컨테이너다(`/.dockerenv`,
+cgroup `/docker/…` 확인). 이미지화는 M2 이후 GitHub Actions 경로로 간다 (EH-229).
+
+### 아카이브 만들기
+
+```bash
+cd /workspace
+tar --use-compress-program="zstd -T0 -3" \
+    --exclude="__pycache__" --exclude="*.pyc" \
+    -cf /workspace/archives/sam2v_env_$(date +%Y%m%d)_<레포커밋>.tar.zst \
+    micromamba/envs/sam2v micromamba/bin/micromamba repos/sam2
+```
+
+담는 것은 **환경 + micromamba 바이너리 + 레포(체크포인트 포함)** 셋이다. micromamba 를 빼면
+복원한 환경을 활성화할 수단이 없다. 파일명에 레포 커밋을 넣어 어느 시점인지 남긴다.
+
+### 복원
+
+```bash
+tar --use-compress-program="zstd -d -T0" -xf <아카이브> -C /workspace
+bash scripts/setup_sam2.sh --check --env sam2v      # [8/8] 로 확인
+```
+
+### 실측 (2026-09-29, sam2 환경, RTX 4090)
+
+| 구간 | 값 |
+|---|---|
+| 원본 크기 | 10.3GB (환경 8.5G + 레포 1.8G + micromamba 18M) |
+| 아카이브 | **4.0GB** (39%), 생성 **287초** |
+| 복원 | **694초** |
+| 처음부터 설치 | **17.5분** (대조 기준선) |
+| 복원본 검증 | `[8/8]` 전부 통과 |
+| 실데이터 대조 | `zombie_walker` 첫 프레임 마스크 **완전 일치** (80,882px, 다른 픽셀 0, IoU 1.000000) |
+
+### 확인 포인트
+- `[8/8]` 의 **"sam2 가 환경 안에 있는가"** 가 True 여야 한다. False 면 editable 설치라
+  환경이 레포 경로에 묶여 있다는 뜻이다.
+- `ffmpeg 위치` 가 `$CONDA_PREFIX/bin` 이어야 한다. 시스템 ffmpeg 는 tar 에 담기지 않는다.
+
+### 흔한 실패
+- **다른 경로에 풀고 통과했다고 판단** — 원본이 살아 있으면 복원본이 원본을 참조하며 통과한다.
+  거짓 통과다. 위 두 확인 포인트가 이것을 잡는다.
+- **아카이브에 micromamba 바이너리를 빼먹음** — 새 Pod 에서 활성화할 수단이 없다.
+
+---
+
 ## 부록: 레거시 — TRELLIS 1세대 (S3)
 
 2026-09-09 에 TRELLIS.2 로 전환했다. 1세대 절차는 대조군·기준선 재현용으로 남긴다.
