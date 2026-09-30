@@ -15,8 +15,10 @@ SMPL 리깅 3단계-③ (v3): SMPL 웨이트를 TRELLIS 메쉬로 2단계 전이
       --out ~/data/06_rig/zombie_sample1/transferred.blend
 """
 import argparse
+import json
 import sys
 from collections import deque
+from pathlib import Path
 
 import bpy
 from mathutils import kdtree
@@ -155,8 +157,35 @@ def main():
     for idx, cnt in top:
         print(f"    {name_by_idx[idx]:<12} {cnt}")
 
+    # 기계 판독용 기록. 표준출력은 그대로 두고 JSON 을 추가한다 (무파괴).
+    # 3단 비율은 G2r 과 보고서가 함께 쓰는 수치라 전부 남긴다 (1차 / BFS / 폴백 / 무배정).
+    pct = lambda n: round(100.0 * n / n_verts, 4) if n_verts else 0.0
+    params = {
+        "stage": "5-4",
+        "script": "transfer_weights.py",
+        "version": 1,
+        "name": Path(a.out).stem,
+        "target_mesh": trellis.name,
+        "vertices": n_verts,
+        "max_dist": a.max_dist,          # 정렬 공간 단위 (미터 아님)
+        "transfer": {
+            "direct":     {"verts": n_direct,   "pct": pct(n_direct)},
+            "bfs":        {"verts": filled_topo, "pct": pct(filled_topo)},
+            "fallback":   {"verts": filled_eucl, "pct": pct(filled_eucl)},
+            "unassigned": {"verts": remaining,   "pct": pct(remaining)},
+        },
+        "fallback_pct":   pct(filled_eucl),   # G2r --fallback-pct 에 그대로 넣는 값
+        "unassigned_pct": pct(remaining),     # G2r --unassigned-pct
+        "inputs": {"blend": a.blend},
+        "out": a.out,
+    }
+    out_json = a.out.rsplit(".", 1)[0] + "_params.json"
+    with open(out_json, "w") as f:
+        json.dump(params, f, indent=2, ensure_ascii=False)
+
     bpy.ops.wm.save_as_mainfile(filepath=a.out)
     print(f"\n저장: {a.out}")
+    print(f"파라미터: {out_json}")
     print("확인: Pose Mode 에서 L_Elbow/R_Elbow, Spine2, R_Hip 회전.")
     print("      자락이 팔에 붙지 않고 몸통을 따라오면 성공.")
 

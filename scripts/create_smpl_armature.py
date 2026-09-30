@@ -23,6 +23,7 @@ import argparse
 import json
 import sys
 from math import radians
+from pathlib import Path
 
 import bpy
 import numpy as np
@@ -49,7 +50,11 @@ def parse_args():
 
 
 def calibrate_joints(joints_raw, smpl_obj):
-    """후보 회전을 시험해 메쉬와 가장 잘 맞는 관절 월드 좌표를 찾습니다."""
+    """후보 회전을 시험해 메쉬와 가장 잘 맞는 관절 월드 좌표를 찾습니다.
+
+    (관절 월드 좌표, 판정 근거 dict) 를 돌려줍니다. 근거는 JSON 으로 기록해
+    오케스트레이터와 G2r 이 표준출력을 파싱하지 않고 읽을 수 있게 합니다.
+    """
     mesh = smpl_obj.data
     mw = smpl_obj.matrix_world
     kd = kdtree.KDTree(len(mesh.vertices))
@@ -64,18 +69,30 @@ def calibrate_joints(joints_raw, smpl_obj):
         "X180": Matrix.Rotation(radians(180), 3, "X"),
     }
     best = None
+    dists = {}
     for name, R in candidates.items():
         # 관절(OBJ 로컬)을 메쉬와 같은 오브젝트 변환으로 월드에 배치
         # 임포터가 넣었을 수 있는 회전 R 을 후보로 끼워 넣음
         pts = [mw @ (R @ Vector(j)) for j in joints_raw]
         d = float(np.mean([(kd.find(p)[0] - p).length for p in pts]))
         print(f"  후보 {name}: 평균 관절-메쉬 거리 {d:.4f}")
+        dists[name] = round(d, 6)
         if best is None or d < best[2]:
             best = (name, pts, d)
     print(f"  선택: {best[0]} (거리 {best[2]:.4f})")
     if best[2] > 0.2:
         print("  경고: 거리가 큽니다. 관절이 메쉬 밖에 있을 수 있으니 결과를 확인하세요.")
-    return best[1]
+    runner_up = min((v for k, v in dists.items() if k != best[0]), default=None)
+    info = {
+        "selected": best[0],
+        "joint_dist": round(best[2], 6),
+        "candidates": dists,
+        "runner_up_dist": runner_up,
+        # 차순위와의 배율. 작으면 좌표계 판정이 애매하다는 뜻이다 (실측 90-100배).
+        "runner_up_ratio": round(runner_up / best[2], 2) if runner_up and best[2] > 0 else None,
+        "warn_over_0_2": best[2] > 0.2,
+    }
+    return best[1], info
 
 
 def build_armature(joint_world):
@@ -144,7 +161,7 @@ def main():
     with open(a.joints) as f:
         joints_raw = json.load(f)["posed"]  # 24 x 3, OBJ 좌표계
     print("[1/3] 관절 좌표계 보정")
-    joint_world = calibrate_joints(joints_raw, smpl)
+    joint_world, calib = calibrate_joints(joints_raw, smpl)
 
     print("[2/3] 아마추어 생성 (24본)")
     arm_obj = build_armature(joint_world)
@@ -164,8 +181,27 @@ def main():
     n_groups = len(smpl.vertex_groups)
     print(f"  정점그룹 {n_groups}개 생성")
 
+    # 기계 판독용 기록. 표준출력은 그대로 두고 JSON 을 추가한다 (무파괴).
+    params = {
+        "stage": "5-3",
+        "script": "create_smpl_armature.py",
+        "version": 1,
+        "name": Path(a.out).stem,
+        "calibration": calib,
+        "joint_dist": calib["joint_dist"],      # G2r --joint-dist 에 그대로 넣는 값
+        "bones": len(SMPL_NAMES),
+        "vertex_groups": n_groups,
+        "bind": "official_weights" if a.weights else "automatic_weights",
+        "inputs": {"blend": a.blend, "joints": a.joints, "weights": a.weights},
+        "out": a.out,
+    }
+    out_json = a.out.rsplit(".", 1)[0] + "_params.json"
+    with open(out_json, "w") as f:
+        json.dump(params, f, indent=2, ensure_ascii=False)
+
     bpy.ops.wm.save_as_mainfile(filepath=a.out)
     print(f"\n저장: {a.out}")
+    print(f"파라미터: {out_json}")
     print("확인: Blender에서 열어 SMPL_rig 선택 -> Pose Mode -> "
           "L_Shoulder 회전 시 SMPL 몸이 자연스럽게 따라오는지 보세요.")
 
