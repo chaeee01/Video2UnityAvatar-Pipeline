@@ -94,6 +94,9 @@ micromamba activate wham      # 4·5단계 (python 3.9, torch 2.0.0+cu118)
   `/workspace` 밖은 Pod을 Terminate하면 **사라진다**. 레포는 항상
   `/workspace/repos/Video2UnityAvatar-Pipeline`에 둔다.
 - **Stop으로 두기** — Stop은 스토리지가 2배로 과금된다. 작업이 끝나면 반드시 **Terminate**.
+- **백그라운드 로그가 비어 있음** — `nohup python … > log` 는 stdout 이 블록 버퍼링돼
+  프로세스가 끝날 때까지 로그가 비어 있다. 진행을 볼 수 없다. **`PYTHONUNBUFFERED=1`**
+  을 붙이거나 `python -u` 로 돌린다 (2026-09-30 E2E 에서 겪음).
 
 ---
 
