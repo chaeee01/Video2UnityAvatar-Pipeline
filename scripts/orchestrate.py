@@ -369,6 +369,14 @@ def preserve_probe(path: Path, tag, dry):
 
 
 # ---------------------------------------------------------------- 재개 판정
+def has_output(p) -> bool:
+    """산출물이 실제로 있는가. 빈 폴더는 없는 것으로 본다."""
+    p = Path(p)
+    if not p.exists():
+        return False
+    return any(p.iterdir()) if p.is_dir() else True
+
+
 def resume_point(run: Run, name, section_filter=None):
     """어디서부터 시작할지 정한다. (시작 단계, 건너뛴 목록, 문제) 를 돌려준다.
 
@@ -382,7 +390,7 @@ def resume_point(run: Run, name, section_filter=None):
             continue
         if not run.is_done(s["key"]):
             return s, skipped, None
-        missing = [p for p in stage_outputs(s["key"], name) if not Path(p).exists()]
+        missing = [p for p in stage_outputs(s["key"], name) if not has_output(p)]
         if missing:
             return None, skipped, {
                 "stage": s["key"],
@@ -406,6 +414,8 @@ def parse_args():
     ap.add_argument("--keyframe", help="S3 에 넣을 키프레임 PNG (기본: candidates 1위)")
     ap.add_argument("--section", choices=[POD, MAC],
                     help="이 구간만 돈다 (기본: 마커가 가리키는 다음 단계부터)")
+    ap.add_argument("--until", metavar="STAGE",
+                    help="이 단계까지만 돌고 멈춘다 (단계별 확인용, 예: 5-2)")
     ap.add_argument("--dry-run", action="store_true",
                     help="실행할 명령과 분기만 출력한다")
     return ap.parse_args()
@@ -466,12 +476,28 @@ def main():
     ctx.update({k: v for k, v in run.meta().items()
                 if k in ("frames", "width", "height", "frame", "keyframe")})
 
+    here = a.section or remaining[0]["section"]
     for s in remaining:
-        if a.section and s["section"] != a.section:
-            continue
+        if s["section"] != here:
+            # 구간 경계. 다음 단계는 다른 기계에서 돈다 — 여기서 끊고 인계한다.
+            print("=" * 62)
+            print(f"\n[인계] {here} 구간 완료. 다음 [{s['key']}] 은 {s['section']} 구간이다.")
+            if here == POD:
+                print("\n  아래를 맥북으로 회수한 뒤 이어받는다:")
+                print(f"    {run.root}")
+                for d in ("02_sam2", "03_trellis2", "04_wham", "05_smpl_mesh"):
+                    print(f"    {data(d, a.name)}")
+                print(f"\n    python scripts/orchestrate.py --name {a.name} --resume")
+            else:
+                print(f"\n    python scripts/orchestrate.py --name {a.name} --resume")
+            return EXIT_HUMAN
         code = run_stage(s, ctx, run, a.dry_run)
         if code != EXIT_OK:
             return code
+        if a.until and s["key"] == a.until:
+            print("=" * 62)
+            print(f"\n[정지] --until {a.until} 에 도달했다. 이어서 돌리려면 --resume.")
+            return EXIT_OK
         run.write_meta({k: ctx[k] for k in ("frames", "width", "height", "frame", "keyframe")
                         if ctx.get(k) is not None})
 
@@ -533,6 +559,9 @@ def run_stage(s, c, run: Run, dry) -> int:
         if note:
             print(f"    시도 {n}/{max_tries}: {note}")
 
+        if not dry:
+            for o in stage_outputs(key, c["name"]):
+                Path(o).parent.mkdir(parents=True, exist_ok=True)
         pre = pre_command(key, c)
         if pre:
             prc = run_cmd(build_cmd(s["env"], pre), run.logs / f"{key}_pre.log", dry)
@@ -554,7 +583,7 @@ def run_stage(s, c, run: Run, dry) -> int:
         # 내므로 rc 만으로는 실패를 잡지 못한다 (2026-09-30 시험 c 에서 5-5·FBX 가
         # 그렇게 "통과" 했다). 선언한 산출물이 실제로 생겼는지가 완료 판정이다.
         if not dry:
-            miss = [o for o in stage_outputs(key, c["name"]) if not Path(o).exists()]
+            miss = [o for o in stage_outputs(key, c["name"]) if not has_output(o)]
             if miss:
                 print(f"    실패: 단계는 끝났는데 산출물이 없다 (종료 코드 {rc})")
                 for m in miss:
@@ -582,6 +611,11 @@ def run_stage(s, c, run: Run, dry) -> int:
             run.add_attempt({"stage": key, "n": n, "verdict": "GATE_ERROR", "rc": grc,
                              "params": gate_params(key, c)})
             return EXIT_FAIL
+        # 게이트는 고정 파일명으로 쓴다. 재시도가 덮어쓰지 않게 시도별로 보존한다.
+        kept = gj.with_name(f"{gj.stem}_{tag}.json")
+        if gj.exists() and not dry:
+            gj.replace(kept)
+            gj = kept
         verdict, reasons = read_verdict(gj, dry, grc)
         print(f"    게이트: {verdict}" + (f" — {'; '.join(reasons)}" if reasons else ""))
         run.add_attempt({"stage": key, "n": n, "verdict": verdict, "reasons": reasons,
@@ -638,10 +672,16 @@ def exhausted(key, c, run: Run):
         print(f"  시도 {h.get('n')}  {h.get('params')}  {h.get('verdict')}"
               + (f"  {'; '.join(h.get('reasons', []))}" if h.get("reasons") else ""))
     if key == "S2":
-        f0 = data("02_sam2", c["name"], "frames", "00000.jpg")
-        print(f"\n  첫 프레임을 열어 좀비 몸통의 픽셀 좌표를 찾은 뒤:")
+        # 좌표를 눈으로 읽을 수 있게 격자 이미지를 만들어 둔다. 사람 개입 지점의
+        # 실전 보완이다 — 좌표를 물어보면서 그림을 주지 않으면 답할 수가 없다.
+        grid = data("02_sam2", c["name"], "_grid.png")
+        rc = run_cmd(build_cmd("sam2", ["python", str(scripts_dir() / "frame_grid.py"),
+                                        "--video", str(c["video"]), "--out", str(grid)]),
+                     run.logs / "frame_grid.log", False)
+        print(f"\n  좌표 격자: {grid}" if rc == 0 else
+              f"\n  (격자 생성 실패 — {run.logs / 'frame_grid.log'})")
+        print(f"  이 그림에서 대상 몸통의 픽셀 좌표를 읽어:")
         print(f"    python orchestrate.py --name {c['name']} --resume --point <x>,<y>")
-        print(f"  (첫 프레임: {f0} — --keep-frames 로 돌렸을 때만 남는다)")
         print("  층진 의상(겉옷 안 속옷)이면 단일 포인트로는 어렵다 — listener 사례.")
         print("  다중 포인트는 v1 범위 밖이다 (설계 7절).")
     elif key == "S3":
