@@ -55,16 +55,16 @@ import numpy as np
 #   1.5 는 "가끔 한 프레임에서 팔이 떨어져 보이는" 정도까지만 허용한다.
 #   조각 수는 커버리지가 정상 범위여도 부분 선택을 잡아내는 유일한 지표다
 #   (listener 2차: 커버리지 6.04% 로 애매했지만 조각 3.11 로 확정).
-#
-# ── 미구현: 커버리지 상한 (2026-09-30 발견, W5 게이트 작업일에 검토) ──────────
-#   **배경을 통째로 잡은 마스크가 커버리지 하한을 우회한다.** char_shuffle E2E 에서
-#   커버리지 75.2% · 84.0% 인 마스크가 커버리지 항목을 통과했다 — 흰 스튜디오 배경을
-#   전경으로 선택한 것이라 인물은 오히려 빠져 있었다. 하한(7.0%)만 있고 상한이 없어서다.
-#   이번엔 조각 수(1.781 > 1.5)가 잡아냈지만 **우연이다** — 배경이 한 덩어리로 잡혔다면
-#   세 지표를 모두 통과했을 것이다.
-#   검토안: 커버리지 상한(인물 마스크는 통상 10-20%), 또는 배경 반전 검사
-#   (테두리 픽셀이 전경으로 잡혔는지). 표본이 2건뿐이라 지금 숫자를 넣지 않는다 —
-#   임계는 실측 근거로 정한다는 원칙을 지킨다.
+# COVERAGE_MAX = 50.0
+#   **배경을 통째로 잡은 마스크를 막는다.** 하한만 있으면 "전경으로 배경을 고른" 마스크가
+#   그대로 통과한다. 실측 3건 — char_shuffle E2E 의 75.2% · 84.0%, 그리고 2026-10-05
+#   레퍼런스 이미지 단일 프레임 마스킹의 **87.74%**. 셋째는 **조각 수가 1개**라 다른 두
+#   지표를 모두 통과했다 — 9/30 에 "배경이 한 덩어리로 잡혔다면 전부 통과했을 것" 이라
+#   적어 둔 가정이 실제로 발생한 것이고, 이것이 상한을 넣는 직접 근거다.
+#   50 으로 잡은 이유: 성공 사례는 8.67-12.51% 구간이고 실패는 75.2% 이상이라 사이가
+#   넓다. 절반에 두면 양쪽 어디에도 가깝지 않아, 표본이 늘어도 흔들릴 여지가 적다.
+#   인물이 프레임을 절반 넘게 채우는 근접 촬영은 입력 조건(전신·발끝 포함)에서 이미
+#   걸러진다.
 #
 # ── 관찰: 1080p 는 커버리지가 계통적으로 낮다 (2026-09-30) ──────────────────
 #   char_shuffle(1920x1080) 성공 마스크의 커버리지가 **9.103%** 로, 기존 성공 최저
@@ -74,6 +74,7 @@ import numpy as np
 #   정상으로 오인할 수 있다. D2(상한)와 함께 W5 게이트 작업일에 재보정한다.
 COVERAGE_MIN = 7.0
 COVERAGE_WARN = 9.0
+COVERAGE_MAX = 50.0
 EMPTY_MAX = 0
 PARTS_MAX = 1.5
 
@@ -164,7 +165,11 @@ def measure(masks):
 def judge(metrics, expected_frames=None, frames_found=None):
     """지표 → PASS/FAIL. 측정과 분리된 순수 함수다."""
     reasons, warnings = [], []
-    if metrics["coverage_mean"] < COVERAGE_MIN:
+    if metrics["coverage_mean"] > COVERAGE_MAX:
+        reasons.append(
+            f"커버리지 평균 {metrics['coverage_mean']}% > {COVERAGE_MAX}% — "
+            f"배경을 전경으로 잡았을 가능성이 높다")
+    elif metrics["coverage_mean"] < COVERAGE_MIN:
         reasons.append(
             f"커버리지 평균 {metrics['coverage_mean']}% < {COVERAGE_MIN}% — "
             f"대상의 일부만 잡혔을 가능성이 높다")
@@ -208,6 +213,7 @@ def main():
         "frames_total": total,
         "thresholds": {
             "coverage_min": COVERAGE_MIN, "coverage_warn": COVERAGE_WARN,
+            "coverage_max": COVERAGE_MAX,
             "empty_max": EMPTY_MAX, "parts_max": PARTS_MAX,
             "status": THRESHOLD_STATUS,
         },
