@@ -29,6 +29,11 @@ JUDGE_CASES = [
     ("listener 2차",    dict(coverage_mean=6.04,  empty_frames=0,  parts_mean=3.11), "FAIL", "겉옷만 — 커버리지가 애매해 조각 수로 잡아야 한다"),
     ("listener 3차",    dict(coverage_mean=0.81,  empty_frames=0,  parts_mean=1.00), "FAIL", "얼굴만 — 커버리지로 잡아야 한다"),
     ("stalker 1차",     dict(coverage_mean=0.52,  empty_frames=54, parts_mean=2.48), "FAIL", "셔츠 띠만 — 세 지표 모두 걸려야 한다"),
+    # 배경 통째 마스크 3건 (2026-09-30·10-05 실측). 커버리지 상한이 없으면 전부 통과한다.
+    ("char_shuffle 시도3", dict(coverage_mean=75.21, empty_frames=0, parts_mean=1.78), "FAIL", "배경을 전경으로 — 조각 수가 우연히 잡았던 케이스"),
+    ("char_shuffle 시도2", dict(coverage_mean=84.02, empty_frames=0, parts_mean=1.78), "FAIL", "배경을 전경으로 — 상한으로 잡아야 한다"),
+    ("ref_player_04 시도2", dict(coverage_mean=87.74, empty_frames=0, parts_mean=1.00), "FAIL", "배경 한 덩어리 — 상한 없으면 전 지표 통과한다"),
+    ("ref RGBA (B방식)",   dict(coverage_mean=12.51, empty_frames=0, parts_mean=1.00), "PASS", "상한이 정상 입력을 막지 않는지"),
 ]
 
 VIDEO_CASES = [
