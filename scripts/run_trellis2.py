@@ -10,7 +10,7 @@ run_trellis.py(1세대)와 입출력 규약이 같다 — --image / --out / --na
       --out   /workspace/data/03_trellis2/zombie1
 
   # 해상도 다이얼 (비용 곡선 측정용)
-  python run_trellis2.py --image ... --out ... --pipeline-type 1024
+  python run_trellis2.py --image ... --out ... --pipeline-type 1536_cascade
 
 출력 (--out 아래):
   <name>.glb              PBR 메쉬 (baseColor / roughness / metallic / opacity)
@@ -52,10 +52,11 @@ def parse_args():
     ap.add_argument("--model", default="microsoft/TRELLIS.2-4B")
     ap.add_argument("--seed", type=int, default=0,
                     help="기본 0 — 1세대 run_trellis.py 와 맞춘 값 (upstream 기본은 42)")
-    ap.add_argument("--pipeline-type", default="1024",
+    ap.add_argument("--pipeline-type", default="1536_cascade",
                     choices=["512", "1024", "1024_cascade", "1536_cascade"],
-                    help="해상도 다이얼. 기본 1024 — 512 는 얇은 천을 몸에 융합시키고 "
-                         "색 채도를 56-69%% 잃는다 (docs/CONVENTIONS.md 8절)")
+                    help="해상도 다이얼. 기본 1536_cascade — 선명도가 1024 의 2.1배다. "
+                         "폴백을 낮춰야 하면 1024, 속도가 우선이면 512 (얇은 천을 몸에 "
+                         "융합시키고 색 채도를 56-69%% 잃는다). docs/CONVENTIONS.md 8절")
     ap.add_argument("--force-dielectric", dest="force_dielectric",
                     action="store_true", default=True,
                     help="material 의 metallicFactor 를 0 으로 눌러 저장 (기본 켜짐). "

@@ -171,8 +171,9 @@ python /workspace/repos/Video2UnityAvatar-Pipeline/scripts/run_trellis2.py \
     --out   /workspace/data/03_trellis/gen2/<샘플>
 ```
 
-**기본값이 `--pipeline-type 1024` 이고 `--force-dielectric` 이 켜져 있다** — 둘 다 생략해도
-적용된다 (근거는 `docs/CONVENTIONS.md` 8절). 512 는 속도가 우선일 때 명시적으로 고른다:
+**기본값이 `--pipeline-type 1536_cascade` 이고 `--force-dielectric` 이 켜져 있다** — 둘 다
+생략해도 적용된다 (근거는 `docs/CONVENTIONS.md` 8절). 2026-10-06 에 `1024` 에서 격상했다.
+`1024` 는 웨이트 폴백을 낮춰야 할 때 명시적으로 고르고, `512` 는 속도가 우선일 때 고른다:
 얇은 천을 몸에 융합시키고 색 채도를 56-69% 잃는다. 원본 metallic 을 보존하려면
 `--no-force-dielectric` 을 준다 (대조·측정용).
 
