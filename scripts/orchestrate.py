@@ -297,6 +297,9 @@ def gate_command(key, c, run: "Run", tag):
             f = rig / src
             if f.exists():
                 cmd += [flag, str(json.loads(f.read_text())[field])]
+        # 폴백 분포 — G2r 이 폴백 총량과 무관하게 이것으로 분포를 판정한다.
+        if (rig / "transferred_params.json").exists():
+            cmd += ["--transferred", str(rig / "transferred_params.json")]
         return cmd
     return None
 

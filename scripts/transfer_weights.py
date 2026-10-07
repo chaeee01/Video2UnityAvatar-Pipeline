@@ -43,6 +43,77 @@ def find_trellis_mesh(smpl_name):
     return max(cands, key=lambda o: len(o.data.vertices))
 
 
+# 높이 밴드 — 메쉬 전체 높이에 대한 비율(아래 0, 위 1). 2026-10-06 f6+1536 진단에
+# 쓴 구분 그대로다 (PROJECT_STATUS 10/6 폴백 부위 분포표).
+BANDS = [("head", 0.88, 1.01), ("torso", 0.60, 0.88), ("pelvis_thigh", 0.35, 0.60),
+         ("shin", 0.12, 0.35), ("foot", 0.0, 0.12)]
+# 사지 본 — 동작에서 크게 움직이는 팔다리 8관절. 머리·척추·쇄골은 강체에 가까워
+# 폴백이 붙어도 티가 나지 않지만, 사지 본으로 간 폴백은 "먼 데서 빌린 웨이트로
+# 팔다리를 따라 움직이는 조각" 이 된다. 2026-10-07 실측에서 이 비율이 두 표본을
+# 갈랐다 — char_shuffle f60(불합격) 47.53% / f6+1536(합격) 1.84%. f60 은 L_Elbow
+# 로만 7,050정점이 갔는데, 정렬이 어긋나 왼손 메쉬가 SMPL 에서 max_dist 밖에
+# 놓였고 그 조각이 통째로 팔꿈치 웨이트를 빌린 것이다 (L_Hand·L_Wrist 지배 정점
+# 0 의 직접 원인).
+LIMB_JOINTS = ("Shoulder", "Elbow", "Wrist", "Hand", "Hip", "Knee", "Ankle", "Foot")
+
+
+def fallback_detail(trellis, rig, records, name_by_idx):
+    """직선거리 폴백 정점이 **어디에, 어느 본으로, 얼마나 멀리서** 붙었는지.
+
+    폴백 총량(%)만으로는 품질을 가르지 못해서 넣었다 — G2r 이 총량과 무관하게
+    이 분포를 판정한다 (gate_g2r.py ④). 측정 대상은 추정이 아니라 **실제로
+    폴백 처리된 정점 집합**이다.
+
+    판정에 쓰는 것은 `limb_pct` 와 `src_dist` 다. `bands`(높이 밴드)는 사람이
+    읽기 위한 것이지 판정 축이 아니다 — 팔은 몸통과 같은 높이에 있어서 밴드로는
+    "몸통에 붙은 장비" 와 "팔 조각" 이 구분되지 않는다.
+    """
+    me, mw = trellis.data, trellis.matrix_world
+    zs = [(mw @ v.co).z for v in me.vertices]
+    z0, z1 = min(zs), max(zs)
+    span = (z1 - z0) or 1.0
+    band_of = lambda z: next((n for n, lo, hi in BANDS if lo <= (z - z0) / span < hi),
+                             "head")
+    total = {n: 0 for n, _, _ in BANDS}
+    for z in zs:
+        total[band_of(z)] += 1
+
+    rmw = rig.matrix_world
+    head = {b.name: rmw @ b.head_local for b in rig.data.bones}
+    mid_x = head["Pelvis"].x if "Pelvis" in head else 0.0
+
+    n = len(records)
+    bands = {name: 0 for name, _, _ in BANDS}
+    by_bone, dists = {}, []
+    cross = limb = 0
+    for vi, dist, gi in records:
+        p = mw @ me.vertices[vi].co
+        bands[band_of(p.z)] += 1
+        bone = name_by_idx[gi]
+        by_bone[bone] = by_bone.get(bone, 0) + 1
+        dists.append(dist)
+        if bone.endswith(LIMB_JOINTS):
+            limb += 1
+        # 좌우 본인데 정점이 몸 정중선 반대편에 있으면 교차 배정이다
+        if bone[:2] in ("L_", "R_") and bone in head:
+            if (p.x - mid_x) * (head[bone].x - mid_x) < 0:
+                cross += 1
+    dists.sort()
+    q = lambda f: round(dists[min(int(len(dists) * f), len(dists) - 1)], 5) if dists else None
+    r = lambda k: round(100.0 * k / n, 3) if n else 0.0
+    return {
+        "verts": n,
+        "bands": {name: {"verts": c, "pct_of_fallback": r(c),
+                         "pct_of_band": round(100.0 * c / total[name], 3) if total[name] else 0.0}
+                  for name, c in bands.items()},
+        "by_bone": dict(sorted(by_bone.items(), key=lambda kv: -kv[1])),
+        "limb_pct": r(limb),              # 사지 본으로 간 폴백 비율 (판정 축)
+        "cross_side_pct": r(cross),       # 정중선 반대편 본으로 간 폴백 비율
+        # 웨이트를 빌려 온 정점까지의 거리 (판정 축, 정렬 공간 단위 — 신장 약 1.0)
+        "src_dist": {"median": q(0.5), "p90": q(0.9), "max": q(1.0)},
+    }
+
+
 def main():
     a = parse_args()
     bpy.ops.wm.open_mainfile(filepath=a.blend)
@@ -92,6 +163,7 @@ def main():
 
     filled_topo = 0
     filled_eucl = 0
+    fb_records = []          # 폴백 정점별 (정점 번호, 소스까지 거리, 받은 지배 그룹)
     if n_missing:
         print("[4/5] 2차 전파: 엣지 연결(BFS) 기반")
         adj = [[] for _ in range(n_verts)]
@@ -130,10 +202,12 @@ def main():
                 kd.insert(me.vertices[vi].co, vi)
             kd.balance()
             for vi in unreached:
-                _, svi, _ = kd.find(me.vertices[vi].co)
+                _, svi, dist = kd.find(me.vertices[vi].co)
                 for gi, w in weights[svi].items():
                     vg_by_idx[gi].add([vi], w, "REPLACE")
                 filled_eucl += 1
+                dom = max(weights[svi].items(), key=lambda kv: kv[1])[0]
+                fb_records.append((vi, dist, dom))
         print(f"  전파 완료: 표면 연결 {filled_topo}, 직선거리 폴백 {filled_eucl}")
     else:
         print("[4/5] 미수신 없음 - 전파 생략")
@@ -174,6 +248,7 @@ def main():
             "fallback":   {"verts": filled_eucl, "pct": pct(filled_eucl)},
             "unassigned": {"verts": remaining,   "pct": pct(remaining)},
         },
+        "fallback_detail": fallback_detail(trellis, rig, fb_records, name_by_idx),
         "fallback_pct":   pct(filled_eucl),   # G2r --fallback-pct 에 그대로 넣는 값
         "unassigned_pct": pct(remaining),     # G2r --unassigned-pct
         "inputs": {"blend": a.blend},
