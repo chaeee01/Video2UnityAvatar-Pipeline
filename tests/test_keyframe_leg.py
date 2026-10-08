@@ -15,7 +15,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
-from run_sam2 import apply_leg_term, keyframe_score, leg_gap_ratio, pick_keyframes
+from select_keyframes import apply_leg_term, keyframe_score, leg_gap_ratio, pick_keyframes
 
 MIRROR = os.path.expanduser("~/data/02_sam2")
 

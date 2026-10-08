@@ -6,7 +6,7 @@
 """
 import os, sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
-from run_sam2 import pick_keyframes
+from select_keyframes import pick_keyframes
 
 # 2026-09-10 기록: (샘플, 제약 없이 뽑힌 top5, 간격 20 으로 뽑았을 때의 기대값)
 # 점수는 당시 기록값. bbox 는 유효성 표시용 더미.
@@ -33,7 +33,7 @@ def min_gap_of(frames):
 # 실제 선정 결과를 비교한다.
 def run_full():
     import cv2, numpy as np
-    from run_sam2 import keyframe_score
+    from select_keyframes import keyframe_score
     base = os.path.expanduser("~/data/02_sam2/_masked_0910")
     print("\n── B. 전 구간 시험 (복원 마스크 → 점수 재계산 → 선정)")
     print(f"   {'샘플':10s} {'제약 없음':>26s} {'간격':>4s} | {'간격 20':>26s} {'간격':>4s} {'점수손실':>8s}")
