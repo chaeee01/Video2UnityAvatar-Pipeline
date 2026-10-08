@@ -114,6 +114,54 @@ def fallback_detail(trellis, rig, records, name_by_idx):
     }
 
 
+def rig_check(trellis, rig, name_by_idx):
+    """리깅이 제대로 붙었는지 보는 세 지표의 원자료 (G2r ①②③). 판정은 gate_g2r.py 가 한다.
+
+      bone_dist   본 머리 → 메쉬 최근접 정점 거리 (정렬 공간 단위, 신장 약 1.0)
+      dominant    그 본이 최대 웨이트인 정점 수
+      cross       좌우 본의 지배 정점 중 **쌍의 이등분면 반대편**에 있는 수
+
+    cross 의 기준면에 주의. 2026-10-01 첫 측정은 몸 정중선을 수직면(x=0)으로 잡았는데,
+    기울어 선 자세에서 틀린다 — zombie1 은 상체가 기울어 R_Collar 가 70% 로 나왔다
+    (결함이 아니다). 좌우 쌍(L_Knee·R_Knee 등)의 두 본 머리를 잇는 선분의 수직
+    이등분면을 쓰면 자세와 무관하다. 그래서 10/1 의 "L_Ankle 38.3%" 는 이 정의로
+    13.1% 이고, 같은 샘플의 최댓값은 R_Knee 28.3% 다.
+    """
+    me, mw = trellis.data, trellis.matrix_world
+    rmw = rig.matrix_world
+    head = {b.name: rmw @ b.head_local for b in rig.data.bones}
+    kd = kdtree.KDTree(len(me.vertices))
+    for i, v in enumerate(me.vertices):
+        kd.insert(mw @ v.co, i)
+    kd.balance()
+    bone_dist = {b: round(kd.find(p)[2], 5) for b, p in head.items()}
+
+    plane = {}
+    for b in head:
+        if b[:2] in ("L_", "R_"):
+            other = ("R_" if b[0] == "L" else "L_") + b[2:]
+            if other in head:
+                n = head[b] - head[other]
+                if n.length > 1e-9:
+                    plane[b] = ((head[b] + head[other]) / 2, n.normalized())
+    dominant = {b: 0 for b in head}
+    cross = {b: 0 for b in plane}
+    for v in me.vertices:
+        if not v.groups:
+            continue
+        g = max(v.groups, key=lambda g: g.weight)
+        if g.weight < 1e-4:
+            continue
+        b = name_by_idx[g.group]
+        dominant[b] = dominant.get(b, 0) + 1
+        if b in plane:
+            mid, n = plane[b]
+            if (mw @ v.co - mid).dot(n) < 0:
+                cross[b] += 1
+    return {"vertices": len(me.vertices), "bone_dist": bone_dist,
+            "dominant": dominant, "cross": cross}
+
+
 def main():
     a = parse_args()
     bpy.ops.wm.open_mainfile(filepath=a.blend)
@@ -249,6 +297,7 @@ def main():
             "unassigned": {"verts": remaining,   "pct": pct(remaining)},
         },
         "fallback_detail": fallback_detail(trellis, rig, fb_records, name_by_idx),
+        "rig_check": rig_check(trellis, rig, name_by_idx),
         "fallback_pct":   pct(filled_eucl),   # G2r --fallback-pct 에 그대로 넣는 값
         "unassigned_pct": pct(remaining),     # G2r --unassigned-pct
         "inputs": {"blend": a.blend},
