@@ -8,7 +8,7 @@
 Pod 준비 약 5분 · SAM2 약 2분(모델 로딩 포함) · TRELLIS Space 2-10분(대기열에 따라 변동) ·
 WHAM 수 분 · 리깅 4단계 약 10분 · Unity 약 15분.
 
-**전제**: 맥북(Blender 4.5 LTS, Unity), RunPod 계정, Network Volume `pipeline-vol`(100GB,
+**전제**: 맥북(Blender 4.5 LTS, Unity), RunPod 계정, Network Volume `pipeline-vol`(250GB,
 EU-RO-1), SMPL/SMPLify 계정 인증 완료.
 
 ---
@@ -101,7 +101,8 @@ micromamba activate wham      # 4·5단계 (python 3.9, torch 2.0.0+cu118)
   ```
 
   2026-10-08 기준 합계 약 **139GB** (micromamba 74 · .cache 27 · archives 22 · repos 14 · data 1).
-  148GB 근처에서 쿼터에 걸렸으므로 여유는 10GB 안팎이다. **수 GB 이상을 쓰는 작업
+  볼륨은 **250GB** 이므로 여유는 약 **110GB** 다. (10/8 에 쿼터에 걸렸을 때는 150GB 였고
+  148GB 근처에서 쓰기가 막혔다. 그 뒤 250GB 로 증설했다.) **수 GB 이상을 쓰는 작업
   (아카이브, 새 환경, 모델 내려받기)은 쓰기 전에 이 합계와 쓸 양을 더해 본다.**
 
 ### 흔한 실패
@@ -708,12 +709,16 @@ bash scripts/setup_sam2.sh --check --env sam2v      # [8/8] 로 확인
 | `trellis_env_20261008_442aa1e.tar.zst` | envs/trellis + micromamba + repos/TRELLIS | 5.5GB | 303초 | zstd OK · 65,231항목 |
 | `trellis2_env_20261008_75fbf01.tar.zst` | envs/trellis2 + micromamba + repos/TRELLIS.2 | 4.8GB | 242초 | zstd OK · 50,097항목 |
 
-**10/8 의 3종은 무결성 검증(`zstd -t` + 항목 수)까지만 했다. 복원 시험은 하지 않았다** —
-sam2 때처럼 원본을 치우고 정규 경로에 풀어 보는 시험이 남아 있다.
+**10/8 의 3종은 무결성 검증(`zstd -t` + 항목 수)까지만 했다. 복원 시험은 하지 않았다.**
+남은 시험은 sam2 때와 같다 — **원본을 지우지 않고 이름만 바꿔 옆에 두고**, 아카이브를
+**정규 경로**에 풀어 동작을 확인한 뒤 원본을 되돌린다. 원본과 복원본이 함께 있어야 하므로
+환경 하나당 압축 전 크기만큼 여유가 필요하다(wham 약 18GB · trellis 약 21GB · trellis2 약
+15GB). 250GB 로 증설한 뒤로는 여유가 충분하다.
 
 **모델 가중치 캐시(`.cache/huggingface` 19G · `.cache/torch` 1.3G)는 담지 않는다.** TRELLIS·
-TRELLIS.2 의 가중치가 여기 있는데, 약 20GB 라 볼륨 쿼터에 들어가지 않는다(10/8 에 시도하다
-쿼터를 채웠다). setup 스크립트가 다시 받아 온다. 아카이브 범위는 **환경 4종까지**로 확정이다.
+TRELLIS.2 의 가중치가 여기 있다. 10/8 에 담으려다 당시 150GB 였던 볼륨의 쿼터를 채웠다.
+증설로 공간은 생겼지만 **setup 스크립트가 다시 받아 오므로** 담지 않기로 했다. 아카이브
+범위는 **환경 4종까지**로 확정이다.
 
 ### 확인 포인트
 - `[8/8]` 의 **"sam2 가 환경 안에 있는가"** 가 True 여야 한다. False 면 editable 설치라
