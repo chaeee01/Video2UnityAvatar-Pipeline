@@ -11,7 +11,8 @@
   python orchestrate.py --name zombie_walker --resume
 
   --dry-run      실행할 명령과 분기만 출력한다 (아무것도 실행하지 않는다)
-  --keyframe     S3 에 넣을 키프레임을 직접 지정 (기본: candidates 1위)
+  --keyframe     S3 에 넣을 키프레임을 직접 지정 (기본: G1a 재선정 1위). G1a 를 건너뛴다
+  --force-keyframe  G1a 가 "다리 벌린 프레임 없음 + 다리 움직임" 으로 인계할 때 강행한다
   --point x,y    S2 시작 좌표 (기본: 프레임 중앙)
 
 종료 코드: 0 성공 / 1 실패 / 2 사람 개입 필요
@@ -52,10 +53,16 @@ STAGES = [
          desc="입력 검증 (프레임·fps·해상도 실측)"),
     dict(key="S2",   section=POD, env="sam2",     gate="gate_s2",
          desc="SAM2 분할·트래킹"),
-    dict(key="S3",   section=POD, env="trellis2", gate="gate_g2",
-         desc="TRELLIS.2 외형 복원"),
+    # 2026-10-08: S5 를 S3 앞으로 옮기고 G1a 를 단계로 세웠다. 키프레임을 고르는 데
+    # WHAM pose(시선각·다리 움직임)가 필요해서다. 같은 Pod 에서 직렬로 도므로 순서를
+    # 바꿔도 총 시간은 같다. G3 가 생기면 S5 와 G1a 사이에 들어간다 — 동작을 먼저
+    # 확정해야 G3 재시도가 S3 를 무효화하지 않는다.
     dict(key="S5",   section=POD, env="wham",     gate=None,
          desc="WHAM 동작 복원 (G3 미구현 — 설계 7절)"),
+    dict(key="G1a",  section=POD, env="wham",     gate=None,
+         desc="키프레임 재선정 (마스크 + WHAM 시선각·다리 움직임)"),
+    dict(key="S3",   section=POD, env="trellis2", gate="gate_g2",
+         desc="TRELLIS.2 외형 복원"),
     dict(key="5-1",  section=POD, env="wham",     gate=None,
          desc="SMPL 메쉬 생성"),
     dict(key="5-2",  section=MAC, env=None,       gate=None,
@@ -71,8 +78,9 @@ STAGES = [
 ]
 STAGE_BY_KEY = {s["key"]: s for s in STAGES}
 
-# G1a 는 단계가 아니다 — 키프레임 선정은 S2 안에서 이뤄지고 독립 게이트가 없다
-# (gate_g1a.py 없음, 자세 항 미구현). 설계 8절 ③.
+# G1a 는 2026-10-08 부터 단계다 (설계 10절 개정). S2 가 마스크만으로 1차 후보를 내고,
+# S5 뒤의 G1a(select_keyframes.py)가 WHAM pose 로 다시 매긴다. 별도 gate_g1a.py 는
+# 없다 — 판정(진행 / 사람에게 인계)을 단계 자신이 종료 코드로 낸다.
 
 
 # ---------------------------------------------------------------- 경로
@@ -87,8 +95,9 @@ def stage_outputs(key, name):
     return {
         "G0":  [],
         "S2":  [sam2 / "masks", sam2 / f"{name}_masked.mp4", sam2 / "keyframes"],
-        "S3":  [data("03_trellis2", name, f"{name}.glb")],
         "S5":  [data("04_wham", f"{name}_masked", "wham_output.pkl")],
+        "G1a": [sam2 / "keyframes" / "candidates.json"],
+        "S3":  [data("03_trellis2", name, f"{name}.glb")],
         "5-1": [data("05_smpl_mesh", name)],
         "5-2": [rig / "aligned.blend", rig / "aligned_params.json"],
         "5-3": [rig / "rigged.blend", rig / "rigged_params.json"],
@@ -228,6 +237,13 @@ def stage_command(key, c):
                 "--seed", str(c.get("seed", 0))]
     if key == "S5":
         return ["bash", str(S / "run_wham.sh"), str(sam2 / f"{n}_masked.mp4")]
+    if key == "G1a":
+        cmd = ["python", str(S / "select_keyframes.py"), "--sam2-dir", str(sam2),
+               "--video", str(c["video"]),
+               "--wham-pkl", str(data("04_wham", f"{n}_masked", "wham_output.pkl"))]
+        if c.get("force_keyframe"):
+            cmd.append("--allow-closed-legs")
+        return cmd
     if key == "5-1":
         return ["python", str(S / "generate_smpl_mesh.py"),
                 "--pkl", str(data("04_wham", f"{n}_masked", "wham_output.pkl")),
@@ -414,7 +430,10 @@ def parse_args():
     ap.add_argument("--runs-dir", default=None,
                     help="run 폴더 위치. 기본 <vol>/data/runs")
     ap.add_argument("--point", help="S2 시작 좌표 'x,y' (기본: 프레임 중앙)")
-    ap.add_argument("--keyframe", help="S3 에 넣을 키프레임 PNG (기본: candidates 1위)")
+    ap.add_argument("--keyframe", help="S3 에 넣을 키프레임 PNG (기본: G1a 재선정 1위). "
+                                       "파일명에 _f<프레임번호> 가 있어야 한다")
+    ap.add_argument("--force-keyframe", action="store_true",
+                    help="G1a 인계(다리 벌린 프레임 없음 + 다리 움직임)를 강행한다")
     ap.add_argument("--section", choices=[POD, MAC],
                     help="이 구간만 돈다 (기본: 마커가 가리키는 다음 단계부터)")
     ap.add_argument("--until", metavar="STAGE",
@@ -475,9 +494,20 @@ def main():
     # --- 실행 ---
     print("\n" + "=" * 62)
     ctx = dict(name=a.name, video=a.video or run.meta().get("video"),
-               point=a.point, keyframe=a.keyframe, seed=0)
+               point=a.point, keyframe=a.keyframe, seed=0,
+               force_keyframe=a.force_keyframe)
     ctx.update({k: v for k, v in run.meta().items()
                 if k in ("frames", "width", "height", "frame", "keyframe")})
+    if a.keyframe:
+        # 사람이 고른 키프레임이 run 기록보다 우선한다. 프레임 번호는 파일명에서 읽는다
+        # — 5-1·5-5 가 같은 프레임의 SMPL 메쉬를 써야 하므로 추측하지 않는다.
+        frame = frame_from_name(a.keyframe)
+        if frame is None:
+            print(f"[오류] --keyframe 파일명에서 프레임 번호를 읽지 못했다: {a.keyframe}")
+            print("  key<순위>_f<프레임번호>.png 꼴이어야 한다 (예: key2_f00006.png)")
+            return EXIT_FAIL
+        ctx["keyframe"], ctx["frame"] = a.keyframe, frame
+        ctx["keyframe_by_user"] = True
 
     here = a.section or remaining[0]["section"]
     for s in remaining:
@@ -497,12 +527,14 @@ def main():
         code = run_stage(s, ctx, run, a.dry_run)
         if code != EXIT_OK:
             return code
+        # 기록을 --until 정지보다 먼저 한다. 순서가 반대였을 때는 --until 로 멈춘 run 을
+        # 이어받으면 키프레임·프레임 번호가 남아 있지 않았다 (2026-10-08 시험에서 발견).
+        run.write_meta({k: ctx[k] for k in ("frames", "width", "height", "frame", "keyframe")
+                        if ctx.get(k) is not None})
         if a.until and s["key"] == a.until:
             print("=" * 62)
             print(f"\n[정지] --until {a.until} 에 도달했다. 이어서 돌리려면 --resume.")
             return EXIT_OK
-        run.write_meta({k: ctx[k] for k in ("frames", "width", "height", "frame", "keyframe")
-                        if ctx.get(k) is not None})
 
     print("=" * 62)
     print("\n모든 단계 완료. Unity 반입은 수동이다 (RUNBOOK 6절):")
@@ -533,6 +565,14 @@ def run_stage(s, c, run: Run, dry) -> int:
             run.add_attempt({"stage": "G0", "verdict": "FAIL", "reasons": bad, "metrics": m})
             return EXIT_FAIL
         run.add_attempt({"stage": "G0", "verdict": "PASS", "metrics": m})
+        run.mark_done(key, [], 0)
+        return EXIT_OK
+
+    # ---- G1a: 사람이 키프레임을 지정했으면 재선정하지 않는다 ----
+    if key == "G1a" and c.get("keyframe_by_user"):
+        print(f"    건너뜀: --keyframe 지정 ({Path(c['keyframe']).name}, frame={c['frame']})")
+        run.add_attempt({"stage": key, "verdict": "SKIP(--keyframe)",
+                         "params": {"keyframe": str(c["keyframe"])}})
         run.mark_done(key, [], 0)
         return EXIT_OK
 
@@ -576,6 +616,22 @@ def run_stage(s, c, run: Run, dry) -> int:
         t0 = datetime.now()
         rc = run_cmd(cmd, run.logs / f"{key}_{tag}.log", dry)
         elapsed = (datetime.now() - t0).total_seconds()
+        if key == "G1a" and rc == EXIT_HUMAN and not dry:
+            # 재선정이 사람에게 넘겼다 — 실패가 아니라 정지다. 사유는 로그에 있다.
+            log = run.logs / f"{key}_{tag}.log"
+            run.add_attempt({"stage": key, "n": n, "verdict": "HUMAN",
+                             "elapsed_s": round(elapsed, 1)})
+            print("\n[정지] G1a — 이 클립에는 다리가 벌어진 프레임이 없는데 동작은 다리를 움직인다")
+            for line in log.read_text(errors="replace").splitlines():
+                if line.startswith("[인계]"):
+                    print(f"  {line}")
+            print("\n  다리가 붙은 채 만든 메쉬는 리깅에서 좌우가 갈리지 않는다 (char_shuffle f60).")
+            print("  권고: 다리가 벌어진 프레임이 있는 영상으로 다시 만든다.")
+            print(f"  강행: python orchestrate.py --name {c['name']} --resume --force-keyframe")
+            print(f"  직접 지정: python orchestrate.py --name {c['name']} --resume "
+                  f"--keyframe <후보.png>")
+            print(f"  후보: {data('02_sam2', c['name'], 'keyframes')}   로그: {log}")
+            return EXIT_HUMAN
         if rc != 0 and not dry:
             print(f"    실패: 단계가 종료 코드 {rc} 로 끝났다 — {run.logs / f'{key}_{tag}.log'}")
             run.add_attempt({"stage": key, "n": n, "verdict": "ERROR", "rc": rc,
@@ -696,20 +752,40 @@ def exhausted(key, c, run: Run):
     return EXIT_HUMAN
 
 
-def pick_keyframe(name, dry):
-    """candidates.json 1위를 고른다. 파일명에서 프레임 번호를 뽑는다.
+def frame_from_name(path):
+    """key2_f00006.png → "6". 못 읽으면 None."""
+    stem = Path(path).stem
+    if "_f" not in stem:
+        return None
+    tail = stem.rsplit("_f", 1)[1]
+    return str(int(tail)) if tail.isdigit() else None
 
-    G1a 는 독립 게이트가 아니다 (설계 8절 ③) — 선정은 run_sam2.py 안에서 끝났고
-    여기서는 그 결과를 읽기만 한다. 사람이 바꾸려면 --keyframe 으로 덮어쓴다.
+
+def pick_keyframe(name, dry):
+    """candidates.json 의 1위를 고른다.
+
+    선정은 G1a 단계(select_keyframes.py)가 끝냈고 여기서는 그 결과를 읽기만 한다.
+    사람이 바꾸려면 --keyframe 으로 덮어쓴다.
+
+    **파일 목록이 아니라 candidates.json 을 읽는다.** 2026-10-08 까지는
+    `key1_f*.png` 를 이름순으로 나열해 첫 장을 집었는데, S2 재시도마다 key1 이
+    쌓여 있어(char_shuffle 에 4장) 1위가 아닌 것을 집을 수 있었다. 9/30 E2E 에서
+    그것이 실제 1위(f60)와 같았던 것은 우연이다.
     """
     kd = data("02_sam2", name, "keyframes")
     if dry:
         return str(kd / "key1_fXXXXX.png"), "XXXXX"
-    cands = sorted(kd.glob("key1_f*.png"))
-    if not cands:
+    cj = kd / "candidates.json"
+    if not cj.exists():
         return None, None
-    kf = cands[0]
-    return str(kf), str(int(kf.stem.split("_f")[1]))
+    top = json.loads(cj.read_text()).get("topk") or []
+    if not top:
+        return None, None
+    frame = int(top[0]["frame"])
+    kf = kd / f"key1_f{frame:05d}.png"
+    if not kf.exists():
+        return None, None
+    return str(kf), str(frame)
 
 
 if __name__ == "__main__":
