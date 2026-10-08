@@ -91,6 +91,18 @@ micromamba activate wham      # 4·5단계 (python 3.9, torch 2.0.0+cu118)
 - `ls /workspace/repos` → `WHAM`, `sam2`, `TRELLIS`가 보이면 볼륨이 제대로 붙은 것이다.
 - `python -c "import torch; print(torch.cuda.is_available(), torch.__version__)"` → `True`.
 - 볼륨은 Pod을 지워도 유지된다(검증 완료). 환경을 다시 만들 필요 없다.
+- **큰 파일을 쓰기 전에 볼륨 사용량을 잰다.** `df` 로는 알 수 없다 — `/workspace` 는 공유
+  스토리지 풀이라 `df` 가 풀 전체(2.2P 중 523T 여유)를 보여 주고, **볼륨 쿼터는 따로 걸려
+  있다.** 쿼터 조회 도구도 Pod 안에 없다. 사용량을 직접 더해 콘솔의 볼륨 크기와 견준다:
+
+  ```bash
+  du -sh /workspace/archives /workspace/micromamba /workspace/.cache \
+         /workspace/repos /workspace/data /workspace/logs      # 약 100초
+  ```
+
+  2026-10-08 기준 합계 약 **139GB** (micromamba 74 · .cache 27 · archives 22 · repos 14 · data 1).
+  148GB 근처에서 쿼터에 걸렸으므로 여유는 10GB 안팎이다. **수 GB 이상을 쓰는 작업
+  (아카이브, 새 환경, 모델 내려받기)은 쓰기 전에 이 합계와 쓸 양을 더해 본다.**
 
 ### 흔한 실패
 - **포트 혼동** — Jupyter 포트(8888)는 **브라우저 프록시 전용**이다. `ssh`·`scp`는 RunPod 콘솔의
@@ -102,6 +114,13 @@ micromamba activate wham      # 4·5단계 (python 3.9, torch 2.0.0+cu118)
   `/workspace` 밖은 Pod을 Terminate하면 **사라진다**. 레포는 항상
   `/workspace/repos/Video2UnityAvatar-Pipeline`에 둔다.
 - **Stop으로 두기** — Stop은 스토리지가 2배로 과금된다. 작업이 끝나면 반드시 **Terminate**.
+- **쿼터 초과 (`Disk quota exceeded`)** — 볼륨이 차면 **쓰기만** 실패하고 읽기는 된다. 그래서
+  증상이 엉뚱한 곳에서 나타난다. 2026-10-08 에 아카이브를 만들다 쿼터를 채웠을 때: tar 작업은
+  **실패 메시지도 못 남기고 사라졌고**(로그에 쓸 수 없으므로), 같은 시각에 돌던 S3 는 GLB
+  내보내기의 UV 전개(xatlas)에서 18분간 멈춘 것처럼 보였으며, `scp` 는 `close remote: Failure`
+  를 냈다. 작은 파일은 써지기도 해서 `echo x > file` 로는 확인되지 않는다 — 50MB 를 써 본다:
+  `dd if=/dev/zero of=/workspace/logs/_q bs=1M count=50 && rm /workspace/logs/_q`.
+  쿼터를 풀고 S3 를 단독으로 다시 돌리니 같은 메쉬가 43초에 끝났다(1536 의 문제가 아니었다).
 - **백그라운드 로그가 비어 있음** — `nohup python … > log` 는 stdout 이 블록 버퍼링돼
   프로세스가 끝날 때까지 로그가 비어 있다. 진행을 볼 수 없다. **`PYTHONUNBUFFERED=1`**
   을 붙이거나 `python -u` 로 돌린다 (2026-09-30 E2E 에서 겪음).
@@ -138,8 +157,8 @@ python /workspace/repos/Video2UnityAvatar-Pipeline/scripts/run_sam2.py \
 |---|---|
 | `masks/00000.png …` | 프레임별 마스크 (흑백) |
 | `<영상명>_masked.mp4` | 배경 검게 지운 클립 → **4단계 WHAM 입력** |
-| `keyframes/key1_f00007.png …` | 알파 키프레임 후보 → **3단계 TRELLIS 입력** |
-| `keyframes/candidates.json` | 후보 선정 근거(프레임·점수·bbox) |
+| `keyframes/key1_f00007.png …` | 알파 키프레임 **1차 후보**(마스크만으로 선정) → 4.5절 재선정을 거쳐 **3단계 TRELLIS 입력** |
+| `keyframes/candidates.json` | 후보 선정 근거(프레임·점수·bbox·다리 간격비) |
 
 ### 확인 포인트
 - **`masks/` 장수 = 원본 프레임 수.** 중간에 비면 추적이 끊긴 것이다. 이것이 가장 확실한 지표다.
@@ -163,6 +182,10 @@ python /workspace/repos/Video2UnityAvatar-Pipeline/scripts/run_sam2.py \
 ---
 
 ## 3. TRELLIS.2 — 외형 복원 (S3)
+
+> **4절(WHAM)과 4.5절(키프레임 재선정)을 먼저 돈다.** 실행 순서는 `S2 → S5 → G1a → S3` 이다
+> (2026-10-08 변경). 절 번호는 예전 순서 그대로 두었다. 여기에 넣는 키프레임은 4.5절이
+> 갱신한 `keyframes/key1_f*.png` 다.
 
 ```bash
 micromamba activate trellis2
@@ -265,7 +288,8 @@ pkl 이 있는 폴더에 `overlay.mp4` 가 생긴다. WHAM 내장 렌더러(3D �
 
 ### 확인 포인트
 - pkl 형상: `pose (T,72)`, `trans (T,3)`, `betas (T,10)`, `verts (T,6890,3)`.
-- **트랙 1개**여야 한다. 2개 이상이면 다른 객체를 사람으로 잡은 것이다.
+- **트랙 1개**여야 한다. 2개 이상이면 다른 객체를 사람으로 잡은 것이다. **0개면
+  `run_wham.sh` 가 실패로 끝난다**(2026-10-08 부터) — 아래 흔한 실패 참조.
 - 포즈 표준편차가 0.4 이상이면 동작이 확실히 잡힌 것 (테스트 클립 0.44).
 - `overlay.mp4`를 재생해 **관절이 좀비 위에 얹혀 있는지** 눈으로 본다. 이게 가장 확실한 검증이다.
   판정 기준은 **몸통·대관절은 엄격, 말단은 관대** — 손목·손끝이 가끔 이탈하는 것은 WHAM 말단
@@ -275,6 +299,54 @@ pkl 이 있는 폴더에 `overlay.mp4` 가 생긴다. WHAM 내장 렌더러(3D �
 - **원본 영상을 그대로 넣음** — 배경이 남아 있으면 추적이 흔들린다. 2단계의 마스킹 클립을 넣는다.
 - **카메라가 움직이는 영상** — `--estimate_local_only`는 카메라 고정 전제다. 흔들리는 영상은
   DPVO를 따로 설치해야 한다.
+- **pkl 이 있는데 비어 있음 (거짓 성공)** — WHAM 은 사람을 하나도 추적하지 못해도 **빈 dict 를
+  담은 pkl(66바이트)을 쓰고 종료 코드 0 으로 끝난다.** 2026-10-08 에 `zombie_listener`
+  (S2 가 얼굴만 잡은 마스크)가 그렇게 "완료" 로 보고됐다. **Blender 가 스크립트 예외에도
+  종료 코드 0 을 내는 것과 같은 계열이다** — 종료 코드도, 산출물 파일의 존재도 성공의 증거가
+  아니다. 산출물의 **내용**을 본다. `run_wham.sh` 가 트랙 수 ≥ 1 을 검사하도록 고쳤다.
+  원인은 대개 상류다: 마스크가 몸 전체를 담고 있는지 S2 로 돌아가 확인한다.
+
+---
+
+## 4.5. 키프레임 재선정 (G1a)
+
+**S5 다음, S3 전에 돈다.** 키프레임을 고르는 데 WHAM pose 가 필요해서다. 수동으로 돌릴 때는
+이 문서의 절 순서(2 → 3 → 4)가 아니라 **2 → 4 → 4.5 → 3** 으로 간다. 오케스트레이터는 이
+순서로 돈다 (`G0 → S2 → S5 → G1a → S3 → 5-1 → …`).
+
+```bash
+micromamba activate wham
+python scripts/select_keyframes.py \
+    --sam2-dir /workspace/data/02_sam2/<샘플> \
+    --video    /workspace/data/00_raw/<샘플>.mp4 \
+    --wham-pkl /workspace/data/04_wham/<샘플>_masked/wham_output.pkl
+```
+
+S2 는 마스크만으로 1차 후보를 내고(다리 항까지), 이 단계가 **시선 이탈각**을 더해 순위를 다시
+매긴 뒤 `keyframes/key*_f*.png` 와 `candidates.json` 을 갱신한다. S2 가 낸 원래 후보는
+`keyframes/_s2pick/` 에 **최초 1회만** 보존된다.
+
+| 항 | 재는 것 | 임계 | 근거 (2026-10-08, 6샘플) |
+|---|---|---|---|
+| 다리 벌어짐 | 정강이 밴드의 다리 간격 / bbox 높이 | 0.02 ~ 0.06, 바닥 0.5 | f6 0.1162 합격 / f60 0.0125 불합격 |
+| 시선 이탈각 | 시선과 카메라 축 사이 각 | 30° ~ 50°, 바닥 0.5 | 채택 프레임 5.4~33.9° / f60 56.6° 불합격 |
+| 다리 움직임 | 다리 4관절 회전의 p95−p5 | 15° | 제자리 10.4·11.2° / 걷기·기기·춤 38.6° 이상 |
+
+둘 다 감점 전용이다 — 좋은 쪽으로는 보상하지 않고 나쁜 프레임만 깎는다.
+
+### 확인 포인트
+- 출력 마지막 줄의 후보별 `다리`·`시선` 값. 1위의 시선이 30° 아래인지 본다.
+- `다리 항 off_no_signal` 이면 이 클립에 **다리 벌린 프레임이 없다**는 뜻이다. 이어지는 판정을 본다:
+  동작에 다리 움직임이 없으면(15° 미만) 그대로 진행하고, 있으면 **종료 코드 2** 로 멈춘다.
+
+### 흔한 실패
+- **종료 코드 2 — 다리 벌린 프레임이 없는데 동작은 다리를 움직인다.** 실패가 아니라 인계다.
+  다리가 붙은 채 만든 메쉬는 두 다리가 한 덩어리라 웨이트가 좌우로 갈리지 않는다
+  (char_shuffle f60: 좌우 교차 배정 38.3%). **권고는 영상 재생성**이고, 알고도 진행하려면
+  `--allow-closed-legs`(오케스트레이터는 `--force-keyframe`)를 준다.
+- **`WHAM frame_ids 가 마스크 범위를 벗어난다`** — 다른 영상의 pkl 을 넣었다.
+- **재선정을 다시 돌렸더니 `_s2pick/` 이 그대로다** — 정상이다. 보존분은 S2 원본이고, 두 번째
+  실행 때 `keyframes/` 에 있는 것은 이전 재선정의 결과라 그것으로 덮으면 원본을 잃는다.
 
 ---
 
@@ -627,6 +699,22 @@ bash scripts/setup_sam2.sh --check --env sam2v      # [8/8] 로 확인
 | 복원본 검증 | `[8/8]` 전부 통과 |
 | 실데이터 대조 | `zombie_walker` 첫 프레임 마스크 **완전 일치** (80,882px, 다른 픽셀 0, IoU 1.000000) |
 
+### 아카이브 목록 (볼륨 `/workspace/archives/`)
+
+| 아카이브 | 담은 것 | 크기 | 생성 | 검증 |
+|---|---|---|---|---|
+| `sam2v_env_20260929_2b90b9f.tar.zst` | envs/sam2v + micromamba + repos/sam2 | 4.0GB | 287초 | 복원 시험 완료 (9/29) |
+| `wham_env_20261008_2b54f77.tar.zst` | envs/wham + micromamba + repos/WHAM (체크포인트 6.1G 포함) | 8.0GB | 231초 | zstd OK · 51,372항목 |
+| `trellis_env_20261008_442aa1e.tar.zst` | envs/trellis + micromamba + repos/TRELLIS | 5.5GB | 303초 | zstd OK · 65,231항목 |
+| `trellis2_env_20261008_75fbf01.tar.zst` | envs/trellis2 + micromamba + repos/TRELLIS.2 | 4.8GB | 242초 | zstd OK · 50,097항목 |
+
+**10/8 의 3종은 무결성 검증(`zstd -t` + 항목 수)까지만 했다. 복원 시험은 하지 않았다** —
+sam2 때처럼 원본을 치우고 정규 경로에 풀어 보는 시험이 남아 있다.
+
+**모델 가중치 캐시(`.cache/huggingface` 19G · `.cache/torch` 1.3G)는 담지 않는다.** TRELLIS·
+TRELLIS.2 의 가중치가 여기 있는데, 약 20GB 라 볼륨 쿼터에 들어가지 않는다(10/8 에 시도하다
+쿼터를 채웠다). setup 스크립트가 다시 받아 온다. 아카이브 범위는 **환경 4종까지**로 확정이다.
+
 ### 확인 포인트
 - `[8/8]` 의 **"sam2 가 환경 안에 있는가"** 가 True 여야 한다. False 면 editable 설치라
   환경이 레포 경로에 묶여 있다는 뜻이다.
@@ -706,9 +794,10 @@ python /workspace/repos/Video2UnityAvatar-Pipeline/scripts/run_trellis.py \
 
 | 단계 | 입력 | 출력 | 위치 |
 |---|---|---|---|
-| 2. SAM2 | 원본 mp4 | 마스크, 마스킹 클립, 키프레임 후보 | Pod `/workspace/data/02_sam2/` |
-| 3. TRELLIS | 키프레임 PNG | GLB, 텍스처 PNG, `params.json` | Pod `/workspace/data/03_trellis/` |
+| 2. SAM2 | 원본 mp4 | 마스크, 마스킹 클립, 키프레임 1차 후보 | Pod `/workspace/data/02_sam2/` |
 | 4. WHAM | 마스킹 클립 | `wham_output.pkl`, `overlay.mp4` | Pod `/workspace/data/04_wham/` |
+| 4.5. 키프레임 재선정 | 마스크 + pkl + 원본 mp4 | 갱신된 키프레임 PNG · `candidates.json`, `_s2pick/` | Pod `/workspace/data/02_sam2/<샘플>/keyframes/` |
+| 3. TRELLIS | 키프레임 PNG (재선정 1위) | GLB, 텍스처 PNG, `params.json` | Pod `/workspace/data/03_trellis/` |
 | 5-1. SMPL 메쉬 | pkl | obj, joints json | Pod `/workspace/data/05_smpl_mesh/<샘플명>/` |
 | 5-2. 정렬 | GLB + obj | `aligned.blend` | 맥북 |
 | 5-3. 아마추어 | `aligned.blend` + joints | `rigged.blend` | 맥북 |
