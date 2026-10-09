@@ -3,7 +3,8 @@
   A. 프롬프트 전처리 — 끝의 "10 seconds." 만 떼고 나머지는 한 글자도 바꾸지 않는가.
   B. 요청 조립 — 접두사별 레퍼런스·비율·출력 이름이 맞는가 (임시 PNG 로 만든다).
   C. 치명 오류 판정 — 인증·과금 오류는 멈추고, 일반 429·400 은 멈추지 않는가.
-  D. 이어하기 — 기록 없는 mp4 를 만나면 덮어쓰지 않고 멈추는가.
+  D. 이어하기 — 기록 없는 mp4, 프롬프트가 바뀐 mp4 를 만나면 덮어쓰지 않고 멈추는가.
+  E. 종료 코드 — 인자 오류가 1 로 나가는가 (2 는 즉시 중단 전용).
 
 실제 생성(과금)은 시험하지 않는다. 그것은 시험 5편으로 사람이 본다.
 """
@@ -11,6 +12,7 @@ import argparse
 import json
 import os
 import struct
+import subprocess
 import sys
 import tempfile
 import threading
@@ -57,7 +59,7 @@ def make_args(tmp, **kw):
         png(refs / name, *((2752, 1536) if name.startswith("dog") else (1116, 2000)))
     d = dict(ids=None, model="fast", mode="first_frame", refs=refs, out=Path(tmp) / "out",
              resolution="1080p", duration=8, xlsx=Path(tmp) / "p.xlsx",
-             git_commit="0" * 40, git_dirty=False)
+             git_commit="0" * 40, git_dirty=False, xlsx_sha256="0" * 64)
     d.update(kw)
     return argparse.Namespace(**d)
 
@@ -113,11 +115,32 @@ def run_resume(tmp):
     except g.Fatal:
         a = job["mp4"].read_bytes() == b"foreign"
     print(f"   {'기록 없는 mp4 → 중단, 파일 그대로':40s} {'✅' if a else '❌'}")
-    job["json"].write_text(json.dumps({"result": {"status": "success"}, "g0": {"frames": 192}}))
+    rec = {"result": {"status": "success"}, "g0": {"frames": 192}, "prompt": job["prompt"]}
+    job["json"].write_text(json.dumps(rec))
     r = g.run_one(None, None, None, args, job, "t", stop)
     b = r["status"] == "skip" and job["mp4"].read_bytes() == b"foreign"
-    print(f"   {'성공 기록 있는 mp4 → 건너뜀':40s} {'✅' if b else '❌'}")
-    return a and b
+    print(f"   {'성공 기록 + 같은 프롬프트 → 건너뜀':40s} {'✅' if b else '❌'}")
+    rec["prompt"] = "turned about 45 degrees."
+    job["json"].write_text(json.dumps(rec))
+    try:
+        g.run_one(None, None, None, args, job, "t", stop)
+        c = False
+    except g.Fatal:
+        c = job["mp4"].read_bytes() == b"foreign" and json.loads(job["json"].read_text()) == rec
+    print(f"   {'성공 기록 + 다른 프롬프트 → 중단, 파일·기록 그대로':40s} {'✅' if c else '❌'}")
+    return a and b and c
+
+
+def run_exit_code():
+    script = os.path.join(os.path.dirname(__file__), "..", "scripts", "gen_veo_batch.py")
+    cases = [("필수 인자 누락", []), ("없는 선택지", ["--xlsx", "x", "--refs", "r", "--model", "nope"])]
+    ok = 0
+    for name, argv in cases:
+        r = subprocess.run([sys.executable, script] + argv, capture_output=True, text=True)
+        good = r.returncode == 1 and "FATAL_STOP" not in r.stdout + r.stderr
+        ok += good
+        print(f"   {name:28s} 종료 코드 {r.returncode}  {'✅' if good else '❌'}")
+    return ok == len(cases)
 
 
 if __name__ == "__main__":
@@ -130,6 +153,8 @@ if __name__ == "__main__":
         c = run_fatal()
         print("D. 이어하기")
         d = run_resume(tmp)
-    good = a and b and c and d
+        print("E. 종료 코드")
+        e = run_exit_code()
+    good = a and b and c and d and e
     print(f"\n{'✅ 전체 통과' if good else '❌ 실패 있음'}")
     sys.exit(0 if good else 1)

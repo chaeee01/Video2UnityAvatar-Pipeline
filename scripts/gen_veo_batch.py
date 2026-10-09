@@ -21,17 +21,19 @@ ORCHESTRATOR_DESIGN 의 S-1 구상을 수동 스크립트로 먼저 만든 것�
 모델 태그는 std · fast, 방식 태그는 ff(시작 프레임) · ref(참조 이미지)다.
 
 동작 규칙:
-  - 이어하기: mp4 와 성공 기록이 함께 있으면 건너뛴다. mp4 만 있고 기록이 없으면 남의
-    파일로 보고 **멈춘다** — 기존 파일을 덮어쓰지 않는다.
+  - 이어하기: mp4 와 성공 기록이 함께 있으면 건너뛴다. mp4 만 있고 기록이 없거나, 기록된
+    프롬프트가 이번 엑셀과 다르면 **멈춘다** — 기존 파일을 덮어쓰지 않는다.
   - 안전 필터 차단·오류는 기록하고 다음 편으로 넘어간다. 오류는 1회만 재시도하고 차단은
     재시도하지 않는다. 429 는 기다렸다 다시 보낸다 (재시도 횟수에 세지 않는다).
   - 생성 요청이 접수된 뒤(operation 이 생긴 뒤) 폴링·다운로드가 실패하면 **재생성하지
     않는다** — 서버에서는 완성돼 과금될 수 있어서다. operation 이름을 기록에 남긴다.
-  - 인증·과금·등급 오류는 다음 편도 똑같이 실패하므로 원문을 찍고 즉시 종료한다 (코드 2).
+  - 인증·과금·등급 오류는 다음 편도 똑같이 실패하므로 "FATAL_STOP:" 과 원문을 찍고 즉시
+    종료한다 (코드 2).
   - API 키는 레포 루트 .env 의 GEMINI_API_KEY 에서 읽고, 출력·기록에 쓰지 않는다.
 
-종료 코드: 0 정상 (차단·오류가 섞여도 0, 요약 표를 본다) · 2 치명 오류로 중단 ·
-3 토큰 한도 초과 (--count-tokens).
+종료 코드: 0 정상 (차단·오류가 섞여도 0, 요약 표를 본다) · 1 인자 오류 · 2 즉시 중단
+(FATAL_STOP — 사람이 봐야 한다, 오케스트레이터의 EXIT_HUMAN 과 같은 값) · 3 토큰 한도 초과
+(--count-tokens).
 """
 import argparse
 import hashlib
@@ -78,6 +80,14 @@ _KEY = ""
 
 class Fatal(Exception):
     """다음 편도 똑같이 실패할 오류 — 배치를 멈춘다."""
+
+
+class Parser(argparse.ArgumentParser):
+    """argparse 기본 오류 코드 2 는 즉시 중단(FATAL_STOP)과 겹친다. 인자 오류는 1 로 낸다."""
+
+    def error(self, message):
+        self.print_usage(sys.stderr)
+        self.exit(1, f"{self.prog}: error: {message}\n")
 
 
 def scrub(s):
@@ -326,6 +336,9 @@ def run_one(client, types, errors, args, job, sdk_version, stop):
     prior = json.loads(job["json"].read_text()) if job["json"].exists() else None
     if job["mp4"].exists():
         if prior and prior.get("result", {}).get("status") == "success":
+            if prior.get("prompt") != job["prompt"]:
+                raise Fatal(f"{job['mp4']} 의 기록된 프롬프트가 이번 엑셀과 다르다 — 건너뛰지도 "
+                            f"덮어쓰지도 않는다. 옛 결과를 옮긴 뒤 다시 실행할 것")
             g0 = prior.get("g0", {})
             row.update(status="skip", g0=g0, total_s=None)
             log(f"[{job['stem']}] 건너뜀 — 이미 있다")
@@ -351,6 +364,7 @@ def run_one(client, types, errors, args, job, sdk_version, stop):
     params = {
         "name": job["stem"],
         "inputs": [str(args.xlsx), str(job["ref"])],
+        "xlsx_sha256": args.xlsx_sha256,
         "id": job["id"],
         "model": MODELS[args.model],
         "mode": args.mode,
@@ -416,7 +430,7 @@ def count_tokens(client, args, rows):
 
 def main():
     global _KEY
-    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    ap = Parser(description=__doc__.split("\n")[0])
     ap.add_argument("--xlsx", type=Path, required=True, help="프롬프트 엑셀 (시트 prompts)")
     ap.add_argument("--refs", type=Path, required=True, help="레퍼런스 이미지 폴더")
     ap.add_argument("--out", type=Path, default=Path("~/data/00_raw"), help="출력 폴더 (기본 ~/data/00_raw)")
@@ -461,6 +475,7 @@ def main():
         return
 
     args.git_commit, args.git_dirty = git_state()
+    args.xlsx_sha256 = sha256(args.xlsx)
     args.out.mkdir(parents=True, exist_ok=True)
     prepare_refs(jobs)
     log(f"시작 — {len(jobs)}편, {MODELS[args.model]}, {args.mode}, 동시 {args.concurrency}, "
@@ -474,6 +489,7 @@ def main():
         except Fatal as e:
             stop.set()
             fatal.append(scrub(e))
+            log(f"FATAL_STOP: [{job['stem']}] {e}")
             return {"id": job["id"], "stem": job["stem"], "mode": args.mode, "model": args.model,
                     "status": "fatal", "g0": {}, "total_s": None, "message": scrub(e)}
 
@@ -500,7 +516,7 @@ def main():
         for r in g0_fail:
             print(f"  {r['stem']}: {r['g0'].get('reasons')}")
     if fatal:
-        print(f"\n[중단] 치명 오류 — 원문:\n  {fatal[0]}")
+        print(f"\nFATAL_STOP: {fatal[0]}", flush=True)
         sys.exit(2)
 
 
