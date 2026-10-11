@@ -104,6 +104,32 @@ import sys
 #
 #   ④ 는 아래대로 독립 경고다. 수위를 올리는 데 쓰지 않고, 불합격 사유에 "사라진
 #   정점이 어디로 갔는지" 의 근거로 인용한다.
+#
+# ── ⑤ 떨어져 있어야 할 부위를 잇는 엣지 (2026-10-12 구현, 경고) ─────────────
+#   10/11 파일럿 walker_walk_02 가 **①②③ 을 전부 무경고로 통과하고 육안 불합격**이었다.
+#   팔을 벌리면 손과 허벅지 사이가 판자처럼 늘어났다. 손 정점이 허벅지 본을 받았거나
+#   (f138 — WHAM 팔 자세와 메쉬 팔이 어긋남) 허벅지 정점이 손 본을 받은(f18 — 손이
+#   허벅지 가까이 있어 번짐) 것이다. 어느 쪽이든 **메쉬 엣지 양끝을 서로 이웃하지 않는
+#   부위의 본이 지배**한다. rig_check 의 limb_edges 가 그 엣지를 센다.
+#
+#                          팔–다리   팔–하부몸통   좌다리–우다리   육안
+#     char_shuffle f60        249         84         1,825       불합격
+#     walker_walk_02 f138     532         29             0       불합격
+#     walker_walk_02 f18    1,260        368             0       불합격
+#     char_shuffle f6           0          0             0       합격
+#     zombie1 1024              0          0           130       합격
+#     zombie1 512               0          0           151       합격
+#     zombie1 1세대             0          0            14       합격
+#
+#     LIMB_EDGES_MAX = 20    팔–다리 + 팔–하부몸통 엣지 수. **합격 4건이 전부 0** 이고
+#                            불합격 최소가 333(f60) 이라 사이가 넓다. 0 이 아니라 20 인
+#                            것은 경계 한두 군데의 우연한 접촉을 흘려보내기 위해서다.
+#   좌다리–우다리는 기록만 한다 — 걷는 자세의 zombie1 이 130~151 이라 f60(1,825)과 사이는
+#   넓지만 표본이 얇고, 다리 융합은 이미 ② 가 본다.
+#
+#   **경고로 시작한다.** 표본 7건에서 완벽히 갈리지만 불합격 3건이 두 영상에서 나왔다.
+#   ① 과 달리 **손 본이 메쉬에 잘 붙어 있어도 걸린다** — f18 은 ① 이 가장 좋았는데
+#   (0.004) 결과가 가장 나빴다. ① 을 조여서는 이 결함을 못 잡는다.
 #   실측 1.49%(512) / 3.67%(1024) 이고 둘 다 포즈 시험을 통과했다. 상한의 근거가
 #   약해 불합격이 아니라 경고로 둔다 — 8%는 1024 실측의 두 배를 조금 넘는 값이다.
 #
@@ -122,15 +148,21 @@ import sys
 #   에서 멀어진 왼손 메쉬가 통째로 팔꿈치 웨이트를 빌렸다.
 #
 #   그래서 분포를 **총량과 무관하게 항상** 본다.
-#     FB_LIMB_MAX_PCT = 35.0    사지 본(어깨·팔꿈치·손목·손·엉덩이·무릎·발목·발)
-#                               으로 간 폴백 비율. **합격 최대 26.5% / 불합격 47.5%**
-#                               (5샘플). 10/7 에는 2샘플(1.84 / 47.53)로 20 을 잡았는데,
-#                               10/9 에 zombie1 1024·512(합격)가 21.0%·26.5% 로 나와
-#                               오탐 경고가 됐다 — 35 로 올렸다.
 #     FB_SRC_P90_MAX  = 0.04    웨이트를 빌려 온 거리의 p90 (정렬 공간, 신장 약 1.0).
-#                               0.0229 와 0.0606 사이. 1차 전이 반경 0.08 의 절반.
-#                               5샘플에서도 유효하다 (합격 최대 0.0336).
-#   둘 중 하나라도 넘으면 "위험", 둘 다 아래면 "무해" 다.
+#                               합격 최대 0.0336 / 불합격 f60 0.0606 (7샘플). 1차 전이
+#                               반경 0.08 의 절반. 넘으면 "위험", 아니면 "무해" 다.
+#
+#   **사지 본 비율 축은 2026-10-12 에 뺐다.** "사지 본(어깨·팔꿈치·…·발)으로 간 폴백
+#   비율" 을 10/7 에 두 번째 축으로 넣었는데 닷새 사이 오탐이 세 번 났다.
+#     ① zombie1 1024 (합격) 21.0% — 당시 임계 20% 를 넘어 "위험". 10/9 에 35% 로 올림
+#     ② zombie1 512  (합격) 26.5% — 같은 날 같은 사유
+#     ③ 파일럿 walker_walk_02 (10/11) 100% — 폴백 9,793정점이 전부 무릎의 찢어진
+#        청바지 조각이었다. 조각이 **제 다리 본에 가까이**(p90 0.0286) 붙은 것이라 무해한데
+#        "사지 본으로 갔다" 는 이유만으로 걸렸다
+#   이 축은 "어느 본으로 갔나" 만 보고 **그 조각이 원래 그 사지의 것인가** 를 보지 않는다.
+#   팔다리에 장식이 달린 캐릭터는 늘 걸린다. 거리(p90)는 그 구분을 한다 — 먼 데서 빌려
+#   왔으면 남의 웨이트다. f60 은 거리만으로도 걸린다(0.0606). limb_pct 는 기록만 남긴다.
+#   떨어져 있어야 할 부위가 이어진 것은 ⑤ 가 직접 잰다.
 #     FB_MIN_VERTS    = 1000    잡음 가드. 폴백 정점이 이보다 적으면 분류하지 않는다.
 #                               p90 과 본별 비율은 표본이 작으면 조각 한두 개에
 #                               휘둘린다. 1000 은 70만 정점 메쉬의 약 0.14% 로,
@@ -158,7 +190,6 @@ IOU_MIN = 0.5
 JOINT_DIST_MAX = 0.2
 FALLBACK_WARN_PCT = 8.0
 UNASSIGNED_MAX = 0
-FB_LIMB_MAX_PCT = 35.0
 FB_SRC_P90_MAX = 0.04
 FB_MIN_VERTS = 1000
 DISTAL = ("Wrist", "Hand", "Ankle", "Foot")
@@ -167,8 +198,9 @@ CROSS_MAX_PCT = 10.0
 CROSS_MIN_VERTS = 100
 DOM_MIN_PCT = 0.01
 FAIL_BONES = ("Wrist", "Ankle", "Foot")      # ①∧③ 이 불합격이 되는 본. Hand 는 경고 (위 메모)
+LIMB_EDGES_MAX = 20                          # ⑤ 팔–다리 + 팔–하부몸통 엣지
 
-THRESHOLD_STATUS = "스케일은 5회 검증, 나머지는 잠정(표본 4건). 폴백 분포·리깅 지표 임계는 표본 5건(불합격 실물 1건). 재보정: 신규 10건 누적 시 / PASS 후 하류 실패 발생 시"
+THRESHOLD_STATUS = "스케일은 5회 검증, 나머지는 잠정(표본 4건). 폴백 분포·리깅 지표 임계는 표본 7건(불합격 실물 3건, 영상 2편). 재보정: 신규 10건 누적 시 / PASS 후 하류 실패 발생 시"
 
 
 def classify_fallback(detail):
@@ -181,15 +213,10 @@ def classify_fallback(detail):
         return None, []
     if detail["verts"] < FB_MIN_VERTS:
         return "too_few", []
-    why = []
-    limb = detail.get("limb_pct")
     p90 = (detail.get("src_dist") or {}).get("p90")
-    if limb is None or p90 is None:
+    if p90 is None:
         return None, []
-    if limb > FB_LIMB_MAX_PCT:
-        why.append(f"사지 본으로 간 폴백 {limb}% > {FB_LIMB_MAX_PCT}%")
-    if p90 > FB_SRC_P90_MAX:
-        why.append(f"소스거리 p90 {p90} > {FB_SRC_P90_MAX}")
+    why = [f"소스거리 p90 {p90} > {FB_SRC_P90_MAX}"] if p90 > FB_SRC_P90_MAX else []
     return ("risky" if why else "benign"), why
 
 
@@ -238,7 +265,18 @@ def check_rig(rc, detail=None):
         warnings.append("좌우 교차 배정: "
                         + ", ".join(f"{b} {p}%" for b, p in sorted(crossed.items(), key=lambda kv: -kv[1]))
                         + f" (> {CROSS_MAX_PCT}%) — 다리·팔이 붙은 메쉬에서 웨이트가 반대편으로 넘어갔다")
-    flags = {"far": far, "empty": empty, "crossed": crossed, "fatal": fatal}
+    le = rc.get("limb_edges")                 # 구버전 JSON 에는 없다 — 없으면 ⑤ 를 보지 않는다
+    limb_n = None
+    if le:
+        limb_n = le.get("arm_leg", 0) + le.get("arm_lowtorso", 0)
+        if limb_n > LIMB_EDGES_MAX:
+            top = ", ".join(f"{k.replace('|', '–')} {c}" for k, c in list(le.get("top", {}).items())[:3])
+            warnings.append(
+                f"떨어져 있어야 할 부위가 이어져 있다: 팔–다리 {le.get('arm_leg', 0)} + "
+                f"팔–하부몸통 {le.get('arm_lowtorso', 0)} 엣지 (> {LIMB_EDGES_MAX}) — {top}. "
+                f"팔을 움직이면 그 사이가 늘어난다. 재생 영상에서 손·허벅지를 확인할 것")
+    flags = {"far": far, "empty": empty, "crossed": crossed, "fatal": fatal,
+             "limb_edges": limb_n}
     return reasons, warnings, flags
 
 
@@ -282,12 +320,12 @@ def judge(m):
             # 총량과 무관하게 경고한다 — 총량은 품질을 가르지 못한다 (④ 메모).
             warnings.append(
                 f"{size} — 분포 위험: {'; '.join(why)}. "
-                f"먼 데서 빌린 웨이트가 팔다리에 붙었다 — 포즈 시험 필수")
+                f"먼 데서 빌린 웨이트가 붙었다 — 포즈 시험 필수")
         elif over and cls == "benign":
             top = ", ".join(f"{b} {c}" for b, c in list(detail.get("by_bone", {}).items())[:3])
             warnings.append(
-                f"{size} — 분포 무해: 사지 본 {detail['limb_pct']}%, "
-                f"소스거리 p90 {detail['src_dist']['p90']} (상위 본: {top})")
+                f"{size} — 분포 무해: 소스거리 p90 {detail['src_dist']['p90']} "
+                f"(상위 본: {top})")
         elif over:
             # 분포 자료가 없거나(None) 정점이 너무 적다(too_few). 조용히 넘기지 않는다.
             warnings.append(f"{size} — 분포를 판정하지 못했다({cls}). 포즈 시험으로 확인할 것")
@@ -337,11 +375,11 @@ def main():
             "scale_min": SCALE_MIN, "scale_max": SCALE_MAX, "iou_min": IOU_MIN,
             "joint_dist_max": JOINT_DIST_MAX, "fallback_warn_pct": FALLBACK_WARN_PCT,
             "unassigned_max": UNASSIGNED_MAX,
-            "fb_limb_max_pct": FB_LIMB_MAX_PCT, "fb_src_p90_max": FB_SRC_P90_MAX,
+            "fb_src_p90_max": FB_SRC_P90_MAX,
             "fb_min_verts": FB_MIN_VERTS,
             "distal_dist_max": DISTAL_DIST_MAX, "cross_max_pct": CROSS_MAX_PCT,
             "cross_min_verts": CROSS_MIN_VERTS, "dom_min_pct": DOM_MIN_PCT,
-            "fail_bones": list(FAIL_BONES),
+            "fail_bones": list(FAIL_BONES), "limb_edges_max": LIMB_EDGES_MAX,
             "status": THRESHOLD_STATUS,
         },
         "source": {"type": "aligned_params", "path": a.params},
