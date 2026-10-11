@@ -17,9 +17,15 @@
 #
 # --probe-only  기능 확인(S5·S3 재실행)을 건너뛰고 복원 + import 점검만 한다.
 #
-# 2026-10-09 에 3종을 이 절차로 시험해 전부 통과했다. 이 파일은 그때 쓴 스크립트 둘
-# (본 시험 + wham 재점검)을 합치고 점검 결함을 고친 판이다 — **고친 판은 Pod 에서 아직
-# 돌려 보지 않았다.** sam2 는 scripts/setup_sam2.sh --check 로 따로 본다 (9/29 완료).
+# 기능 확인은 **같은 Pod 에서 원본 환경으로 먼저 돌린 결과**와 견준다 (이름을 바꾸기 전에
+# 한 번, 복원한 뒤에 한 번). 다른 날 다른 Pod 에서 만든 파일을 기준으로 쓰면 안 된다 —
+# TRELLIS.2 는 같은 입력·seed 에서도 Pod 에 따라 생성 결과가 다르다 (내보내기 전 정점
+# 5,421,888 또는 5,428,108). 2026-10-11 에 그렇게 견줬다가 복원이 멀쩡한데 FAIL 이 났다.
+#
+# 이력: 2026-10-09 에 3종을 시험해 통과했다(당시 스크립트는 점검이 세 번 틀렸다). 10/11 에
+# 점검을 고친 판을 Pod 에서 돌려 오탐이 사라진 것을 확인했고, 위 기준 문제가 새로 드러났다.
+# **기준을 같은 Pod 선행 실행으로 바꾼 이 판은 Pod 에서 아직 돌려 보지 않았다.**
+# sam2 는 scripts/setup_sam2.sh --check 로 따로 본다 (9/29 완료).
 set -uo pipefail
 export PYTHONUNBUFFERED=1
 VOL=/workspace
@@ -35,6 +41,17 @@ mkdir -p "$OUT"
 
 latest() { ls -t $VOL/archives/$1_env_*.tar.zst 2>/dev/null | head -1; }
 
+WALK_CLIP=$VOL/data/02_sam2/zombie_walker/zombie_walker_masked.mp4
+T2_KEY=$VOL/data/02_sam2/char_shuffle/keyframes/key2_f00006.png
+
+functional() {   # 이름 출력폴더 — 그 환경으로 실제 작업을 한 번 돌린다. 지금 정규 경로에 있는 환경이 쓰인다
+  case $1 in
+    wham)     bash "$HERE/run_wham.sh" "$WALK_CLIP" --out "$2" > "$2.log" 2>&1 ;;
+    trellis2) timeout 900 $MM run -n trellis2 python "$HERE/run_trellis2.py" --image "$T2_KEY" --out "$2" --name restore_probe > "$2.log" 2>&1 ;;
+    *)        return 0 ;;   # trellis(1세대)는 --check 만 한다
+  esac
+}
+
 restore_one() {   # 이름 환경 레포 "모듈들"
   local name=$1 env=$VOL/micromamba/envs/$2 repo=$VOL/repos/$3 mods=$4
   local arc; arc=$(latest "$name")
@@ -44,6 +61,11 @@ restore_one() {   # 이름 환경 레포 "모듈들"
   echo "[0] 아카이브 $(basename "$arc") $(du -h "$arc" | cut -f1)"
   $MM run -n "$2" pip freeze 2>/dev/null | sort > "$OUT/${name}_freeze_before.txt"
   echo "[1] 원본 기록: pip $(wc -l < "$OUT/${name}_freeze_before.txt")줄, env $(du -sh "$env" | cut -f1), repo $(du -sh "$repo" | cut -f1)"
+  if [ $PROBE_ONLY = 0 ] && [ "$name" != trellis ]; then
+    local tb; tb=$(date +%s)
+    if functional "$name" "$OUT/${name}_base"; then echo "    기준 실행(원본 환경, 이 Pod): $(( $(date +%s)-tb ))초"
+    else echo "중단: 원본 환경의 기준 실행이 실패했다 — $OUT/${name}_base.log"; return 1; fi
+  fi
   mv "$env" "${env}_orig" && mv "$repo" "${repo}_orig" || { echo "이름 변경 실패"; return 1; }
   back() {   # 어떤 경우에도 원본을 되돌린다. 복원본은 _orig 가 있을 때만 지운다
     if [ -d "${env}_orig" ]; then [ -d "$env" ] && rm -rf "$env"; mv "${env}_orig" "$env"; fi
@@ -79,34 +101,32 @@ restore_one() {   # 이름 환경 레포 "모듈들"
     echo "[8] 기능 확인"
     case $name in
       wham)
-        local clip=$VOL/data/02_sam2/zombie_walker/zombie_walker_masked.mp4 ref=$VOL/data/04_wham/zombie_walker_masked/wham_output.pkl
-        if bash "$HERE/run_wham.sh" "$clip" --out "$OUT/wham_out" > "$OUT/wham_run.log" 2>&1; then
-          $MM run -n wham python - "$OUT/wham_out/zombie_walker_masked/wham_output.pkl" "$ref" <<'PY' || verdict=FAIL
+        if functional wham "$OUT/wham_rest"; then
+          $MM run -n wham python - "$OUT/wham_rest/zombie_walker_masked/wham_output.pkl" "$OUT/wham_base/zombie_walker_masked/wham_output.pkl" <<'PY' || verdict=FAIL
 import joblib, numpy as np, sys
 a = list(joblib.load(sys.argv[1]).values())[0]; b = list(joblib.load(sys.argv[2]).values())[0]
 d = float(np.abs(a["pose"] - b["pose"]).max())
-print(f"  S5 재실행(zombie_walker): pose {a['pose'].shape}, 기존 산출물과 최대 차 {d:.2e}  {'일치' if d < 1e-3 else '불일치'}")
+print(f"  S5 (zombie_walker): 복원본 vs 원본(같은 Pod) pose 최대 차 {d:.2e}  {'일치' if d < 1e-3 else '불일치'}")
 sys.exit(0 if d < 1e-3 else 1)
 PY
-        else echo "  S5 실행 실패 — $OUT/wham_run.log"; tail -3 "$OUT/wham_run.log"; verdict=FAIL; fi ;;
+        else echo "  S5 실행 실패 — $OUT/wham_rest.log"; tail -3 "$OUT/wham_rest.log"; verdict=FAIL; fi ;;
       trellis)
         bash "$HERE/setup_trellis.sh" --check > "$OUT/trellis_check.log" 2>&1; local c=$?
         echo "  setup_trellis.sh --check rc=$c"; [ $c -eq 0 ] || verdict=FAIL ;;
       trellis2)
         bash "$HERE/setup_trellis2.sh" --check > "$OUT/trellis2_check.log" 2>&1; local c=$?
         echo "  setup_trellis2.sh --check rc=$c"; [ $c -eq 0 ] || verdict=FAIL
-        local key=$VOL/data/02_sam2/char_shuffle/keyframes/key2_f00006.png ref=$VOL/data/03_trellis2/_probe_default_1008/params.json
-        if timeout 900 $MM run -n trellis2 python "$HERE/run_trellis2.py" --image "$key" --out "$OUT/t2_out" --name restore_probe > "$OUT/t2_run.log" 2>&1; then
-          # **내보내기 전 정점**으로 대조한다. 최종 정점은 리메싱·UV 전개가 실행마다 조금 달라
-          # 같은 입력·seed 에서도 일치하지 않는다 (2026-10-09: 822,125 대 819,832).
-          python3 - "$OUT/t2_out/params.json" "$ref" <<'PY' || verdict=FAIL
+        if functional trellis2 "$OUT/trellis2_rest"; then
+          # 내보내기 전 정점으로 견준다. 최종 정점은 같은 Pod 에서도 실행마다 조금 다르다
+          # (리메싱·UV 전개). 내보내기 전 정점은 **같은 Pod 안에서만** 일치한다.
+          python3 - "$OUT/trellis2_rest/params.json" "$OUT/trellis2_base/params.json" <<'PY' || verdict=FAIL
 import json, sys
 a = json.load(open(sys.argv[1])); b = json.load(open(sys.argv[2]))
 same = a["vertices_pre_export"] == b["vertices_pre_export"] and a["pipeline_type"] == b["pipeline_type"]
-print(f"  S3 재실행: {a['pipeline_type']} 내보내기 전 정점 {a['vertices_pre_export']:,} (기준 {b['vertices_pre_export']:,}) 총 {a['time_s']['total']}초  {'일치' if same else '불일치'}")
+print(f"  S3: {a['pipeline_type']} 내보내기 전 정점 복원본 {a['vertices_pre_export']:,} / 원본(같은 Pod) {b['vertices_pre_export']:,}  {'일치' if same else '불일치'}")
 sys.exit(0 if same else 1)
 PY
-        else echo "  S3 실행 실패 — $OUT/t2_run.log"; tail -3 "$OUT/t2_run.log"; verdict=FAIL; fi ;;
+        else echo "  S3 실행 실패 — $OUT/trellis2_rest.log"; tail -3 "$OUT/trellis2_rest.log"; verdict=FAIL; fi ;;
     esac
   else
     echo "[8] 기능 확인 건너뜀 (--probe-only)"
