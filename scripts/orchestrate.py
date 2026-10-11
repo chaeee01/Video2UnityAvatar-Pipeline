@@ -518,8 +518,10 @@ def main():
             if here == POD:
                 print("\n  아래를 맥북으로 회수한 뒤 이어받는다:")
                 print(f"    {run.root}")
-                for d in ("02_sam2", "03_trellis2", "04_wham", "05_smpl_mesh"):
-                    print(f"    {data(d, a.name)}")
+                # 04_wham 만 폴더 이름이 다르다 — WHAM 이 입력 클립 이름(<샘플>_masked)으로 쓴다.
+                for d, sub in (("02_sam2", a.name), ("03_trellis2", a.name),
+                               ("04_wham", f"{a.name}_masked"), ("05_smpl_mesh", a.name)):
+                    print(f"    {data(d, sub)}")
                 print(f"\n    python scripts/orchestrate.py --name {a.name} --resume")
             else:
                 print(f"\n    python scripts/orchestrate.py --name {a.name} --resume")

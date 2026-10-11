@@ -76,6 +76,21 @@
     "R_Elbow": 0,
     "R_Wrist": 0,
     "R_Hand": 0
+   },
+   "limb_edges": {
+    "arm_leg": 249,
+    "arm_lowtorso": 84,
+    "leg_leg": 1825,
+    "edges": 1672682,
+    "top": {
+     "L_Knee|R_Knee": 1054,
+     "L_Foot|R_Ankle": 297,
+     "L_Elbow|L_Hip": 249,
+     "L_Ankle|R_Ankle": 239,
+     "L_Ankle|R_Knee": 230,
+     "L_Elbow|Spine1": 84,
+     "L_Foot|R_Knee": 5
+    }
    }
   },
   "fallback_detail": {
@@ -181,6 +196,13 @@
     "R_Elbow": 0,
     "R_Wrist": 0,
     "R_Hand": 0
+   },
+   "limb_edges": {
+    "arm_leg": 0,
+    "arm_lowtorso": 0,
+    "leg_leg": 0,
+    "edges": 1716163,
+    "top": {}
    }
   },
   "fallback_detail": {
@@ -290,6 +312,15 @@
     "R_Elbow": 0,
     "R_Wrist": 0,
     "R_Hand": 0
+   },
+   "limb_edges": {
+    "arm_leg": 0,
+    "arm_lowtorso": 0,
+    "leg_leg": 130,
+    "edges": 1698189,
+    "top": {
+     "L_Hip|R_Knee": 130
+    }
    }
   },
   "fallback_detail": {
@@ -399,6 +430,16 @@
     "R_Elbow": 0,
     "R_Wrist": 0,
     "R_Hand": 0
+   },
+   "limb_edges": {
+    "arm_leg": 0,
+    "arm_lowtorso": 0,
+    "leg_leg": 151,
+    "edges": 1620325,
+    "top": {
+     "L_Hip|R_Knee": 144,
+     "L_Knee|R_Knee": 7
+    }
    }
   },
   "fallback_detail": {
@@ -506,6 +547,16 @@
     "R_Elbow": 0,
     "R_Wrist": 0,
     "R_Hand": 0
+   },
+   "limb_edges": {
+    "arm_leg": 0,
+    "arm_lowtorso": 0,
+    "leg_leg": 14,
+    "edges": 12444,
+    "top": {
+     "L_Knee|R_Knee": 7,
+     "L_Hip|R_Knee": 7
+    }
    }
   },
   "fallback_detail": {
@@ -524,6 +575,234 @@
     "Spine3": 7,
     "R_Collar": 7,
     "R_Elbow": 2
+   }
+  }
+ },
+ "walker_walk_02": {
+  "desc": "파일럿 walker_walk_02 f138 — G2r ①②③ 무경고였으나 육안 불합격 (10/11). 왼손 정점이 허벅지 본을 받음",
+  "label": "bad_limb",
+  "fallback_pct": 1.1321,
+  "rig_check": {
+   "vertices": 865013,
+   "bone_dist": {
+    "Pelvis": 0.04488,
+    "L_Hip": 0.04244,
+    "L_Knee": 0.01288,
+    "L_Ankle": 0.01771,
+    "L_Foot": 0.0088,
+    "R_Hip": 0.05143,
+    "R_Knee": 0.00088,
+    "R_Ankle": 0.00296,
+    "R_Foot": 0.00891,
+    "Spine1": 0.01418,
+    "Spine2": 0.0293,
+    "Spine3": 0.05272,
+    "Neck": 0.01848,
+    "Head": 0.00214,
+    "L_Collar": 0.02283,
+    "L_Shoulder": 0.0201,
+    "L_Elbow": 0.00424,
+    "L_Wrist": 0.01984,
+    "L_Hand": 0.02542,
+    "R_Collar": 0.02644,
+    "R_Shoulder": 0.01498,
+    "R_Elbow": 0.00601,
+    "R_Wrist": 0.00994,
+    "R_Hand": 0.00882
+   },
+   "dominant": {
+    "Pelvis": 19441,
+    "L_Hip": 118844,
+    "L_Knee": 33515,
+    "L_Ankle": 18150,
+    "L_Foot": 9289,
+    "R_Hip": 150584,
+    "R_Knee": 46865,
+    "R_Ankle": 20345,
+    "R_Foot": 5520,
+    "Spine1": 75897,
+    "Spine2": 2352,
+    "Spine3": 44406,
+    "Neck": 14809,
+    "Head": 29995,
+    "L_Collar": 41774,
+    "L_Shoulder": 41181,
+    "L_Elbow": 27110,
+    "L_Wrist": 8025,
+    "L_Hand": 741,
+    "R_Collar": 49337,
+    "R_Shoulder": 35634,
+    "R_Elbow": 50271,
+    "R_Wrist": 18318,
+    "R_Hand": 2610
+   },
+   "cross": {
+    "L_Hip": 2015,
+    "L_Knee": 0,
+    "L_Ankle": 0,
+    "L_Foot": 0,
+    "R_Hip": 66,
+    "R_Knee": 0,
+    "R_Ankle": 0,
+    "R_Foot": 0,
+    "L_Collar": 0,
+    "L_Shoulder": 0,
+    "L_Elbow": 0,
+    "L_Wrist": 0,
+    "L_Hand": 0,
+    "R_Collar": 0,
+    "R_Shoulder": 0,
+    "R_Elbow": 0,
+    "R_Wrist": 0,
+    "R_Hand": 0
+   },
+   "limb_edges": {
+    "arm_leg": 532,
+    "arm_lowtorso": 29,
+    "leg_leg": 0,
+    "edges": 1791824,
+    "top": {
+     "L_Hip|L_Wrist": 330,
+     "L_Elbow|L_Hip": 116,
+     "L_Hand|L_Hip": 86,
+     "L_Elbow|Spine1": 29
+    }
+   }
+  },
+  "fallback_detail": {
+   "verts": 9793,
+   "limb_pct": 100.0,
+   "cross_side_pct": 0.01,
+   "src_dist": {
+    "median": 0.01481,
+    "p90": 0.02859,
+    "max": 0.05451
+   },
+   "by_bone": {
+    "L_Knee": 5051,
+    "L_Hip": 1770,
+    "R_Knee": 1628,
+    "L_Wrist": 443,
+    "L_Foot": 343,
+    "R_Wrist": 204,
+    "R_Elbow": 179,
+    "R_Foot": 128,
+    "L_Ankle": 24,
+    "L_Hand": 23
+   }
+  }
+ },
+ "walker_walk_02_f18": {
+  "desc": "파일럿 walker_walk_02 f18 — 육안 불합격 (10/12). 양손에서 허벅지 표면이 끌려 나옴",
+  "label": "bad_limb",
+  "fallback_pct": 2.4341,
+  "rig_check": {
+   "vertices": 882870,
+   "bone_dist": {
+    "Pelvis": 0.04194,
+    "L_Hip": 0.04019,
+    "L_Knee": 0.0112,
+    "L_Ankle": 0.00629,
+    "L_Foot": 0.00535,
+    "R_Hip": 0.03944,
+    "R_Knee": 0.00525,
+    "R_Ankle": 0.00783,
+    "R_Foot": 0.00537,
+    "Spine1": 0.02594,
+    "Spine2": 0.05217,
+    "Spine3": 0.03699,
+    "Neck": 0.01865,
+    "Head": 0.00345,
+    "L_Collar": 0.02608,
+    "L_Shoulder": 0.01279,
+    "L_Elbow": 0.00475,
+    "L_Wrist": 0.00324,
+    "L_Hand": 0.00375,
+    "R_Collar": 0.01263,
+    "R_Shoulder": 0.00671,
+    "R_Elbow": 0.00908,
+    "R_Wrist": 0.00181,
+    "R_Hand": 0.00091
+   },
+   "dominant": {
+    "Pelvis": 20832,
+    "L_Hip": 143889,
+    "L_Knee": 58365,
+    "L_Ankle": 10792,
+    "L_Foot": 7949,
+    "R_Hip": 155711,
+    "R_Knee": 60782,
+    "R_Ankle": 11967,
+    "R_Foot": 5887,
+    "Spine1": 70357,
+    "Spine2": 3806,
+    "Spine3": 35548,
+    "Neck": 13973,
+    "Head": 23584,
+    "L_Collar": 37369,
+    "L_Shoulder": 59081,
+    "L_Elbow": 30943,
+    "L_Wrist": 9448,
+    "L_Hand": 6298,
+    "R_Collar": 39667,
+    "R_Shoulder": 27327,
+    "R_Elbow": 34503,
+    "R_Wrist": 11615,
+    "R_Hand": 3177
+   },
+   "cross": {
+    "L_Hip": 975,
+    "L_Knee": 0,
+    "L_Ankle": 0,
+    "L_Foot": 0,
+    "R_Hip": 67,
+    "R_Knee": 0,
+    "R_Ankle": 0,
+    "R_Foot": 0,
+    "L_Collar": 0,
+    "L_Shoulder": 0,
+    "L_Elbow": 0,
+    "L_Wrist": 0,
+    "L_Hand": 0,
+    "R_Collar": 0,
+    "R_Shoulder": 0,
+    "R_Elbow": 0,
+    "R_Wrist": 0,
+    "R_Hand": 0
+   },
+   "limb_edges": {
+    "arm_leg": 1260,
+    "arm_lowtorso": 368,
+    "leg_leg": 0,
+    "edges": 1809211,
+    "top": {
+     "L_Hip|L_Wrist": 618,
+     "L_Hand|L_Hip": 451,
+     "R_Elbow|Spine1": 368,
+     "R_Hip|R_Wrist": 124,
+     "R_Elbow|R_Hip": 67
+    }
+   }
+  },
+  "fallback_detail": {
+   "verts": 21490,
+   "limb_pct": 100.0,
+   "cross_side_pct": 0.014,
+   "src_dist": {
+    "median": 0.01153,
+    "p90": 0.02482,
+    "max": 0.03784
+   },
+   "by_bone": {
+    "L_Knee": 6449,
+    "R_Hip": 5716,
+    "R_Knee": 4836,
+    "L_Hip": 3758,
+    "L_Foot": 358,
+    "R_Ankle": 212,
+    "R_Foot": 78,
+    "L_Ankle": 48,
+    "L_Elbow": 35
    }
   }
  }

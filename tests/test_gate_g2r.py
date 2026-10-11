@@ -6,7 +6,8 @@ fallback_detail 실측이다 (Blender 없이 돌도록 판정에 쓰는 값만 �
     char_shuffle f60       폴백 3.7075%   육안 불합격 (10/1)
     char_shuffle f6+1536   폴백 8.9206%   육안 합격   (10/6)
 
-C 절은 ①②③(본→메쉬 거리 · 좌우 교차 배정 · 지배 정점 0)을 5샘플 실측으로 고정한다.
+C 절은 ①②③(본→메쉬 거리 · 좌우 교차 배정 · 지배 정점 0)을, D 절은 ⑤(떨어져 있어야 할
+부위를 잇는 엣지)를 7샘플 실측으로 고정한다.
 
 확인하는 것:
   A. 분류기 자체가 둘을 가르는가 (f60 위험 / f6 무해) + 잡음 가드
@@ -50,7 +51,10 @@ def main():
     c6, why6 = classify_fallback(F6)
     check("f60 (불합격) → 위험", c60 == "risky", f"{c60} {why60}")
     check("f6+1536 (합격) → 무해", c6 == "benign", c6)
-    check("f60 은 두 축 모두에서 걸린다", len(why60) == 2)
+    check("f60 은 소스거리(p90 0.0606 > 0.04)로 걸린다", len(why60) == 1 and "소스거리" in why60[0], why60)
+    # 사지 본 비율 축은 2026-10-12 에 뺐다 — 사지 본 100% 라도 가까이서 빌렸으면 무해다.
+    near = dict(F6, limb_pct=100.0)
+    check("사지 본 100% + 소스거리 가까움 → 무해 (파일럿 오탐의 경우)", classify_fallback(near)[0] == "benign")
     check("자료 없음 → None", classify_fallback(None)[0] is None)
     few = dict(F60, verts=FB_MIN_VERTS - 1)
     check(f"잡음 가드: 폴백 {FB_MIN_VERTS - 1}정점 → too_few (f60 분포여도 분류 안 함)",
@@ -73,7 +77,7 @@ def main():
     v, reasons, warns = judge(m)
     check("f6: PASS", v == "PASS" and not reasons, v)
     check("f6: '분포 무해' + 상위 본", len(warns) == 1 and "분포 무해" in warns[0]
-          and "Head 43774" in warns[0] and "위험" not in warns[0], warns)
+          and "Head 43774" in warns[0] and "위험" not in warns[0] and "사지 본" not in warns[0], warns)
     check("f6: 기록 (class benign, over_warn_pct True)",
           m["fallback_check"]["class"] == "benign" and m["fallback_check"]["over_warn_pct"])
 
@@ -125,9 +129,10 @@ def main():
     for name in ("char_shuffle_f6", "zombie1_1024", "zombie1_t2"):
         v, reasons, warns, fl = run(name)
         clean = v == "PASS" and not fl["far"] and not fl["empty"] and not fl["crossed"]
-        check(f"{name}: PASS, ①②③ 모두 무경고", clean, (v, fl) if not clean else "")
-        # ④ 재보정(10/9): 합격 샘플은 "분포 위험" 을 받지 않아야 한다. 임계 20% 일 때는
-        # zombie1 1024(21.0%)·512(26.5%)가 오탐 경고였다.
+        check(f"{name}: PASS, ①②③⑤ 모두 무경고 (⑤ 엣지 {fl['limb_edges']})",
+              clean and fl["limb_edges"] == 0, (v, fl) if not clean else "")
+        # 합격 샘플은 "분포 위험" 을 받지 않아야 한다. 사지 본 비율 축이 있던 때는
+        # zombie1 1024(21.0%)·512(26.5%)가 오탐 경고였다 (축은 10/12 에 뺐다).
         cls, _ = classify_fallback(fx[name]["fallback_detail"])
         check(f"{name}: ④ 분포 무해 (사지 본 {fx[name]['fallback_detail']['limb_pct']}%)",
               cls == "benign" and not any("분포 위험" in w for w in warns), cls)
@@ -165,13 +170,42 @@ def main():
     check("지배 99정점인 본은 교차를 보지 않는다 (잡음 가드)", not fl["crossed"], fl["crossed"])
     check("rig_check 없음 → 판정하지 않는다 (구버전 JSON 호환)", check_rig(None) == ([], [], None))
     check(f"임계 상수 {DISTAL_DIST_MAX} / {CROSS_MAX_PCT}", DISTAL_DIST_MAX == 0.03 and CROSS_MAX_PCT == 10.0)
-    from gate_g2r import FAIL_BONES, FB_LIMB_MAX_PCT, FB_SRC_P90_MAX
+    from gate_g2r import FAIL_BONES, FB_SRC_P90_MAX, LIMB_EDGES_MAX
     check("불합격 대상 본: 손목·발목·발 (손 제외)", FAIL_BONES == ("Wrist", "Ankle", "Foot"), FAIL_BONES)
-    check("④ 임계: 사지 본 35% / 소스거리 0.04", FB_LIMB_MAX_PCT == 35.0 and FB_SRC_P90_MAX == 0.04)
-    lim = {n: fx[n]["fallback_detail"]["limb_pct"] for n in fx}
-    check("④ 사지 본 비율: 합격 최대 26.5% < 35% < 불합격 47.5%",
-          max(lim["char_shuffle_f6"], lim["zombie1_1024"], lim["zombie1_t2"]) < 35.0 < lim["char_shuffle"],
-          lim)
+    check("④ 임계: 소스거리 0.04 (사지 본 비율 축 없음)", FB_SRC_P90_MAX == 0.04)
+    p90 = {n: fx[n]["fallback_detail"]["src_dist"]["p90"] for n in fx if fx[n]["fallback_detail"]["verts"] >= 1000}
+    good = [p90[n] for n in ("char_shuffle_f6", "zombie1_1024", "zombie1_t2")]
+    check("④ 소스거리 p90: 합격 최대 0.0336 < 0.04 < f60 0.0606",
+          max(good) < FB_SRC_P90_MAX < p90["char_shuffle"], p90)
+
+    print("\n── D. ⑤ 떨어져 있어야 할 부위를 잇는 엣지 — 7샘플")
+    # 파일럿 2건: ①②③ 은 무경고로 통과했고 육안 불합격이었다. ⑤ 가 잡아야 한다.
+    for name, want in (("walker_walk_02", 561), ("walker_walk_02_f18", 1628)):
+        v, reasons, warns, fl = run(name)
+        w5 = [w for w in warns if "떨어져 있어야 할 부위" in w]
+        check(f"{name}: PASS + ⑤ 경고 (엣지 {fl['limb_edges']}), ①②③ 은 무경고",
+              v == "PASS" and len(w5) == 1 and fl["limb_edges"] == want
+              and not fl["far"] and not fl["empty"] and not fl["crossed"], (v, fl, warns))
+        check(f"{name}: 경고에 상위 쌍(L_Hip–L_Wrist)이 들어간다", "L_Hip–L_Wrist" in w5[0], w5[0][:120])
+        cls, _ = classify_fallback(fx[name]["fallback_detail"])
+        check(f"{name}: ④ 는 무해 (사지 본 100% 였지만 가까이서 빌림)", cls == "benign"
+              and not any("분포 위험" in w for w in warns), cls)
+    v, reasons, warns, fl = run("char_shuffle")
+    check("f60: ⑤ 도 경고 (팔–다리 249 + 팔–하부몸통 84 = 333)",
+          fl["limb_edges"] == 333 and any("떨어져 있어야 할 부위" in w for w in warns), fl["limb_edges"])
+    vals = {n: fx[n]["rig_check"]["limb_edges"]["arm_leg"] + fx[n]["rig_check"]["limb_edges"]["arm_lowtorso"] for n in fx}
+    check(f"합격 4건 전부 0, 불합격 3건 최소 333 — 임계 {LIMB_EDGES_MAX}",
+          all(vals[n] == 0 for n in ("char_shuffle_f6", "zombie1_1024", "zombie1_t2", "zombie1"))
+          and min(vals[n] for n in ("char_shuffle", "walker_walk_02", "walker_walk_02_f18")) == 333
+          and LIMB_EDGES_MAX == 20, vals)
+    b = json.loads(json.dumps(base)); b["limb_edges"] = {"arm_leg": 20, "arm_lowtorso": 0, "leg_leg": 500, "top": {}}
+    r, w, fl = check_rig(b)
+    check("경계: 20 은 통과, 좌다리–우다리는 세지 않는다", not r and not w and fl["limb_edges"] == 20, w)
+    b["limb_edges"]["arm_lowtorso"] = 1
+    r, w, fl = check_rig(b)
+    check("경계: 21 은 경고 (불합격은 아니다)", not r and len(w) == 1, w)
+    r, w, fl = check_rig(base)
+    check("limb_edges 없음 → ⑤ 를 보지 않는다 (구버전 JSON 호환)", fl["limb_edges"] is None and not w)
 
     # 기존 불합격 조건은 건드리지 않았다.
     v, reasons, _ = judge(metrics(0.70, 0.9, 0.03, 3.0, None))
