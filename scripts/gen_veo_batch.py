@@ -29,15 +29,18 @@ ORCHESTRATOR_DESIGN 의 S-1 구상을 수동 스크립트로 먼저 만든 것�
     않는다** — 서버에서는 완성돼 과금될 수 있어서다. operation 이름을 기록에 남긴다.
   - 인증·과금·등급 오류는 다음 편도 똑같이 실패하므로 "FATAL_STOP:" 과 원문을 찍고 즉시
     종료한다 (코드 2).
-  - --daily-cap N: 이번 실행에서 접수된 생성 요청이 N 건이 되면 남은 편은 보내지 않고 정상
-    종료한다 (재시도도 1건으로 센다). Tier 1 의 Veo 3.1 Fast 일일 한도(RPD)가 10 이다 —
-    2026-10-11 에 11번째 요청이 429 로 거절됐다. 같은 날 앞서 쓴 횟수는 세지 않으므로
-    콘솔에서 RPD 가 0 으로 돌아온 것을 확인하고 돌린다.
+  - --daily-cap N: 이번 실행에서 접수된 생성 요청이 N 건이 되면 남은 편은 보내지 않고
+    "DAILY_CAP_REACHED" 를 찍고 정상 종료한다 (재시도도 1건으로 센다 — 일일 한도 RPD 가
+    요청 수 기준이어서다). Tier 1 의 Veo 3.1 Fast RPD 가 10 이다. 같은 날 앞서 쓴 횟수는
+    세지 않으므로 콘솔에서 RPD 가 0 으로 돌아온 것을 확인하고 돌린다. 기본은 무제한.
+  - 429 중 메시지에 "quota" 가 든 것은 일일 한도 소진으로 보고 "QUOTA_STOP:" 과 원문을
+    찍고 멈춘다 (코드 4). 2026-10-11 에 11번째 요청이 이 응답으로 거절됐다. 한도가 돌아온
+    뒤 같은 명령으로 이어가면 된다.
   - API 키는 레포 루트 .env 의 GEMINI_API_KEY 에서 읽고, 출력·기록에 쓰지 않는다.
 
 종료 코드: 0 정상 (차단·오류가 섞여도 0, 요약 표를 본다) · 1 인자 오류 · 2 즉시 중단
 (FATAL_STOP — 사람이 봐야 한다, 오케스트레이터의 EXIT_HUMAN 과 같은 값) · 3 토큰 한도 초과
-(--count-tokens).
+(--count-tokens) · 4 일일 한도 소진 (QUOTA_STOP).
 """
 import argparse
 import hashlib
@@ -84,6 +87,10 @@ _KEY = ""
 
 class Fatal(Exception):
     """다음 편도 똑같이 실패할 오류 — 배치를 멈춘다."""
+
+
+class QuotaStop(Exception):
+    """일일 한도 소진 — 오늘은 더 보낼 수 없다. 과금·인증 오류(Fatal)와 구분한다."""
 
 
 class Budget:
@@ -241,6 +248,10 @@ def api_error_text(e):
     return f"{getattr(e, 'code', '?')} {getattr(e, 'status', '?')}: {getattr(e, 'message', e)}"
 
 
+def is_quota(e):
+    return getattr(e, "code", None) == 429 and "quota" in str(getattr(e, "message", e)).lower()
+
+
 def is_fatal(e):
     msg = str(getattr(e, "message", e)).lower()
     return (getattr(e, "code", None) in (401, 403) or getattr(e, "status", None) in FATAL_STATUS
@@ -283,6 +294,8 @@ def attempt(client, types, errors, args, job, cfg):
         except errors.APIError as e:
             args.budget.give_back()
             text = api_error_text(e)
+            if is_quota(e):
+                raise QuotaStop(text)
             if is_fatal(e):
                 raise Fatal(text)
             if getattr(e, "code", None) == 429 and a["waits_429"] < args.max_429_waits:
@@ -512,11 +525,17 @@ def main():
     log(f"시작 — {len(jobs)}편, {MODELS[args.model]}, {args.mode}, 동시 {args.concurrency}, "
         f"HEAD {args.git_commit[:7]}{' (dirty)' if args.git_dirty else ''}")
     stop = threading.Event()
-    fatal = []
+    fatal, quota = [], []
 
     def guarded(job):
         try:
             return run_one(client, types, errors, args, job, genai.__version__, stop)
+        except QuotaStop as e:
+            stop.set()
+            quota.append(scrub(e))
+            log(f"QUOTA_STOP: [{job['stem']}] {e}")
+            return {"id": job["id"], "stem": job["stem"], "mode": args.mode, "model": args.model,
+                    "status": "quota", "g0": {}, "total_s": None, "message": scrub(e)}
         except Fatal as e:
             stop.set()
             fatal.append(scrub(e))
@@ -546,10 +565,14 @@ def main():
         print(f"\nG0 미달 {len(g0_fail)}편:")
         for r in g0_fail:
             print(f"  {r['stem']}: {r['g0'].get('reasons')}")
-    left = [r["id"] for r in results if r["status"] == "not_run"]
-    if left and not fatal:
-        print(f"\nDAILY_CAP: 생성 요청 {args.budget.sent}건 접수 (한도 {args.daily_cap}). "
-              f"남은 {len(left)}편: {', '.join(left)}", flush=True)
+    left = [r["id"] for r in results if r["status"] in ("not_run", "quota")]
+    if left:
+        print(f"\n남은 {len(left)}편: {', '.join(left)}", flush=True)
+    if left and not fatal and not quota:
+        print(f"DAILY_CAP_REACHED: 생성 요청 {args.budget.sent}건 접수 (한도 {args.daily_cap})", flush=True)
+    if quota and not fatal:
+        print(f"QUOTA_STOP: {quota[0]}", flush=True)
+        sys.exit(4)
     if fatal:
         print(f"\nFATAL_STOP: {fatal[0]}", flush=True)
         sys.exit(2)

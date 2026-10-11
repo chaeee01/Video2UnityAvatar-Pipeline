@@ -2,7 +2,7 @@
 
   A. 프롬프트 전처리 — 끝의 "10 seconds." 만 떼고 나머지는 한 글자도 바꾸지 않는가.
   B. 요청 조립 — 접두사별 레퍼런스·비율·출력 이름이 맞는가 (임시 PNG 로 만든다).
-  C. 치명 오류 판정 — 인증·과금 오류는 멈추고, 일반 429·400 은 멈추지 않는가.
+  C. 오류 분류 — 인증·과금 오류는 FATAL, "quota" 가 든 429 는 QUOTA, 일반 429·400 은 계속.
   D. 이어하기 — 기록 없는 mp4, 프롬프트가 바뀐 mp4 를 만나면 덮어쓰지 않고 멈추는가.
   E. 종료 코드 — 인자 오류가 1 로 나가는가 (2 는 즉시 중단 전용).
   F. --daily-cap — 한도만큼만 보내고, 이미 있는 편은 세지 않으며, 재시도도 1건으로 세는가.
@@ -87,21 +87,31 @@ def run_jobs(tmp):
     return ok and good
 
 
+def classify(e):
+    """attempt() 와 같은 순서: quota 가 먼저다."""
+    return "QUOTA" if g.is_quota(e) else "FATAL" if g.is_fatal(e) else "계속"
+
+
 def run_fatal():
+    # 2026-10-11 본생성 11번째 요청이 받은 원문
+    real = ("You exceeded your current quota, please check your plan and billing details. For more "
+            "information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits.")
     cases = [
-        ("403 PERMISSION_DENIED", Err(403, "PERMISSION_DENIED", "denied"), True),
-        ("401", Err(401, "UNAUTHENTICATED", "API key not valid"), True),
-        ("400 FAILED_PRECONDITION", Err(400, "FAILED_PRECONDITION", "enable billing"), True),
-        ("429 무료 등급", Err(429, "RESOURCE_EXHAUSTED", "Quota exceeded ... free_tier_requests, limit: 0"), True),
-        ("429 일반 속도 제한", Err(429, "RESOURCE_EXHAUSTED", "Resource has been exhausted (e.g. check quota)."), False),
-        ("400 INVALID_ARGUMENT", Err(400, "INVALID_ARGUMENT", "resolution not supported"), False),
-        ("500", Err(500, "INTERNAL", "internal error"), False),
+        ("403 PERMISSION_DENIED", Err(403, "PERMISSION_DENIED", "denied"), "FATAL"),
+        ("401", Err(401, "UNAUTHENTICATED", "API key not valid"), "FATAL"),
+        ("400 FAILED_PRECONDITION", Err(400, "FAILED_PRECONDITION", "enable billing"), "FATAL"),
+        ("403 인데 quota 문구", Err(403, "PERMISSION_DENIED", "quota project not set"), "FATAL"),
+        ("429 일일 한도 (10/11 원문)", Err(429, "RESOURCE_EXHAUSTED", real), "QUOTA"),
+        ("429 Quota exceeded", Err(429, "RESOURCE_EXHAUSTED", "Quota exceeded for metric ..."), "QUOTA"),
+        ("429 quota 문구 없음", Err(429, "RESOURCE_EXHAUSTED", "Too many requests, slow down."), "계속"),
+        ("400 INVALID_ARGUMENT", Err(400, "INVALID_ARGUMENT", "resolution not supported"), "계속"),
+        ("500", Err(500, "INTERNAL", "internal error"), "계속"),
     ]
     ok = 0
     for name, e, expect in cases:
-        good = g.is_fatal(e) == expect
+        good = classify(e) == expect
         ok += good
-        print(f"   {name:28s} 기대 {'중단' if expect else '계속'}  {'✅' if good else '❌'}")
+        print(f"   {name:28s} 기대 {expect:5s}  {'✅' if good else '❌'}")
     return ok == len(cases)
 
 
