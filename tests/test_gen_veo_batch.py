@@ -5,6 +5,7 @@
   C. 치명 오류 판정 — 인증·과금 오류는 멈추고, 일반 429·400 은 멈추지 않는가.
   D. 이어하기 — 기록 없는 mp4, 프롬프트가 바뀐 mp4 를 만나면 덮어쓰지 않고 멈추는가.
   E. 종료 코드 — 인자 오류가 1 로 나가는가 (2 는 즉시 중단 전용).
+  F. --daily-cap — 한도만큼만 보내고, 이미 있는 편은 세지 않으며, 재시도도 1건으로 세는가.
 
 실제 생성(과금)은 시험하지 않는다. 그것은 시험 5편으로 사람이 본다.
 """
@@ -59,7 +60,8 @@ def make_args(tmp, **kw):
         png(refs / name, *((2752, 1536) if name.startswith("dog") else (1116, 2000)))
     d = dict(ids=None, model="fast", mode="first_frame", refs=refs, out=Path(tmp) / "out",
              resolution="1080p", duration=8, xlsx=Path(tmp) / "p.xlsx",
-             git_commit="0" * 40, git_dirty=False, xlsx_sha256="0" * 64)
+             git_commit="0" * 40, git_dirty=False, xlsx_sha256="0" * 64,
+             daily_cap=None, budget=g.Budget(None))
     d.update(kw)
     return argparse.Namespace(**d)
 
@@ -143,6 +145,52 @@ def run_exit_code():
     return ok == len(cases)
 
 
+def run_daily_cap(tmp):
+    """attempt() 를 가짜로 바꿔 API 없이 한도 계산만 본다."""
+    ids = ["walker_idle", "walker_idle_02", "walker_walk_fwd", "walker_run_fwd", "walker_roar"]
+    rows = {i: "x. 10 seconds." for i in ids}
+    real_attempt, real_probe = g.attempt, g.probe
+    calls = []
+
+    def fake_attempt(client, types, errors, args, job, cfg):
+        calls.append(job["id"])
+        if job["id"] == "walker_walk_fwd" and calls.count(job["id"]) == 1:
+            return {"status": "error", "message": "500", "operation": "op", "waits_429": 0}, True
+        job["mp4"].write_bytes(b"v")
+        return {"status": "success", "operation": "op", "waits_429": 0}, False
+
+    g.attempt, g.probe = fake_attempt, lambda mp4: {"verdict": "PASS", "frames": 192}
+    try:
+        out = Path(tmp) / "cap"
+        out.mkdir()
+        args = make_args(tmp, out=out, daily_cap=3, budget=g.Budget(3))
+        jobs = g.build_jobs(args, rows)
+        (out / "_refs").mkdir()
+        for j in jobs:
+            j["ref"].write_bytes(j["ref_src"].read_bytes())
+        # 첫 편은 이미 있다 — 한도에 세지 않아야 한다
+        jobs[0]["mp4"].write_bytes(b"v")
+        jobs[0]["json"].write_text(json.dumps({"result": {"status": "success"}, "prompt": jobs[0]["prompt"], "g0": {}}))
+        stop = threading.Event()
+        st = [g.run_one(None, None, None, args, j, "t", stop)["status"] for j in jobs]
+    finally:
+        g.attempt, g.probe = real_attempt, real_probe
+    # idle=skip, idle_02=1건, walk_fwd=오류+재시도 2건 → 한도 3 소진, 나머지 not_run
+    expect = ["skip", "success", "success", "not_run", "not_run"]
+    a = st == expect
+    b = calls == ["walker_idle_02", "walker_walk_fwd", "walker_walk_fwd"] and args.budget.sent == 3
+    c = not jobs[3]["mp4"].exists() and not jobs[3]["json"].exists()
+    print(f"   {'한도 3: ' + ' '.join(st):60s} {'✅' if a else '❌'}")
+    print(f"   {'건너뛴 편은 세지 않고 재시도는 1건으로 센다':40s} {'✅' if b else '❌'}")
+    print(f"   {'안 보낸 편은 파일·기록이 없다':40s} {'✅' if c else '❌'}")
+    bud = g.Budget(1)
+    d = bud.take() and not bud.take()
+    bud.give_back()
+    d = d and bud.take()
+    print(f"   {'접수 전 거절은 되돌린다':40s} {'✅' if d else '❌'}")
+    return a and b and c and d
+
+
 if __name__ == "__main__":
     with tempfile.TemporaryDirectory() as tmp:
         print("A. 프롬프트 전처리")
@@ -155,6 +203,8 @@ if __name__ == "__main__":
         d = run_resume(tmp)
         print("E. 종료 코드")
         e = run_exit_code()
-    good = a and b and c and d and e
+        print("F. --daily-cap")
+        f = run_daily_cap(tmp)
+    good = a and b and c and d and e and f
     print(f"\n{'✅ 전체 통과' if good else '❌ 실패 있음'}")
     sys.exit(0 if good else 1)

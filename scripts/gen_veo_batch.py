@@ -29,6 +29,10 @@ ORCHESTRATOR_DESIGN 의 S-1 구상을 수동 스크립트로 먼저 만든 것�
     않는다** — 서버에서는 완성돼 과금될 수 있어서다. operation 이름을 기록에 남긴다.
   - 인증·과금·등급 오류는 다음 편도 똑같이 실패하므로 "FATAL_STOP:" 과 원문을 찍고 즉시
     종료한다 (코드 2).
+  - --daily-cap N: 이번 실행에서 접수된 생성 요청이 N 건이 되면 남은 편은 보내지 않고 정상
+    종료한다 (재시도도 1건으로 센다). Tier 1 의 Veo 3.1 Fast 일일 한도(RPD)가 10 이다 —
+    2026-10-11 에 11번째 요청이 429 로 거절됐다. 같은 날 앞서 쓴 횟수는 세지 않으므로
+    콘솔에서 RPD 가 0 으로 돌아온 것을 확인하고 돌린다.
   - API 키는 레포 루트 .env 의 GEMINI_API_KEY 에서 읽고, 출력·기록에 쓰지 않는다.
 
 종료 코드: 0 정상 (차단·오류가 섞여도 0, 요약 표를 본다) · 1 인자 오류 · 2 즉시 중단
@@ -80,6 +84,24 @@ _KEY = ""
 
 class Fatal(Exception):
     """다음 편도 똑같이 실패할 오류 — 배치를 멈춘다."""
+
+
+class Budget:
+    """--daily-cap: 이번 실행에서 접수된 생성 요청 수를 센다."""
+
+    def __init__(self, cap):
+        self.cap, self.sent, self._lock = cap, 0, threading.Lock()
+
+    def take(self):
+        with self._lock:
+            if self.cap is not None and self.sent >= self.cap:
+                return False
+            self.sent += 1
+            return True
+
+    def give_back(self):  # 접수되기 전에 거절된 요청은 세지 않는다
+        with self._lock:
+            self.sent -= 1
 
 
 class Parser(argparse.ArgumentParser):
@@ -259,6 +281,7 @@ def attempt(client, types, errors, args, job, cfg):
             op = client.models.generate_videos(**call)
             break
         except errors.APIError as e:
+            args.budget.give_back()
             text = api_error_text(e)
             if is_fatal(e):
                 raise Fatal(text)
@@ -267,6 +290,7 @@ def attempt(client, types, errors, args, job, cfg):
                 log(f"  [{job['stem']}] 429 — {wait}s 대기 ({a['waits_429']}/{args.max_429_waits}): {text[:200]}")
                 time.sleep(wait)
                 wait = min(wait * 2, 480)
+                args.budget.take()  # 방금 돌려준 자리를 다시 잡는다
                 continue
             a.update(status="error", message=text)
             # 400 은 같은 요청을 다시 보내도 같은 답이 온다
@@ -344,7 +368,7 @@ def run_one(client, types, errors, args, job, sdk_version, stop):
             log(f"[{job['stem']}] 건너뜀 — 이미 있다")
             return row
         raise Fatal(f"{job['mp4']} 가 이미 있는데 이 스크립트의 성공 기록이 없다 — 덮어쓰지 않는다")
-    if stop.is_set():
+    if stop.is_set() or not args.budget.take():
         row.update(status="not_run", g0={}, total_s=None)
         return row
 
@@ -357,6 +381,9 @@ def run_one(client, types, errors, args, job, sdk_version, stop):
         attempts.append(a)
         log(f"  [{job['stem']}] {a['status']}" + (f" — {a.get('message')}" if a["status"] != "success" else ""))
         if a["status"] == "success" or not retry or n == 1:
+            break
+        if not args.budget.take():
+            log(f"  [{job['stem']}] 재시도하지 않는다 — --daily-cap {args.daily_cap} 도달")
             break
         log(f"  [{job['stem']}] 재시도 1회")
     g0 = probe(job["mp4"]) if a["status"] == "success" else {}
@@ -445,6 +472,7 @@ def main():
     ap.add_argument("--poll", type=int, default=10, help="폴링 간격(초)")
     ap.add_argument("--timeout", type=int, default=900, help="편당 생성 대기 한도(초)")
     ap.add_argument("--max-429-waits", type=int, default=5, help="편당 429 대기 횟수 한도")
+    ap.add_argument("--daily-cap", type=int, help="이번 실행에서 접수시킬 생성 요청 수 한도 (일일 한도 RPD 대응)")
     ap.add_argument("--dry-run", action="store_true", help="요청 설정표만 찍는다. 아무것도 쓰지 않는다")
     ap.add_argument("--count-tokens", action="store_true", help="전 편 프롬프트 토큰 수만 잰다 (무과금)")
     ap.add_argument("--token-model", default="gemini-3.8-flash", help="countTokens 에 쓸 모델")
@@ -457,6 +485,8 @@ def main():
     if not args.count_tokens:
         if not args.model:
             ap.error("--model 이 필요하다")
+        if args.daily_cap is not None and args.daily_cap < 1:
+            ap.error("--daily-cap 은 1 이상이어야 한다")
         if args.duration != 8 and (args.resolution == "1080p" or args.mode == "reference"):
             ap.error("1080p 와 reference 는 --duration 8 만 된다")
         jobs = build_jobs(args, rows)
@@ -476,6 +506,7 @@ def main():
 
     args.git_commit, args.git_dirty = git_state()
     args.xlsx_sha256 = sha256(args.xlsx)
+    args.budget = Budget(args.daily_cap)
     args.out.mkdir(parents=True, exist_ok=True)
     prepare_refs(jobs)
     log(f"시작 — {len(jobs)}편, {MODELS[args.model]}, {args.mode}, 동시 {args.concurrency}, "
@@ -515,6 +546,10 @@ def main():
         print(f"\nG0 미달 {len(g0_fail)}편:")
         for r in g0_fail:
             print(f"  {r['stem']}: {r['g0'].get('reasons')}")
+    left = [r["id"] for r in results if r["status"] == "not_run"]
+    if left and not fatal:
+        print(f"\nDAILY_CAP: 생성 요청 {args.budget.sent}건 접수 (한도 {args.daily_cap}). "
+              f"남은 {len(left)}편: {', '.join(left)}", flush=True)
     if fatal:
         print(f"\nFATAL_STOP: {fatal[0]}", flush=True)
         sys.exit(2)
