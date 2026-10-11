@@ -6,6 +6,7 @@
   D. 이어하기 — 기록 없는 mp4, 프롬프트가 바뀐 mp4 를 만나면 덮어쓰지 않고 멈추는가.
   E. 종료 코드 — 인자 오류가 1 로 나가는가 (2 는 즉시 중단 전용).
   F. --daily-cap — 한도만큼만 보내고, 이미 있는 편은 세지 않으며, 재시도도 1건으로 세는가.
+  G. 레퍼런스 찾기 — <이름>_clean.png 도 찾는가, --out 안의 폴더는 복사 없이 그대로 쓰는가.
 
 실제 생성(과금)은 시험하지 않는다. 그것은 시험 5편으로 사람이 본다.
 """
@@ -201,6 +202,42 @@ def run_daily_cap(tmp):
     return a and b and c and d
 
 
+def run_refs(tmp):
+    rows = {"walker_idle": "x. 10 seconds.", "dog_idle": "x. 10 seconds."}
+    out = Path(tmp) / "o"
+    clean = out / "_refs_clean"
+    clean.mkdir(parents=True)
+    png(clean / "manor_walker_01_v4_1116_clean.png", 1116, 2000)
+    png(clean / "dog_02_clean.png", 2752, 1536)
+    args = make_args(tmp, out=out, refs=clean)
+    jobs = g.build_jobs(args, rows)
+    a = [j["ref"].name for j in jobs] == ["manor_walker_01_v4_1116_clean.png", "dog_02_clean.png"]
+    a = a and [j["aspect_ratio"] for j in jobs] == ["9:16", "16:9"]
+    print(f"   {'_clean 이름을 찾는다':40s} {'✅' if a else '❌'}")
+    g.prepare_refs(jobs)
+    b = all(j["ref"] == j["ref_src"] for j in jobs) and not (out / "_refs").exists()
+    print(f"   {'--out 안의 폴더는 복사하지 않는다':40s} {'✅' if b else '❌'}")
+    # 바깥 폴더의 _clean 은 <out>/_refs 로 복사된다 — 원래 이름의 기존 사본과 이름이 겹치지 않는다
+    ext = Path(tmp) / "ext"
+    ext.mkdir()
+    png(ext / "dog_02_clean.png", 2752, 1536)
+    (out / "_refs").mkdir()
+    png(out / "_refs" / "dog_02.png", 2752, 1536)
+    j = g.build_jobs(make_args(tmp, out=out, refs=ext, ids="dog_idle"), rows)
+    j[0]["ref_src"] = ext / "dog_02_clean.png"
+    g.prepare_refs(j)
+    c = sorted(p.name for p in (out / "_refs").iterdir()) == ["dog_02.png", "dog_02_clean.png"]
+    print(f"   {'바깥 _clean 은 기존 사본과 따로 복사된다':40s} {'✅' if c else '❌'}")
+    png(clean / "dog_02.png", 2752, 1536)
+    try:
+        g.build_jobs(make_args(tmp, out=out, refs=clean, ids="dog_idle"), rows)
+        d = False
+    except SystemExit:
+        d = True
+    print(f"   {'원래 이름과 _clean 이 함께 있으면 중단':40s} {'✅' if d else '❌'}")
+    return a and b and c and d
+
+
 if __name__ == "__main__":
     with tempfile.TemporaryDirectory() as tmp:
         print("A. 프롬프트 전처리")
@@ -215,6 +252,8 @@ if __name__ == "__main__":
         e = run_exit_code()
         print("F. --daily-cap")
         f = run_daily_cap(tmp)
-    good = a and b and c and d and e and f
+        print("G. 레퍼런스 찾기")
+        r = run_refs(tmp)
+    good = a and b and c and d and e and f and r
     print(f"\n{'✅ 전체 통과' if good else '❌ 실패 있음'}")
     sys.exit(0 if good else 1)

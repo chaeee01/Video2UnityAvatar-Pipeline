@@ -18,6 +18,9 @@ ORCHESTRATOR_DESIGN 의 S-1 구상을 수동 스크립트로 먼저 만든 것�
   <id>__<모델>-<방식>.mp4            예: walker_idle__fast-ff.mp4, walker_roar__fast-ref.mp4
   <id>__<모델>-<방식>.params.json    CONVENTIONS 3절 + 요청 설정·operation·결과·G0 실측
   _refs/<레퍼런스 파일>              입력 이미지 사본 (원본은 건드리지 않는다)
+--refs 폴더에는 접두사별 레퍼런스가 원래 이름이나 <이름>_clean.png (워터마크를 지운 사본)
+중 하나로 있어야 한다. --refs 가 이미 --out 안에 있으면 (예: ~/data/00_raw/_refs_clean)
+복사하지 않고 그 자리의 파일을 쓴다.
 모델 태그는 std · fast, 방식 태그는 ff(시작 프레임) · ref(참조 이미지)다.
 
 동작 규칙:
@@ -193,6 +196,16 @@ def read_rows(xlsx):
     return rows
 
 
+def find_ref(refs, name):
+    """<name> 또는 <name>_clean. 둘 다 있으면 어느 쪽인지 정할 수 없으므로 멈춘다."""
+    stem, ext = os.path.splitext(name)
+    hits = [p for p in (refs / name, refs / f"{stem}_clean{ext}") if p.is_file()]
+    if len(hits) != 1:
+        sys.exit(f"[중단] {refs} 에 {name} 또는 {stem}_clean{ext} 가 정확히 하나 있어야 한다 "
+                 f"(찾은 것: {[h.name for h in hits]})")
+    return hits[0]
+
+
 def stem_of(rid, model_tag, mode):
     return f"{rid}__{model_tag}-{MODE_TAG[mode]}"
 
@@ -210,15 +223,15 @@ def build_jobs(args, rows):
         prefix = rid.split("_")[0]
         if prefix not in REF_BY_PREFIX:
             sys.exit(f"[중단] {rid}: 접두사 '{prefix}' 에 대응하는 레퍼런스가 없다")
-        src = args.refs / REF_BY_PREFIX[prefix]
-        if not src.is_file():
-            sys.exit(f"[중단] 레퍼런스가 없다: {src}")
+        src = find_ref(args.refs, REF_BY_PREFIX[prefix])
         w, h = png_size(src)
         stem = stem_of(rid, args.model, args.mode)
         jobs.append({
             "id": rid, "stem": stem,
             "prompt": strip_prompt(rows[rid], rid),
-            "ref_src": src, "ref": args.out / "_refs" / src.name, "ref_size": [w, h],
+            "ref_src": src, "ref_size": [w, h],
+            # --refs 가 이미 --out 안이면 그 자리의 파일을 쓴다 (복사하지 않는다)
+            "ref": src if args.out in src.parents else args.out / "_refs" / src.name,
             # Veo 는 16:9 · 9:16 만 받는다. 레퍼런스 구도를 따른다.
             "aspect_ratio": "9:16" if h > w else "16:9",
             "mp4": args.out / f"{stem}.mp4", "json": args.out / f"{stem}.params.json",
@@ -229,6 +242,8 @@ def build_jobs(args, rows):
 def prepare_refs(jobs):
     """레퍼런스를 <out>/_refs 로 복사한다 (이동 아님). 이미 있는데 내용이 다르면 멈춘다."""
     for src, dst in sorted({(j["ref_src"], j["ref"]) for j in jobs}):
+        if dst == src:
+            continue
         if dst.exists():
             if sha256(dst) != sha256(src):
                 sys.exit(f"[중단] {dst} 가 이미 있고 원본과 내용이 다르다 — 덮어쓰지 않는다")
@@ -439,6 +454,8 @@ def print_plan(args, jobs):
     print("| 출력 파일 | model | mode | 이미지 전달 | aspectRatio | resolution | durationSeconds "
           "| personGeneration | 레퍼런스 (WxH) | 프롬프트 글자 수 | 이미 있음 |")
     print("|---|---|---|---|---|---|---|---|---|---|---|")
+    for src in sorted({j["ref"] for j in jobs}):
+        print(f"레퍼런스: {src}")
     for j in jobs:
         c = request_config(args, j)
         how = "image" if args.mode == "first_frame" else "referenceImages[asset] x1"
