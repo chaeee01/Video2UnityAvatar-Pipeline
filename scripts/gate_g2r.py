@@ -24,12 +24,36 @@ import os
 import sys
 
 # ── 임계값과 근거 ────────────────────────────────────────────────────────────
-# SCALE_MIN/MAX = 0.55 / 0.65
-#   SMPL 표준 신장과 TRELLIS 정규화 크기의 비에서 나오는 구조 상수다. 캐릭터가
-#   달라도 이 범위를 벗어나지 않는다 — 5회 측정에서 0.588(zombie_sample1),
-#   0.5906(zombie1 1세대), 0.5892(zombie1 2세대 512), 0.5914(zombie1 1024),
-#   그리고 zombie_sample1 재측정이 모두 0.588~0.5914 에 들어왔다. 범위를 벗어나면
-#   상류 단계(SMPL 생성 또는 TRELLIS 스케일)의 오류 신호다.
+# 스케일 판정 — 2026-10-13 에 다시 짰다.
+#   종전에는 "정렬 스케일이 0.55~0.65 안" 하나였다 (SMPL 표준 신장과 TRELLIS 정규화 크기의
+#   비라는 구조 상수 — zombie1 계열 5회가 0.588~0.5914). 그런데 정렬 스케일은
+#   **메쉬 높이 ÷ SMPL 자세 높이**이고(align_smpl_to_trellis.py), 그 범위는 두 가지를 말없이
+#   가정한다: 메쉬가 키로 정규화됐다(가장 긴 변 = 키), SMPL 이 똑바로 서 있다. 키프레임의
+#   자세가 그 가정을 깨면 리그가 멀쩡해도 불합격이 난다.
+#
+#                          스케일  SMPL 자세높이  SMPL 최장변  T포즈 키  정규화 일관성  자세높이÷T포즈
+#     기존 10건*           0.557~0.620  1.61~1.80   = 높이     1.76~1.80   0.995~1.001    0.913~1.000
+#     walker f49 (팔 위로)   0.504       1.984       = 높이     1.797       1.000          1.104
+#     dog f134 (팔 수평)     0.527       1.759       1.829(폭)  1.846       0.964          0.953
+#     * zombie1 3종 · char_shuffle f60 · f6 · walker f138 · f18 · f26 · walker_apose · stalker_apose
+#
+#   f49 는 든 팔이 SMPL 자세 높이를 키웠고, dog 는 가장 긴 변이 폭이라 메쉬 높이가 1 보다 작게
+#   정규화됐다. 둘 다 옛 규칙에서 불합격이었다 (외형 전용 영상은 팔을 벌린 자세를 일부러
+#   쓰므로 이 경우는 되풀이된다). 그래서 자세와 무관한 두 판정으로 나눴다.
+#
+# TPOSE_H_MIN/MAX = 1.5 / 2.0
+#   SMPL T포즈 키(평균 betas). WHAM 의 체형 추정이 틀어지면 벗어난다. 실측 1.763~1.846.
+# NORM_MIN/MAX = 0.90 / 1.05   "정규화 일관성"
+#   (메쉬 높이 ÷ 메쉬 최장변) ÷ (SMPL 자세 높이 ÷ SMPL 최장변). TRELLIS 는 가장 긴 변을 1 로
+#   맞추므로, 메쉬와 SMPL 의 모양이 같으면 이 값은 1 이다. 부유 지오메트리가 메쉬를 부풀리거나
+#   메쉬가 잘리면 벗어난다. **잠정이다 — 팔을 수평으로 벌린 표본이 dog 1건(0.964)뿐이다.**
+#   그 0.964 는 메쉬의 손이 SMPL 의 손보다 길어서 나온 값이다.
+# POSE_H_MIN/MAX = 0.93 / 1.03   경고만 한다
+#   SMPL 자세 높이 ÷ T포즈 키. 키프레임에서 몸이 얼마나 접히거나 뻗었는가. f49(팔을 머리 위로)
+#   1.104, f60(숙임) 0.913 — 둘 다 나쁜 키프레임이었다. **표본 2건 기준 잠정.**
+#   G1a 의 시선 항은 뒤로 젖힌 고개를 못 잡는다(WHAM 이 작게 추정한다 — f49 에서 25.8° 로
+#   통과했고 얼굴이 소실됐다). 이 경고는 그 사각을 **간접으로** 보완하는 그물이다: 고개를
+#   젖히는 자세는 대개 몸을 뻗거나 팔을 드는 자세와 같이 온다. 직접 재는 것은 아니다.
 # IOU_MIN = 0.5
 #   실측 0.717 / 0.743 / 0.760 / 0.797. 0.5 는 RUNBOOK 이 쓰던 값 그대로다.
 #   2세대는 열린 자락 탓 1세대보다 낮게 나오는 것이 정상이다.
@@ -221,7 +245,9 @@ import sys
 #
 #   높이 밴드(머리/상체/…)는 판정에 쓰지 않는다. 팔이 몸통과 같은 높이에 있어
 #   f60 의 "상체 64.6%" 와 f6 의 "상체 29.6%" 가 뜻하는 바가 전혀 다르다.
-SCALE_MIN, SCALE_MAX = 0.55, 0.65
+TPOSE_H_MIN, TPOSE_H_MAX = 1.5, 2.0
+NORM_MIN, NORM_MAX = 0.90, 1.05
+POSE_H_MIN, POSE_H_MAX = 0.93, 1.03
 IOU_MIN = 0.5
 JOINT_DIST_MAX = 0.2
 FALLBACK_WARN_PCT = 8.0
@@ -327,13 +353,27 @@ def check_rig(rc, detail=None):
 
 def judge(m):
     reasons, warnings = [], []
-    s = m.get("scale")
-    if s is None:
+    sc = m.get("scale_check") or {}
+    if m.get("scale") is None:
         reasons.append("aligned_params.json 에 scale 이 없다")
-    elif not (SCALE_MIN <= s <= SCALE_MAX):
-        reasons.append(
-            f"정렬 스케일 {s} 이 구조 상수 범위 {SCALE_MIN}-{SCALE_MAX} 밖이다 — "
-            f"상류(SMPL 생성 또는 TRELLIS 스케일) 오류 신호")
+    if sc.get("error"):
+        # 판정에 쓸 크기를 얻지 못했다. 옛 범위로 조용히 돌아가지 않는다.
+        reasons.append(f"스케일 판정 불가 — {sc['error']}")
+    else:
+        th, nr, pr = sc.get("tpose_height"), sc.get("norm_ratio"), sc.get("pose_ratio")
+        if th is None or nr is None:
+            reasons.append("스케일 판정 불가 — SMPL · 메쉬 크기가 주어지지 않았다")
+        else:
+            if not (TPOSE_H_MIN <= th <= TPOSE_H_MAX):
+                reasons.append(f"SMPL T포즈 키 {th} 가 {TPOSE_H_MIN}-{TPOSE_H_MAX} 밖이다 — "
+                               f"WHAM 체형 추정 이상 신호")
+            if not (NORM_MIN <= nr <= NORM_MAX):
+                reasons.append(f"정규화 일관성 {nr} 이 {NORM_MIN}-{NORM_MAX} 밖이다 — 메쉬와 SMPL 의 "
+                               f"모양(높이 ÷ 최장변)이 다르다. 메쉬 잘림 · 부유 지오메트리 신호")
+            if pr is not None and not (POSE_H_MIN <= pr <= POSE_H_MAX):
+                warnings.append(f"키프레임 자세 높이가 T포즈 키의 {pr} 배다 (범위 {POSE_H_MIN}-{POSE_H_MAX} 밖) "
+                                f"— 몸을 숙였거나 팔을 머리 위로 든 자세다. 얼굴이 보이는지 "
+                                f"키프레임을 확인할 것")
     iou = m.get("bbox_iou")
     if iou is None:
         reasons.append("aligned_params.json 에 bbox_iou 가 없다")
@@ -377,6 +417,55 @@ def judge(m):
     return ("FAIL" if reasons else "PASS"), reasons, warnings
 
 
+def obj_extent(path):
+    """OBJ 의 정점 범위 [x, y, z]. 못 읽으면 예외."""
+    lo, hi = [float("inf")] * 3, [float("-inf")] * 3
+    n = 0
+    with open(path) as f:
+        for line in f:
+            if line.startswith("v "):
+                c = [float(x) for x in line.split()[1:4]]
+                lo = [min(a, b) for a, b in zip(lo, c)]
+                hi = [max(a, b) for a, b in zip(hi, c)]
+                n += 1
+    if n == 0:
+        raise RuntimeError(f"정점이 없다: {path}")
+    return [h - l for l, h in zip(lo, hi)]
+
+
+def scale_check(p):
+    """aligned_params → 스케일 판정에 쓸 크기들. 얻지 못하면 {"error": 사유}.
+
+    새 aligned_params.json 에는 trellis_extent · smpl_extent 가 있다 (정렬할 때 잰 값, z 가
+    높이). 2026-10-13 이전 것에는 없어서 SMPL OBJ 에서 직접 재고(카메라 좌표라 y 가 높이,
+    rot_x 가 ±90 일 때만), 메쉬는 "가장 긴 변 = 1" 로 정규화됐다고 보고 스케일에서 되짚는다.
+    """
+    scale, smpl = p.get("scale"), p.get("smpl")
+    if scale is None or not smpl:
+        return {"error": "aligned_params.json 에 scale 또는 smpl 경로가 없다"}
+    smpl = os.path.expanduser(smpl)
+    tpose = os.path.join(os.path.dirname(smpl), "smpl_tpose.obj")
+    try:
+        tpose_h = obj_extent(tpose)[1]                      # OBJ 는 y 가 높이
+        if p.get("smpl_extent") and p.get("trellis_extent"):
+            se, te = p["smpl_extent"], p["trellis_extent"]
+            s_h, s_max, t_h, t_max, src = se[2], max(se), te[2], max(te), "aligned_params"
+        else:
+            if abs(abs(p.get("rot_x", 0)) - 90) > 1e-6:
+                return {"error": f"옛 aligned_params (크기 기록 없음)인데 rot_x 가 {p.get('rot_x')} 라 "
+                                 f"SMPL 의 높이 축을 알 수 없다 — 5-2 를 다시 돌릴 것"}
+            se = obj_extent(smpl)
+            s_h, s_max = se[1], max(se)
+            t_h, t_max, src = scale * s_h, 1.0, "obj (메쉬 최장변 = 1 가정)"
+    except (OSError, RuntimeError, ValueError) as e:
+        return {"error": f"SMPL 메쉬를 읽지 못했다: {e}"}
+    return {"tpose_height": round(tpose_h, 4), "smpl_pose_height": round(s_h, 4),
+            "smpl_max_extent": round(s_max, 4), "trellis_height": round(t_h, 4),
+            "trellis_max_extent": round(t_max, 4),
+            "norm_ratio": round((t_h / t_max) / (s_h / s_max), 4),
+            "pose_ratio": round(s_h / tpose_h, 4), "source": src}
+
+
 def parse_args():
     ap = argparse.ArgumentParser(description="G2r 게이트 — SMPL 정렬·리깅 판정")
     ap.add_argument("--params", required=True, help="aligned_params.json 경로")
@@ -404,6 +493,7 @@ def main():
     t = json.load(open(os.path.expanduser(a.transferred))) if a.transferred else {}
     metrics = {
         "scale": p.get("scale"),
+        "scale_check": scale_check(p),
         "bbox_iou": p.get("bbox_iou"),
         "joint_dist": a.joint_dist,
         "fallback_pct": a.fallback_pct if a.fallback_pct is not None else t.get("fallback_pct"),
@@ -417,7 +507,9 @@ def main():
         "gate": "G2r", "version": 1, "name": name, "verdict": verdict,
         "reasons": reasons, "warnings": warnings, "metrics": metrics,
         "thresholds": {
-            "scale_min": SCALE_MIN, "scale_max": SCALE_MAX, "iou_min": IOU_MIN,
+            "tpose_h_min": TPOSE_H_MIN, "tpose_h_max": TPOSE_H_MAX,
+            "norm_min": NORM_MIN, "norm_max": NORM_MAX,
+            "pose_h_min": POSE_H_MIN, "pose_h_max": POSE_H_MAX, "iou_min": IOU_MIN,
             "joint_dist_max": JOINT_DIST_MAX, "fallback_warn_pct": FALLBACK_WARN_PCT,
             "unassigned_max": UNASSIGNED_MAX,
             "fb_src_p90_max": FB_SRC_P90_MAX,
@@ -434,7 +526,9 @@ def main():
     with open(path, "w") as f:
         json.dump(result, f, ensure_ascii=False, indent=2)
     mark = "✅" if verdict == "PASS" else "❌"
-    print(f"{mark} [{verdict}] {name}  스케일 {metrics['scale']}  IoU {metrics['bbox_iou']}  "
+    sc = metrics["scale_check"]
+    print(f"{mark} [{verdict}] {name}  스케일 {metrics['scale']} (T포즈 키 {sc.get('tpose_height')} · "
+          f"정규화 {sc.get('norm_ratio')} · 자세 {sc.get('pose_ratio')})  IoU {metrics['bbox_iou']}  "
           f"관절거리 {metrics['joint_dist']}  폴백 {metrics['fallback_pct']}%")
     for r in reasons:
         print(f"    사유: {r}")

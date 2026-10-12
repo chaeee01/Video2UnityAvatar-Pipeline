@@ -33,8 +33,13 @@ F6 = {    # 합격 표본. Head 58.9% + Collar 27.2% — 강체 본에 집중.
 }
 
 
-def metrics(scale, iou, jd, fb, detail):
-    return {"scale": scale, "bbox_iou": iou, "joint_dist": jd, "fallback_pct": fb,
+def sc(tpose=1.78, norm=1.0, pose=0.99):
+    return {"tpose_height": tpose, "norm_ratio": norm, "pose_ratio": pose}
+
+
+def metrics(scale, iou, jd, fb, detail, scale_check=None):
+    return {"scale": scale, "scale_check": scale_check or sc(),
+            "bbox_iou": iou, "joint_dist": jd, "fallback_pct": fb,
             "unassigned_pct": 0.0, "fallback_detail": detail}
 
 
@@ -250,8 +255,53 @@ def main():
     check("limb_edges 없음 → ⑤ 를 보지 않는다 (구버전 JSON 호환)", fl["limb_edges"] is None and not w)
 
     # 기존 불합격 조건은 건드리지 않았다.
-    v, reasons, _ = judge(metrics(0.70, 0.9, 0.03, 3.0, None))
-    check("스케일 범위 밖 → FAIL (종전 동작)", v == "FAIL" and len(reasons) == 1)
+    print("\n── E. 스케일 판정 (2026-10-13 재설계 — 자세와 무관한 두 판정 + 자세 경고)")
+    import tempfile
+    from gate_g2r import scale_check, obj_extent
+
+    def J(**k):
+        return judge(metrics(0.6, 0.9, 0.03, 3.0, None, sc(**k)))
+    # 실측값 (gate_g2r.py 주석의 표)
+    for name, k in [("기존 리그 (walker f138)", dict(tpose=1.786, norm=1.000, pose=0.978)),
+                    ("dog f134 — 팔 수평, 옛 규칙 0.527 FAIL", dict(tpose=1.846, norm=0.964, pose=0.953))]:
+        v, r, w = J(**k)
+        check(f"{name} → PASS · 경고 없음", v == "PASS" and not w, (r, w))
+    v, r, w = J(tpose=1.797, norm=1.000, pose=1.104)
+    check("walker f49 — 팔을 머리 위로: PASS 지만 자세 경고 (옛 규칙 0.504 FAIL)",
+          v == "PASS" and len(w) == 1 and "자세 높이" in w[0], (r, w))
+    v, r, w = J(tpose=1.766, norm=1.001, pose=0.913)
+    check("f60 — 숙임: 자세 경고", v == "PASS" and len(w) == 1, (r, w))
+    v, r, w = J(norm=0.85)
+    check("정규화 일관성 0.85 → FAIL", v == "FAIL" and len(r) == 1 and "정규화" in r[0], r)
+    v, r, w = J(norm=1.08)
+    check("정규화 일관성 1.08 → FAIL", v == "FAIL", r)
+    v, r, w = J(tpose=2.2)
+    check("T포즈 키 2.2 → FAIL", v == "FAIL" and "T포즈" in r[0], r)
+    check("경계: 0.90 · 1.05 · 1.5 · 2.0 는 통과", all(J(**k)[0] == "PASS" for k in
+          (dict(norm=0.90), dict(norm=1.05), dict(tpose=1.5), dict(tpose=2.0))))
+    check("경계: 자세 0.93 · 1.03 은 경고 없음", not J(pose=0.93)[2] and not J(pose=1.03)[2])
+    v, r, w = judge(metrics(0.6, 0.9, 0.03, 3.0, None, {"error": "SMPL 메쉬를 읽지 못했다"}))
+    check("크기를 못 얻으면 FAIL — 옛 범위로 돌아가지 않는다", v == "FAIL" and "판정 불가" in r[0], r)
+
+    # scale_check: OBJ 에서 재는 경로(옛 aligned_params)와 기록된 크기를 쓰는 경로(새것)
+    with tempfile.TemporaryDirectory() as tmp:
+        def obj(name, w, h, d):
+            with open(os.path.join(tmp, name), "w") as f:
+                f.write(f"v 0 0 0\nv {w} {h} {d}\n")
+            return os.path.join(tmp, name)
+        obj("smpl_tpose.obj", 1.8, 1.846, 0.3)
+        pose = obj("smpl_frame134.obj", 1.829, 1.759, 0.333)            # dog: 폭이 키보다 길다
+        check("obj_extent", [round(x, 3) for x in obj_extent(pose)] == [1.829, 1.759, 0.333])
+        r0 = scale_check({"scale": 0.527087, "smpl": pose, "rot_x": -90.0})
+        check("옛 aligned_params: OBJ 에서 잰다 (dog 실측 → 정규화 0.964 · 자세 0.953)",
+              (r0["norm_ratio"], r0["pose_ratio"], r0["tpose_height"]) == (0.964, 0.9529, 1.846), r0)
+        r1 = scale_check({"scale": 0.527087, "smpl": pose, "rot_x": -90.0,
+                          "smpl_extent": [1.829, 0.333, 1.759], "trellis_extent": [1.0, 0.2, 0.9272]})
+        check("새 aligned_params: 기록된 크기를 쓴다 (같은 값)", r1["norm_ratio"] == 0.9641 and r1["source"] == "aligned_params", r1)
+        r2 = scale_check({"scale": 0.6, "smpl": pose, "rot_x": 0.0})
+        check("옛 aligned_params + rot_x 가 ±90 이 아님 → 판정 불가", "error" in r2, r2)
+        r3 = scale_check({"scale": 0.6, "smpl": os.path.join(tmp, "nope.obj"), "rot_x": -90.0})
+        check("SMPL 파일 없음 → 판정 불가", "error" in r3 and "읽지 못했다" in r3["error"])
     check(f"경고선 상수는 그대로 {FALLBACK_WARN_PCT}", FALLBACK_WARN_PCT == 8.0)
 
     print("\n✅ 전체 통과" if ok else "\n❌ 실패")

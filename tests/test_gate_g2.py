@@ -60,7 +60,11 @@ G2R_CASES = [
     ("zombie1 1세대",  dict(scale=0.5906, bbox_iou=0.797), 0.0293, 3.0,  "PASS", "1세대 기준선"),
     ("zombie1 512",    dict(scale=0.5892, bbox_iou=0.743), 0.0292, 1.49, "PASS", "2세대 512"),
     ("zombie1 1024",   dict(scale=0.5914, bbox_iou=0.760), 0.0293, 3.67, "PASS", "2세대 1024"),
-    ("스케일 이탈",    dict(scale=0.42,   bbox_iou=0.70),  0.03,   2.0,  "FAIL", "상수 범위 밖 — 상류 오류"),
+    # 2026-10-13: 스케일 범위(0.55~0.65) 대신 자세와 무관한 두 판정을 쓴다 (gate_g2r.py 주석).
+    # 옛 "스케일 이탈" 사례는 그 원인이던 메쉬·SMPL 모양 불일치로 바꿔 둔다.
+    ("정규화 이탈",    dict(scale=0.42,   bbox_iou=0.70, sc=dict(norm_ratio=0.74)), 0.03, 2.0, "FAIL", "메쉬 모양이 SMPL 과 다름 — 상류 오류"),
+    ("체형 이상",      dict(scale=0.59,   bbox_iou=0.70, sc=dict(tpose_height=2.3)), 0.03, 2.0, "FAIL", "T포즈 키 2.3 — WHAM 체형 추정 이상"),
+    ("팔 수평 자세",   dict(scale=0.527,  bbox_iou=0.752, sc=dict(tpose_height=1.846, norm_ratio=0.964, pose_ratio=0.953)), 0.0262, 0.1, "PASS", "dog f134 실측 — 옛 범위에서는 FAIL 이던 것"),
     ("좌표계 오판",    dict(scale=0.59,   bbox_iou=0.70),  2.6645, 2.0,  "FAIL", "차순위 후보 거리 — 잡아야 한다"),
     ("정렬 실패",      dict(scale=0.59,   bbox_iou=0.31),  0.03,   2.0,  "FAIL", "IoU 미달"),
     ("무배정 잔존",    dict(scale=0.59,   bbox_iou=0.70),  0.03,   2.0,  "FAIL", "무배정 0.4% — 전이 미완"),
@@ -110,7 +114,10 @@ def run_g2r():
     print(f"   {'사례':16s} {'scale':>7s} {'IoU':>6s} {'관절':>7s} {'폴백':>6s}  {'기대':>4s} {'결과':>4s}")
     ok = 0
     for name, p, jd, fb, expect, why in G2R_CASES:
-        m = dict(scale=p["scale"], bbox_iou=p["bbox_iou"], joint_dist=jd,
+        # 스케일 판정용 크기 — 사례가 따로 주지 않으면 zombie1 실측(T포즈 키 1.763 · 정규화 1.000 ·
+        # 자세 0.960)을 쓴다. zombie_sample1 은 SMPL 메쉬가 남아 있지 않아 같은 값으로 둔다.
+        sc = dict(dict(tpose_height=1.763, norm_ratio=1.0, pose_ratio=0.96), **p.get("sc", {}))
+        m = dict(scale=p["scale"], scale_check=sc, bbox_iou=p["bbox_iou"], joint_dist=jd,
                  fallback_pct=fb, unassigned_pct=0.4 if name == "무배정 잔존" else 0.0)
         verdict, reasons, warns = gate_g2r.judge(m)
         good = verdict == expect

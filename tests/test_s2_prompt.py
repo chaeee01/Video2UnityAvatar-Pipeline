@@ -144,6 +144,18 @@ def test_orchestrate():
     c = {"name": "x", "video": "/v.mp4", "s2_prompt": "auto10", "point": None}
     cmd = orchestrate.stage_command("S2", c)
     check("D4 auto 프롬프트는 --point 를 넘기지 않는다", cmd[-2:] == ["--prompt", "auto10"] and "--point" not in cmd, str(cmd[-2:]))
+    import tempfile
+    from pathlib import Path
+    from types import SimpleNamespace
+    with tempfile.TemporaryDirectory() as tmp:
+        logs = Path(tmp)
+        run = SimpleNamespace(logs=logs)
+        check("D6 처음 도는 단계는 try1 부터", orchestrate.prior_tries(run, "5-4") == 0)
+        for f in ("5-4_try1.log", "5-4_try1_gate.log", "S2_try1.log", "S2_try2.log", "S2_try3.log", "5-5_try1.log"):
+            (logs / f).write_text("")
+        check("D7 이어받기는 번호를 잇는다 (5-4 → try2, S2 → try4, 게이트 로그는 세지 않는다)",
+              (orchestrate.prior_tries(run, "5-4"), orchestrate.prior_tries(run, "S2")) == (1, 3),
+              str((orchestrate.prior_tries(run, "5-4"), orchestrate.prior_tries(run, "S2"))))
     s5 = next(s for s in orchestrate.STAGES if s["key"] == "S5")
     check("D5 S5 에 게이트가 붙었다", s5["gate"] == "gate_s5")
 

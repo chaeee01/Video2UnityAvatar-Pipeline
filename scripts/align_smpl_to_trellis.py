@@ -93,6 +93,10 @@ def main():
     s_lo, s_hi = world_bounds([smpl])
     t_h = t_hi.z - t_lo.z
     s_h = s_hi.z - s_lo.z
+    # 스케일을 걸기 전의 크기를 남긴다 — G2r 이 "메쉬가 무엇으로 정규화됐는가" 를 본다
+    # (팔을 수평으로 벌린 자세에서는 가장 긴 변이 키가 아니라 폭이다. gate_g2r.py 주석).
+    t_ext = [round(v, 6) for v in (t_hi - t_lo)]
+    s_ext = [round(v, 6) for v in (s_hi - s_lo)]
     scale = t_h / s_h
     smpl.scale = (scale,) * 3
     bpy.context.view_layer.update()
@@ -125,6 +129,7 @@ def main():
         "scale": round(scale, 6),
         "offset": [round(v, 6) for v in offset],
         "bbox_iou": round(iou, 4),
+        "trellis_extent": t_ext, "smpl_extent": s_ext,      # [x, y, z], z 가 높이
         "trellis": a.trellis, "smpl": a.smpl,
     }
     out_json = a.out.rsplit(".", 1)[0] + "_params.json"
