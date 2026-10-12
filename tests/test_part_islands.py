@@ -45,6 +45,8 @@ def main():
     check("region_of", (region_of("L_Wrist"), region_of("R_Knee"), region_of("Spine2"), region_of("L_Collar"))
           == ("L_arm", "R_leg", "torso", "torso"))
     check("팔–다리, 팔–하부 몸통은 충돌", limb_conflict("L_Wrist", "L_Hip") and limb_conflict("Spine1", "R_Elbow"))
+    check("위팔–하부 몸통 · 위팔–다리도 충돌 (2026-10-12)", limb_conflict("L_Shoulder", "Spine1")
+          and limb_conflict("Spine2", "R_Shoulder") and limb_conflict("L_Shoulder", "L_Hip"))
     check("어깨–몸통, 다리–골반, 좌다리–우다리는 충돌이 아니다",
           not limb_conflict("L_Shoulder", "Spine3") and not limb_conflict("L_Hip", "Pelvis")
           and not limb_conflict("L_Knee", "R_Knee") and not limb_conflict("L_Elbow", "Spine3"))
@@ -82,6 +84,15 @@ def main():
     dom, adj, _ = chain([("Spine3", 300), ("L_Shoulder", 10), ("L_Collar", 50), ("L_Shoulder", 200)])
     relabel, _ = find_islands(dom, adj)
     check("상부 몸통 안의 Shoulder 조각: 그대로", relabel == {}, len(relabel))
+    # 위팔 소매에 얹힌 하부 몸통(Spine1) 라벨 섬은 팔로 돌아온다 (walker_apose f188 왼팔의 경우)
+    dom, adj, _ = chain([("L_Elbow", 200), ("L_Shoulder", 150), ("Spine1", 25), ("L_Shoulder", 150)])
+    d2, a2, _ = chain([("Spine1", 600)])
+    off = len(dom)
+    dom += d2
+    adj += [[j + off for j in nb] for nb in a2]
+    relabel, isl = find_islands(dom, adj)
+    check("위팔 안의 Spine1 섬 25정점이 L_arm 으로", len(relabel) == 25 and set(relabel.values()) == {"L_arm"},
+          (len(relabel), set(relabel.values())))
     # 좌다리–우다리 (다리 융합은 키프레임의 문제이고 ② 가 본다)
     dom, adj, _ = chain([("L_Knee", 300), ("R_Knee", 20), ("L_Ankle", 100)])
     d2, a2, _ = chain([("R_Knee", 400)])
