@@ -134,6 +134,19 @@ def main():
         rc, out = orch(vol, "--resume", "--until", "G1a", "--keyframe", "/x/내사진.png")
         check("프레임 번호를 못 읽는 파일명 → 종료 코드 1", rc == 1 and "프레임 번호" in out, rc)
 
+    print("── run 폴더 찾기 — 이름이 접두사인 다른 샘플의 run 을 집지 않는다")
+    with tempfile.TemporaryDirectory() as tmp:
+        vol, _ = make_vol(tmp)
+        _, o = start_run(vol, done=())
+        runs = Path(tmp) / "runs"
+        for d in ("run_demo_20261011_132337", "run_demo_f18_20261011_145446", "run_demo2_20261012_000000"):
+            (runs / d).mkdir(parents=True)
+        got = o.Run.latest("demo", runs)
+        check("demo → run_demo_20261011_132337 (demo_f18 · demo2 가 더 나중이어도)",
+              got is not None and got.root.name == "run_demo_20261011_132337", got and got.root.name)
+        check("demo_f18 → 제 것", o.Run.latest("demo_f18", runs).root.name == "run_demo_f18_20261011_145446")
+        check("없는 샘플 → None", o.Run.latest("nope", runs) is None)
+
     print("\n✅ 전체 통과" if ok else "\n❌ 실패")
     return 0 if ok else 1
 
