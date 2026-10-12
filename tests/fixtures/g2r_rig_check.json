@@ -3,6 +3,23 @@
   "desc": "f60 — 육안 불합격 (10/1)",
   "label": "bad",
   "fallback_pct": 3.7075,
+  "before": {
+   "limb_edges": {
+    "arm_leg": 249,
+    "arm_lowtorso": 84,
+    "leg_leg": 1825
+   },
+   "dominant": {
+    "L_Wrist": 0,
+    "L_Hand": 0,
+    "R_Wrist": 6930,
+    "R_Hand": 6792
+   }
+  },
+  "part_constraint": {
+   "islands": 52,
+   "verts": 3500
+  },
   "rig_check": {
    "vertices": 709783,
    "bone_dist": {
@@ -33,7 +50,7 @@
    },
    "dominant": {
     "Pelvis": 18977,
-    "L_Hip": 94138,
+    "L_Hip": 90693,
     "L_Knee": 36344,
     "L_Ankle": 9166,
     "L_Foot": 4085,
@@ -41,15 +58,15 @@
     "R_Knee": 62399,
     "R_Ankle": 19319,
     "R_Foot": 10256,
-    "Spine1": 84747,
+    "Spine1": 84694,
     "Spine2": 437,
     "Spine3": 74168,
     "Neck": 12858,
     "Head": 42577,
     "L_Collar": 23199,
-    "L_Shoulder": 20280,
-    "L_Elbow": 21464,
-    "L_Wrist": 0,
+    "L_Shoulder": 20288,
+    "L_Elbow": 21509,
+    "L_Wrist": 3445,
     "L_Hand": 0,
     "R_Collar": 27597,
     "R_Shoulder": 18119,
@@ -78,17 +95,16 @@
     "R_Hand": 0
    },
    "limb_edges": {
-    "arm_leg": 249,
-    "arm_lowtorso": 84,
+    "arm_leg": 0,
+    "arm_lowtorso": 65,
     "leg_leg": 1825,
     "edges": 1672682,
     "top": {
      "L_Knee|R_Knee": 1054,
      "L_Foot|R_Ankle": 297,
-     "L_Elbow|L_Hip": 249,
      "L_Ankle|R_Ankle": 239,
      "L_Ankle|R_Knee": 230,
-     "L_Elbow|Spine1": 84,
+     "L_Elbow|Spine1": 65,
      "L_Foot|R_Knee": 5
     }
    }
@@ -123,6 +139,23 @@
   "desc": "f6+1536 — 육안 합격 (10/6)",
   "label": "good",
   "fallback_pct": 8.9206,
+  "before": {
+   "limb_edges": {
+    "arm_leg": 0,
+    "arm_lowtorso": 0,
+    "leg_leg": 0
+   },
+   "dominant": {
+    "L_Wrist": 11717,
+    "L_Hand": 2182,
+    "R_Wrist": 12944,
+    "R_Hand": 3028
+   }
+  },
+  "part_constraint": {
+   "islands": 0,
+   "verts": 0
+  },
   "rig_check": {
    "vertices": 833540,
    "bone_dist": {
@@ -239,6 +272,23 @@
   "desc": "zombie1 TRELLIS.2 1024 — 포즈 시험 통과 (9/11)",
   "label": "good",
   "fallback_pct": 3.6698,
+  "before": {
+   "limb_edges": {
+    "arm_leg": 0,
+    "arm_lowtorso": 0,
+    "leg_leg": 130
+   },
+   "dominant": {
+    "L_Wrist": 8608,
+    "L_Hand": 3527,
+    "R_Wrist": 4743,
+    "R_Hand": 3082
+   }
+  },
+  "part_constraint": {
+   "islands": 0,
+   "verts": 0
+  },
   "rig_check": {
    "vertices": 797746,
    "bone_dist": {
@@ -357,6 +407,23 @@
   "desc": "zombie1 TRELLIS.2 512 — Unity 관통 (9/9)",
   "label": "good",
   "fallback_pct": 1.487,
+  "before": {
+   "limb_edges": {
+    "arm_leg": 0,
+    "arm_lowtorso": 0,
+    "leg_leg": 151
+   },
+   "dominant": {
+    "L_Wrist": 11870,
+    "L_Hand": 7278,
+    "R_Wrist": 7022,
+    "R_Hand": 3455
+   }
+  },
+  "part_constraint": {
+   "islands": 0,
+   "verts": 0
+  },
   "rig_check": {
    "vertices": 671643,
    "bone_dist": {
@@ -474,6 +541,23 @@
   "desc": "zombie1 1세대 5,307정점 — Unity 관통 (9/7). 손 메쉬는 온전, R_Hand 본만 메쉬 밖 (10/9 렌더 확인)",
   "label": "good_leaf_only",
   "fallback_pct": 3.0149,
+  "before": {
+   "limb_edges": {
+    "arm_leg": 0,
+    "arm_lowtorso": 0,
+    "leg_leg": 14
+   },
+   "dominant": {
+    "L_Wrist": 202,
+    "L_Hand": 8,
+    "R_Wrist": 158,
+    "R_Hand": 0
+   }
+  },
+  "part_constraint": {
+   "islands": 0,
+   "verts": 0
+  },
   "rig_check": {
    "vertices": 5307,
    "bone_dist": {
@@ -582,6 +666,23 @@
   "desc": "파일럿 walker_walk_02 f138 — G2r ①②③ 무경고였으나 육안 불합격 (10/11). 왼손 정점이 허벅지 본을 받음",
   "label": "bad_limb",
   "fallback_pct": 1.1321,
+  "before": {
+   "limb_edges": {
+    "arm_leg": 532,
+    "arm_lowtorso": 29,
+    "leg_leg": 0
+   },
+   "dominant": {
+    "L_Wrist": 8025,
+    "L_Hand": 741,
+    "R_Wrist": 18318,
+    "R_Hand": 2610
+   }
+  },
+  "part_constraint": {
+   "islands": 17,
+   "verts": 4379
+  },
   "rig_check": {
    "vertices": 865013,
    "bone_dist": {
@@ -612,7 +713,7 @@
    },
    "dominant": {
     "Pelvis": 19441,
-    "L_Hip": 118844,
+    "L_Hip": 114489,
     "L_Knee": 33515,
     "L_Ankle": 18150,
     "L_Foot": 9289,
@@ -620,16 +721,16 @@
     "R_Knee": 46865,
     "R_Ankle": 20345,
     "R_Foot": 5520,
-    "Spine1": 75897,
+    "Spine1": 75873,
     "Spine2": 2352,
     "Spine3": 44406,
     "Neck": 14809,
     "Head": 29995,
     "L_Collar": 41774,
     "L_Shoulder": 41181,
-    "L_Elbow": 27110,
-    "L_Wrist": 8025,
-    "L_Hand": 741,
+    "L_Elbow": 27305,
+    "L_Wrist": 10325,
+    "L_Hand": 2625,
     "R_Collar": 49337,
     "R_Shoulder": 35634,
     "R_Elbow": 50271,
@@ -657,16 +758,11 @@
     "R_Hand": 0
    },
    "limb_edges": {
-    "arm_leg": 532,
-    "arm_lowtorso": 29,
+    "arm_leg": 0,
+    "arm_lowtorso": 0,
     "leg_leg": 0,
     "edges": 1791824,
-    "top": {
-     "L_Hip|L_Wrist": 330,
-     "L_Elbow|L_Hip": 116,
-     "L_Hand|L_Hip": 86,
-     "L_Elbow|Spine1": 29
-    }
+    "top": {}
    }
   },
   "fallback_detail": {
@@ -696,6 +792,23 @@
   "desc": "파일럿 walker_walk_02 f18 — 육안 불합격 (10/12). 양손에서 허벅지 표면이 끌려 나옴",
   "label": "bad_limb",
   "fallback_pct": 2.4341,
+  "before": {
+   "limb_edges": {
+    "arm_leg": 1260,
+    "arm_lowtorso": 368,
+    "leg_leg": 0
+   },
+   "dominant": {
+    "L_Wrist": 9448,
+    "L_Hand": 6298,
+    "R_Wrist": 11615,
+    "R_Hand": 3177
+   }
+  },
+  "part_constraint": {
+   "islands": 24,
+   "verts": 1761
+  },
   "rig_check": {
    "vertices": 882870,
    "bone_dist": {
@@ -726,15 +839,15 @@
    },
    "dominant": {
     "Pelvis": 20832,
-    "L_Hip": 143889,
+    "L_Hip": 144442,
     "L_Knee": 58365,
     "L_Ankle": 10792,
     "L_Foot": 7949,
-    "R_Hip": 155711,
+    "R_Hip": 155859,
     "R_Knee": 60782,
     "R_Ankle": 11967,
     "R_Foot": 5887,
-    "Spine1": 70357,
+    "Spine1": 70271,
     "Spine2": 3806,
     "Spine3": 35548,
     "Neck": 13973,
@@ -742,12 +855,12 @@
     "L_Collar": 37369,
     "L_Shoulder": 59081,
     "L_Elbow": 30943,
-    "L_Wrist": 9448,
-    "L_Hand": 6298,
+    "L_Wrist": 8546,
+    "L_Hand": 6647,
     "R_Collar": 39667,
     "R_Shoulder": 27327,
-    "R_Elbow": 34503,
-    "R_Wrist": 11615,
+    "R_Elbow": 34677,
+    "R_Wrist": 11379,
     "R_Hand": 3177
    },
    "cross": {
@@ -771,16 +884,14 @@
     "R_Hand": 0
    },
    "limb_edges": {
-    "arm_leg": 1260,
-    "arm_lowtorso": 368,
+    "arm_leg": 420,
+    "arm_lowtorso": 317,
     "leg_leg": 0,
     "edges": 1809211,
     "top": {
-     "L_Hip|L_Wrist": 618,
-     "L_Hand|L_Hip": 451,
-     "R_Elbow|Spine1": 368,
-     "R_Hip|R_Wrist": 124,
-     "R_Elbow|R_Hip": 67
+     "R_Elbow|Spine1": 317,
+     "L_Hip|L_Wrist": 235,
+     "L_Hand|L_Hip": 185
     }
    }
   },
