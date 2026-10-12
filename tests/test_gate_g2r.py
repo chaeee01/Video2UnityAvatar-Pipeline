@@ -110,20 +110,32 @@ def main():
         v, reasons, warns = judge(m)
         return v, reasons, warns, m["rig_flags"]
 
-    # f60 — 불합격이어야 한다. 사유는 L_Wrist (①∧③), ④ 를 근거로 인용.
+    # 고정 자료는 **부위 제약을 거친 뒤**의 rig_check 다 (2026-10-12~). 판정도 그 값으로 한다.
+    # f60 — 불합격이어야 한다. 제약이 왼손목의 정점을 되돌려 ③ 은 풀렸지만(0 → 3,445),
+    # 손목 본이 메쉬에서 0.064 떨어져 있어 거리만으로 불합격이다.
     v, reasons, warns, fl = run("char_shuffle")
     check("f60: FAIL", v == "FAIL", v)
-    check("f60: 사유는 L_Wrist 하나 (본이 메쉬 밖 + 지배 정점 0)",
-          len(reasons) == 1 and reasons[0].startswith("L_Wrist:") and fl["fatal"] == ["L_Wrist"], reasons)
-    check("f60: 사유에 ④ 인용 — 폴백 7,050정점이 L_Elbow 로", "7,050정점이 L_Elbow" in reasons[0])
+    check("f60: 사유는 L_Wrist 하나 (본이 메쉬에서 너무 멀다 0.064 > 0.05)",
+          len(reasons) == 1 and reasons[0].startswith("L_Wrist:") and "너무 멀다" in reasons[0]
+          and fl["fatal"] == ["L_Wrist"], reasons)
     check("f60: ① 말단 거리 — L_Wrist 0.0642 · L_Hand 0.0852 만 초과",
           sorted(fl["far"]) == ["L_Hand", "L_Wrist"], fl["far"])
     check("f60: ② 교차 — R_Knee 28.3% · L_Ankle 13.1%",
           fl["crossed"] == {"R_Knee": 28.3, "L_Ankle": 13.1}, fl["crossed"])
-    check("f60: ③ 지배 0 — L_Wrist · L_Hand", sorted(fl["empty"]) == ["L_Hand", "L_Wrist"], fl["empty"])
+    check("f60: ③ 제약 뒤 지배 0 은 L_Hand 뿐 (L_Wrist 는 3,445정점을 되찾았다)",
+          fl["empty"] == ["L_Hand"] and fx["char_shuffle"]["rig_check"]["dominant"]["L_Wrist"] == 3445
+          and fx["char_shuffle"]["before"]["dominant"]["L_Wrist"] == 0, fl["empty"])
     check("f60: L_Hand 는 불합격 사유가 아니라 경고 (손 본)",
           any(w.startswith("L_Hand:") for w in warns) and "L_Hand" not in reasons[0])
     check("f60: ④ 는 여전히 독립 경고", any("분포 위험" in w for w in warns))
+    # 제약이 게이트를 무르게 만들지 않는가 — 거리 불합격 조건이 없으면 f60 은 PASS 가 된다
+    import gate_g2r as _g
+    keep = _g.DISTAL_DIST_FAIL
+    _g.DISTAL_DIST_FAIL = 9.9
+    v2, _, _, _ = run("char_shuffle")
+    _g.DISTAL_DIST_FAIL = keep
+    check("f60: 거리 불합격 조건이 없으면 PASS 로 빠진다 (이 조건이 필요한 이유)", v2 == "PASS", v2)
+    # ①∧③ 불합격 조건 자체는 그대로다 (아래 경계 시험의 '발목: 거리 + 지배 0')
 
     # 합격 3건 — ①②③ 에서 아무것도 걸리지 않아야 한다.
     for name in ("char_shuffle_f6", "zombie1_1024", "zombie1_t2"):
@@ -158,7 +170,14 @@ def main():
     check("발목: 거리 0.031 + 지배 0 → 불합격", len(r) == 1 and r[0].startswith("L_Ankle:"), r)
     b = json.loads(json.dumps(base)); b["bone_dist"]["L_Ankle"] = 0.031
     r, w, fl = check_rig(b)
-    check("거리만 초과 → 경고", not r and len(w) == 1 and "멀다" in w[0], w)
+    check("거리만 초과(0.031) → 경고", not r and len(w) == 1 and "멀다" in w[0], w)
+    b["bone_dist"]["L_Ankle"] = 0.051
+    r, w, fl = check_rig(b)
+    check("거리가 0.05 를 넘으면 그것만으로 불합격 (지배 정점이 있어도)",
+          len(r) == 1 and "너무 멀다" in r[0] and not w, (r, w))
+    b = json.loads(json.dumps(base)); b["bone_dist"]["L_Hand"] = 0.09; b["dominant"]["L_Hand"] = 500
+    r, w, fl = check_rig(b)
+    check("손(Hand)은 0.09 떨어져도 불합격이 아니다 (경고)", not r and len(w) == 1, (r, w))
     b = json.loads(json.dumps(base)); b["dominant"]["L_Ankle"] = 0
     r, w, fl = check_rig(b)
     check("지배 0 만 → 경고", not r and len(w) == 1 and "지배 정점이 없는" in w[0], w)
@@ -179,25 +198,38 @@ def main():
           max(good) < FB_SRC_P90_MAX < p90["char_shuffle"], p90)
 
     print("\n── D. ⑤ 떨어져 있어야 할 부위를 잇는 엣지 — 7샘플")
-    # 파일럿 2건: ①②③ 은 무경고로 통과했고 육안 불합격이었다. ⑤ 가 잡아야 한다.
-    for name, want in (("walker_walk_02", 561), ("walker_walk_02_f18", 1628)):
-        v, reasons, warns, fl = run(name)
-        w5 = [w for w in warns if "떨어져 있어야 할 부위" in w]
-        check(f"{name}: PASS + ⑤ 경고 (엣지 {fl['limb_edges']}), ①②③ 은 무경고",
-              v == "PASS" and len(w5) == 1 and fl["limb_edges"] == want
-              and not fl["far"] and not fl["empty"] and not fl["crossed"], (v, fl, warns))
-        check(f"{name}: 경고에 상위 쌍(L_Hip–L_Wrist)이 들어간다", "L_Hip–L_Wrist" in w5[0], w5[0][:120])
+    # 전(제약 없음) → 후(제약 적용). 고정 자료의 before 는 10/12 오전의 실측이다.
+    want = {  # 이름: (전, 후, 재배정 정점)
+        "char_shuffle": (333, 65, 3500), "walker_walk_02": (561, 0, 4379),
+        "walker_walk_02_f18": (1628, 737, 1761),
+        "char_shuffle_f6": (0, 0, 0), "zombie1_1024": (0, 0, 0), "zombie1_t2": (0, 0, 0), "zombie1": (0, 0, 0)}
+    for name, (w_before, w_after, w_moved) in want.items():
+        o = fx[name]
+        before = o["before"]["limb_edges"]["arm_leg"] + o["before"]["limb_edges"]["arm_lowtorso"]
+        after = o["rig_check"]["limb_edges"]["arm_leg"] + o["rig_check"]["limb_edges"]["arm_lowtorso"]
+        check(f"{name}: ⑤ {before} → {after}, 재배정 {o['part_constraint']['verts']}정점",
+              (before, after, o["part_constraint"]["verts"]) == (w_before, w_after, w_moved))
+    # 파일럿 f138 — 순수한 오배정이었다. 제약이 전부 고쳐 게이트가 무경고다.
+    v, reasons, warns, fl = run("walker_walk_02")
+    check("파일럿 f138: 제약 뒤 PASS · 경고 0건 (⑤ 561 → 0)", v == "PASS" and not warns and fl["limb_edges"] == 0, warns)
+    d0, d1 = fx["walker_walk_02"]["before"]["dominant"], fx["walker_walk_02"]["rig_check"]["dominant"]
+    check("파일럿 f138: 왼손목·왼손 지배 정점 8,025 · 741 → 10,325 · 2,625",
+          (d0["L_Wrist"], d0["L_Hand"], d1["L_Wrist"], d1["L_Hand"]) == (8025, 741, 10325, 2625))
+    # 파일럿 f18 — 메쉬가 실제로 붙어 있다. 제약으로 못 고친 몫이 ⑤ 에 남아 경고가 뜬다.
+    v, reasons, warns, fl = run("walker_walk_02_f18")
+    w5 = [w for w in warns if "떨어져 있어야 할 부위" in w]
+    check("파일럿 f18: PASS + ⑤ 경고 (1,628 → 737, 붙은 메쉬는 남는다)",
+          v == "PASS" and len(w5) == 1 and fl["limb_edges"] == 737, (v, fl["limb_edges"]))
+    check("파일럿 f18: 경고에 상위 쌍이 들어간다", "R_Elbow–Spine1" in w5[0] and "L_Hip–L_Wrist" in w5[0], w5[0][:150])
+    for name in ("walker_walk_02", "walker_walk_02_f18"):
         cls, _ = classify_fallback(fx[name]["fallback_detail"])
-        check(f"{name}: ④ 는 무해 (사지 본 100% 였지만 가까이서 빌림)", cls == "benign"
-              and not any("분포 위험" in w for w in warns), cls)
+        check(f"{name}: ④ 는 무해 (사지 본 100% 였지만 가까이서 빌림)", cls == "benign")
     v, reasons, warns, fl = run("char_shuffle")
-    check("f60: ⑤ 도 경고 (팔–다리 249 + 팔–하부몸통 84 = 333)",
-          fl["limb_edges"] == 333 and any("떨어져 있어야 할 부위" in w for w in warns), fl["limb_edges"])
-    vals = {n: fx[n]["rig_check"]["limb_edges"]["arm_leg"] + fx[n]["rig_check"]["limb_edges"]["arm_lowtorso"] for n in fx}
-    check(f"합격 4건 전부 0, 불합격 3건 최소 333 — 임계 {LIMB_EDGES_MAX}",
-          all(vals[n] == 0 for n in ("char_shuffle_f6", "zombie1_1024", "zombie1_t2", "zombie1"))
-          and min(vals[n] for n in ("char_shuffle", "walker_walk_02", "walker_walk_02_f18")) == 333
-          and LIMB_EDGES_MAX == 20, vals)
+    check("f60: ⑤ 는 제약 뒤에도 경고 (333 → 65 > 20)",
+          fl["limb_edges"] == 65 and any("떨어져 있어야 할 부위" in w for w in warns), fl["limb_edges"])
+    check(f"합격 4건은 전·후 모두 0, 한 정점도 안 바뀐다 — 임계 {LIMB_EDGES_MAX}",
+          all(want[n] == (0, 0, 0) for n in ("char_shuffle_f6", "zombie1_1024", "zombie1_t2", "zombie1"))
+          and LIMB_EDGES_MAX == 20)
     b = json.loads(json.dumps(base)); b["limb_edges"] = {"arm_leg": 20, "arm_lowtorso": 0, "leg_leg": 500, "top": {}}
     r, w, fl = check_rig(b)
     check("경계: 20 은 통과, 좌다리–우다리는 세지 않는다", not r and not w and fl["limb_edges"] == 20, w)

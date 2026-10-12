@@ -135,7 +135,12 @@ class Run:
 
     @classmethod
     def latest(cls, name, runs_dir):
-        cands = sorted(Path(runs_dir).glob(f"run_{name}_*"))
+        # run_<샘플>_<YYYYMMDD>_<HHMMSS> 에 **정확히** 맞는 것만 본다. glob("run_<샘플>_*") 만
+        # 쓰면 이름이 접두사인 다른 샘플의 run 이 걸린다 — 2026-10-12 에 walker_walk_02 를
+        # 이어받으려다 walker_walk_02_f18 의 run 을 집었다 (마커·산출물 불일치로 멈춰 피해는 없었다).
+        import re
+        pat = re.compile(rf"run_{re.escape(name)}_\d{{8}}_\d{{6}}$")
+        cands = sorted(p for p in Path(runs_dir).glob(f"run_{name}_*") if pat.match(p.name))
         if not cands:
             return None
         return cls(cands[-1], name)

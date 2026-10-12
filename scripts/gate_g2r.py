@@ -102,6 +102,23 @@ import sys
 #   않는다(실측 1.3~6.0°). 손 관절을 움직이는 모션 소스 — AMASS 같은 외부 SMPL 모션 —
 #   를 들여오면 손 본이 비어 있는 것이 그대로 결함이 되므로 **이 면제를 재검토한다.**
 #
+#   **① 은 2단이다 — 0.03 넘으면 경고, 0.05 넘으면 그것만으로 불합격 (2026-10-12).**
+#     DISTAL_DIST_MAX  = 0.03   경고. 말단 8본(손목·손·발목·발)
+#     DISTAL_DIST_FAIL = 0.05   불합격. 손목·발목·발만 (손은 위 면제대로 경고)
+#   출처: 합격 최대 0.0239 (zombie1 1024) / 불합격 f60 0.0642 (왼손목). 그 사이에 파일럿
+#   f138 의 왼손 0.0254 가 있는데, 이것은 부위 제약으로 고쳐져 합격했다.
+#   (경위 — 이 조건은 부위 제약을 구현하다 f60 이 PASS 로 빠지는 것을 보고 먼저 넣은 뒤
+#   승인받았다. 승인된 규칙은 "①∧③ 같은 본" 뿐이었다.)
+#   10/12 에 웨이트 전이에 부위 제약(transfer_weights.part_constraint)이 들어가면서 필요해졌다.
+#   제약은 팔 메쉬 안의 오배정 조각을 팔 본으로 되돌리는데, 그러면 f60 의 왼손목이 정점
+#   3,445개를 되찾아 ③ 이 풀리고 **①∧③ 불합격이 사라진다.** 그런데 f60 은 여전히 쓸 수 없는
+#   메쉬다 — 손목 본이 메쉬에서 0.064 떨어져 있어 회전축이 어긋나 있고 다리는 붙어 있다.
+#   웨이트가 제 본으로 돌아와도 **본이 제자리에 없으면** 고쳐진 것이 아니다. 그래서 거리만으로
+#   불합격을 낸다. 제약이 게이트를 무르게 만드는 것을 막는 장치다.
+#
+#   **판정은 부위 제약을 거친 뒤의 값으로 한다.** rig_check 는 제약 다음에 잰다. 따라서 ⑤ 에
+#   남는 것은 "제약으로도 못 고친 것" — 메쉬가 실제로 붙은 경우(파일럿 f18 737)다.
+#
 #   ④ 는 아래대로 독립 경고다. 수위를 올리는 데 쓰지 않고, 불합격 사유에 "사라진
 #   정점이 어디로 갔는지" 의 근거로 인용한다.
 #
@@ -194,6 +211,7 @@ FB_SRC_P90_MAX = 0.04
 FB_MIN_VERTS = 1000
 DISTAL = ("Wrist", "Hand", "Ankle", "Foot")
 DISTAL_DIST_MAX = 0.03
+DISTAL_DIST_FAIL = 0.05                      # 손목·발목·발이 이보다 멀면 그것만으로 불합격
 CROSS_MAX_PCT = 10.0
 CROSS_MIN_VERTS = 100
 DOM_MIN_PCT = 0.01
@@ -246,13 +264,21 @@ def check_rig(rc, detail=None):
             b, c = max(limb, key=lambda kv: kv[1])
             msg += f". 폴백 {c:,}정점이 {b} 로 갔다"
         reasons.append(msg)
+    # 본이 메쉬에서 한참 밖 — 지배 정점이 있든 없든 불합격 (위 메모)
+    way_off = [b for b in far if b.endswith(FAIL_BONES) and far[b] > DISTAL_DIST_FAIL and b not in fatal]
+    if way_off:
+        reasons.append(
+            f"{' · '.join(way_off)}: 본이 메쉬에서 너무 멀다(거리 "
+            f"{' · '.join(str(far[b]) for b in way_off)} > {DISTAL_DIST_FAIL}) — 정렬이 어긋났다. "
+            f"웨이트가 붙어 있어도 회전축이 제자리에 없다")
+        fatal = fatal + way_off
     rest_both = [b for b in both if b not in fatal]
     if rest_both:
         warnings.append(
             f"{' · '.join(rest_both)}: 본이 메쉬 밖이고(거리 "
             f"{' · '.join(str(far[b]) for b in rest_both)}) 지배 정점이 없다 — 손 본은 WHAM 이 "
             f"거의 움직이지 않아 불합격으로 보지 않는다. 손목이 정점을 쥐고 있는지 확인할 것")
-    only_far = [b for b in far if b not in both]
+    only_far = [b for b in far if b not in both and b not in fatal]
     if only_far:
         warnings.append("말단 본이 메쉬에서 멀다: "
                         + ", ".join(f"{b} {far[b]}" for b in only_far)
@@ -377,7 +403,8 @@ def main():
             "unassigned_max": UNASSIGNED_MAX,
             "fb_src_p90_max": FB_SRC_P90_MAX,
             "fb_min_verts": FB_MIN_VERTS,
-            "distal_dist_max": DISTAL_DIST_MAX, "cross_max_pct": CROSS_MAX_PCT,
+            "distal_dist_max": DISTAL_DIST_MAX, "distal_dist_fail": DISTAL_DIST_FAIL,
+            "cross_max_pct": CROSS_MAX_PCT,
             "cross_min_verts": CROSS_MIN_VERTS, "dom_min_pct": DOM_MIN_PCT,
             "fail_bones": list(FAIL_BONES), "limb_edges_max": LIMB_EDGES_MAX,
             "status": THRESHOLD_STATUS,

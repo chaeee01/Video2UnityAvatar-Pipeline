@@ -23,6 +23,10 @@ from pathlib import Path
 import bpy
 from mathutils import kdtree
 
+# Blender 는 --python 스크립트의 폴더를 sys.path 에 넣지 않는다.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from part_islands import ISLAND_MAX_RATIO, find_islands, limb_conflict, region_of  # noqa: E402,F401
+
 
 def parse_args():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
@@ -32,6 +36,9 @@ def parse_args():
     ap.add_argument("--smpl-name", default="SMPL_body")
     ap.add_argument("--rig-name", default="SMPL_rig")
     ap.add_argument("--max-dist", type=float, default=0.08)
+    ap.add_argument("--part-constraint", choices=["on", "off"], default="on",
+                    help="부위 제약 (기본 on). off 는 2026-10-12 이전 동작 재현용 — "
+                         "근거는 part_constraint() 독스트링")
     return ap.parse_args(argv)
 
 
@@ -112,6 +119,105 @@ def fallback_detail(trellis, rig, records, name_by_idx):
         # 웨이트를 빌려 온 정점까지의 거리 (판정 축, 정렬 공간 단위 — 신장 약 1.0)
         "src_dist": {"median": q(0.5), "p90": q(0.9), "max": q(1.0)},
     }
+
+
+def part_constraint(trellis, smpl, name_by_idx):
+    """팔 메쉬 안에 박힌 "다리 본 지배" 조각 같은 **부위 섬**을 찾아 고친다.
+
+    웨이트 전이는 메쉬 정점마다 "가장 가까운 SMPL 표면" 을 본다. 손이 허벅지 옆에 있으면
+    손 정점에서 가장 가까운 SMPL 표면이 팔이 아니라 허벅지일 수 있다 — WHAM 이 추정한 팔이
+    메쉬의 팔과 어긋났거나(walker_walk_02 f138), 어긋나지 않았어도 손이 허벅지의 전이 반경
+    안에 있으면(f18) 그렇다. 그러면 손의 일부가 허벅지 본을 따라가 팔을 움직일 때 손과
+    허벅지 사이가 판자처럼 늘어난다. 2026-10-12 실측으로 이 결함은 **한 방향**이다 — 팔 정점이
+    다리 본을 받고(f18 에서 1,663정점), 반대는 0 이다. 메쉬가 붙은 것도 아니다.
+
+    공간상 가깝다는 것은 같은 부위라는 뜻이 아니다. **메쉬가 이어진 방식**이 부위를 말해 준다
+    — 손은 허벅지 옆에 있어도 메쉬로는 팔을 거쳐야 몸통에 닿는다. 그래서:
+
+      1. 정점마다 지배 본의 부위(몸통 · 좌우 팔 · 좌우 다리)를 라벨로 붙인다.
+      2. 같은 라벨끼리 메쉬 엣지로 이어진 덩어리를 구한다 (UV 심으로 갈라진 정점은 좌표가 같으면 이어진 것으로 본다).
+      3. 부위마다 가장 큰 덩어리가 그 부위의 본체다. **본체가 아닌 작은 덩어리**가 "떨어져
+         있어야 할 부위"(팔–다리, 팔–하부 몸통)의 더 큰 덩어리에 맞닿아 있으면 섬이다 — 그
+         부위로 라벨을 바꾼다. 원래 이웃인 부위(어깨·골반)의 경계는 건드리지 않는다.
+      4. 섬의 정점은 **새 부위의 SMPL 정점 중** 가장 가까운 셋에서 웨이트를 다시 받는다.
+
+    전이 결과를 통째로 다시 계산하지 않고 섬만 고친다. 섬이 없는 메쉬는 한 정점도 바뀌지
+    않는다 — 합격했던 샘플의 결과를 건드리지 않기 위해서다(2026-10-12: 합격 4건 재배정 0).
+
+    **알려진 한계.** 메쉬가 실제로 붙은 곳(다리가 융합된 char_shuffle f60 등)에서는 두 부위가
+    한 덩어리로 이어져 있어 섬이 생기지 않거나, 생겨도 경계가 임의로 잡힌다. 이 함수는
+    "떨어져 있는 메쉬에 웨이트가 잘못 붙은 것" 만 고친다. 붙은 메쉬는 키프레임의 문제다.
+    SMPL 본의 **위치**도 고치지 않는다 — 어긋난 팔의 본은 어긋난 채로 남고, 웨이트만 제 본으로
+    돌아온다.
+    """
+    me = trellis.data
+    n = len(me.vertices)
+    dom = [None] * n
+    for v in me.vertices:
+        if v.groups:
+            g = max(v.groups, key=lambda g: g.weight)
+            if g.weight >= 1e-4:
+                dom[v.index] = name_by_idx[g.group]
+    # 메쉬 엣지 + **같은 좌표의 정점끼리 잇는 가상 엣지**로 그래프를 짠다. TRELLIS 메쉬는 UV
+    # 심에서 정점이 갈라져 있어 엣지만 따라가면 심을 못 넘는다. 좌표로 묶어 하나로 치지 않고
+    # 따로 둔 채 잇는 이유 — 같은 좌표라도 웨이트가 다를 수 있다(BFS·폴백이 정점별로 다른
+    # 곳에서 가져온다). 하나로 치면 그 차이가 가려져 섬을 놓친다(처음 구현이 그랬다).
+    adj = [[] for _ in range(n)]
+    for e in me.edges:
+        a, b = e.vertices
+        adj[a].append(b)
+        adj[b].append(a)
+    first = {}
+    for v in me.vertices:
+        k = (round(v.co.x, 5), round(v.co.y, 5), round(v.co.z, 5))
+        j = first.get(k)
+        if j is None:
+            first[k] = v.index
+        else:
+            adj[j].append(v.index)
+            adj[v.index].append(j)
+    relabel, islands = find_islands(dom, adj)
+    if not relabel:
+        return {"islands": 0, "verts": 0, "detail": []}
+
+    # 새 부위의 SMPL 정점에서 웨이트를 다시 받는다
+    smpl_idx = {vg.index: vg.name for vg in smpl.vertex_groups}
+    tgt = {vg.name: vg for vg in trellis.vertex_groups}
+    s_weights, by_region = {}, {}
+    for v in smpl.data.vertices:
+        w = {smpl_idx[g.group]: g.weight for g in v.groups if g.weight > 1e-5}
+        if not w:
+            continue
+        s_weights[v.index] = w
+        by_region.setdefault(region_of(max(w, key=w.get)), []).append(v.index)
+    smw, tinv = smpl.matrix_world, trellis.matrix_world.inverted()
+    trees = {}
+    for reg, idxs in by_region.items():
+        kd = kdtree.KDTree(len(idxs))
+        for i in idxs:
+            kd.insert(tinv @ (smw @ smpl.data.vertices[i].co), i)   # 메쉬의 로컬 좌표로
+        kd.balance()
+        trees[reg] = kd
+    changed = 0
+    for u, to in relabel.items():
+        kd = trees.get(to)
+        if kd is None:
+            continue
+        near = kd.find_n(me.vertices[u].co, 3)
+        tot, acc = 0.0, {}
+        for _, si, d in near:
+            k = 1.0 / max(d, 1e-6)
+            tot += k
+            for b, w in s_weights[si].items():
+                acc[b] = acc.get(b, 0.0) + k * w
+        for vg in trellis.vertex_groups:
+            vg.remove([u])
+        for b, w in acc.items():
+            if b in tgt and w / tot > 1e-4:
+                tgt[b].add([u], w / tot, "REPLACE")
+        changed += 1
+    islands.sort(key=lambda d: -d["verts"])
+    return {"islands": len(islands), "verts": changed, "detail": islands[:12]}
 
 
 def rig_check(trellis, rig, name_by_idx):
@@ -291,6 +397,15 @@ def main():
     else:
         print("[4/5] 미수신 없음 - 전파 생략")
 
+    name_by_idx = {vg.index: vg.name for vg in trellis.vertex_groups}
+    if a.part_constraint == "on":
+        pc = part_constraint(trellis, smpl, name_by_idx)
+        print(f"  부위 제약: 섬 {pc['islands']}개, 정점 {pc['verts']} 재배정")
+        for d in pc["detail"][:5]:
+            print(f"    {d['from']} → {d['to']}  {d['verts']}정점 (맞닿은 엣지 {d['border']})")
+    else:
+        pc = {"islands": None, "verts": 0, "detail": [], "off": True}
+
     arm_mod = trellis.modifiers.new("Armature", "ARMATURE")
     arm_mod.object = rig
     trellis.parent = rig
@@ -328,6 +443,7 @@ def main():
             "unassigned": {"verts": remaining,   "pct": pct(remaining)},
         },
         "fallback_detail": fallback_detail(trellis, rig, fb_records, name_by_idx),
+        "part_constraint": pc,
         "rig_check": rig_check(trellis, rig, name_by_idx),
         "fallback_pct":   pct(filled_eucl),   # G2r --fallback-pct 에 그대로 넣는 값
         "unassigned_pct": pct(remaining),     # G2r --unassigned-pct
