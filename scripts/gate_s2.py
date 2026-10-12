@@ -23,6 +23,8 @@ import sys
 import cv2
 import numpy as np
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 # ── 임계값과 근거 ────────────────────────────────────────────────────────────
 # 2026-09-10 실측 (1280x720, 240프레임, 4샘플 7회 실행):
 #
@@ -72,6 +74,26 @@ import numpy as np
 #   커지면 비율이 떨어지기 때문이다. **현 임계 7.0/9.0 은 전부 720p 표본에서 나왔다.**
 #   1080p 가 표준이 되면 경고가 상시 발생하거나, 더 나쁘게는 진짜 부분 선택을
 #   정상으로 오인할 수 있다. D2(상한)와 함께 W5 게이트 작업일에 재보정한다.
+#
+# ── 부위 분포 (2026-10-12 추가) ───────────────────────────────────────────────
+#   커버리지 하한은 "몸의 한 부위만" 잡은 마스크를 못 막는다. listener_walk_fwd 에서
+#   점 하나가 바지만 잡았는데, 덩치가 커서 바지만으로 커버리지 11.7% 가 되어 통과했고
+#   조각 수도 1.32 였다. 그 마스크로 WHAM 은 트랙이 셋으로 끊겼다(34 · 54 · 65프레임).
+#   그래서 첫 프레임의 전경 실루엣(scripts/silhouette.py)을 위아래로 반 갈라, 마스크가
+#   **양쪽을 다** 덮는지 본다.
+#
+#                         위 절반   아래 절반   높이 비
+#     listener 바지만       0.018     0.496     0.531    ← 막아야 하는 것
+#     listener 전신(6점)    0.991     0.901     1.004
+#     walker 3편            0.963~    0.929~    0.996~
+#
+# PART_RECALL_MIN = 0.30 / HEIGHT_RATIO_MIN = 0.70
+#   실패(0.018 · 0.531)와 성공 최저(0.901 · 0.996) 사이에 넉넉히 둔 값이다.
+#   **잠정이다 — 표본이 실패 1건 · 성공 4건뿐이고 캐릭터가 둘이다.** 상체만 잡는 실패는
+#   아직 본 적이 없다. 재보정 조건은 아래 THRESHOLD_STATUS 와 같다 (신규 10건 누적 시 /
+#   PASS 뒤 하류 실패 시). 첫 프레임만 본다 — 뒤 프레임은 인물이 움직여 실루엣 추정이 흔들린다.
+PART_RECALL_MIN = 0.30
+HEIGHT_RATIO_MIN = 0.70
 COVERAGE_MIN = 7.0
 COVERAGE_WARN = 9.0
 COVERAGE_MAX = 50.0
@@ -96,6 +118,9 @@ def parse_args():
     ap.add_argument("--name", default=None, help="샘플 이름. 기본값: --out 폴더 이름")
     ap.add_argument("--frames", type=int, default=None,
                     help="기대 프레임 수. 주면 마스크 개수와 대조한다")
+    ap.add_argument("--silhouette", default=None,
+                    help="첫 프레임 실루엣 PNG (run_sam2.py 가 쓴 silhouette0.png). 주면 "
+                         "부위 분포를 판정한다. 없으면 판정하지 않고 주의만 남긴다")
     ap.add_argument("--stride", type=int, default=1,
                     help="표본 간격. 1 이면 전 프레임 (기본). 클립 복원 시 속도용")
     return ap.parse_args()
@@ -162,9 +187,34 @@ def measure(masks):
     }
 
 
+def measure_parts(mask0, silhouette_png):
+    """첫 프레임 마스크와 실루엣 → 부위 분포 지표. 실루엣을 못 읽으면 예외."""
+    import silhouette
+    fg = cv2.imread(silhouette_png, cv2.IMREAD_GRAYSCALE)
+    if fg is None:
+        raise RuntimeError(f"실루엣을 읽지 못함: {silhouette_png}")
+    if fg.shape != mask0.shape:
+        raise RuntimeError(f"실루엣 {fg.shape} 과 마스크 {mask0.shape} 의 크기가 다르다")
+    return silhouette.part_distribution(fg > 127, mask0.astype(bool))
+
+
 def judge(metrics, expected_frames=None, frames_found=None):
     """지표 → PASS/FAIL. 측정과 분리된 순수 함수다."""
     reasons, warnings = [], []
+    parts = metrics.get("parts")
+    if parts is None:
+        warnings.append("부위 분포 미판정 — 실루엣이 없다 (--silhouette). "
+                        "몸의 한 부위만 잡은 마스크를 걸러내지 못한다")
+    else:
+        low = [f"{k} {parts[k]}" for k in ("upper", "lower") if parts[k] < PART_RECALL_MIN]
+        if low:
+            reasons.append(
+                f"실루엣의 {' · '.join(low)} < {PART_RECALL_MIN} — 몸의 위·아래 중 한쪽이 "
+                f"마스크에 없다 (부분 선택)")
+        if parts["height_ratio"] < HEIGHT_RATIO_MIN:
+            reasons.append(
+                f"마스크 높이가 실루엣의 {parts['height_ratio']} < {HEIGHT_RATIO_MIN} — "
+                f"몸 전체 높이를 덮지 못했다 (부분 선택)")
     if metrics["coverage_mean"] > COVERAGE_MAX:
         reasons.append(
             f"커버리지 평균 {metrics['coverage_mean']}% > {COVERAGE_MAX}% — "
@@ -201,6 +251,8 @@ def main():
         source = {"type": "video", "path": a.video,
                   "note": "클립에서 복원한 마스크 (검은 옷에서 최대 0.5%p 낮게 잡힌다)"}
     metrics = measure(masks)
+    if a.silhouette:
+        metrics["parts"] = measure_parts(masks[0], os.path.expanduser(a.silhouette))
     verdict, reasons, warnings = judge(metrics, a.frames, total)
     result = {
         "gate": "S2",
@@ -215,6 +267,7 @@ def main():
             "coverage_min": COVERAGE_MIN, "coverage_warn": COVERAGE_WARN,
             "coverage_max": COVERAGE_MAX,
             "empty_max": EMPTY_MAX, "parts_max": PARTS_MAX,
+            "part_recall_min": PART_RECALL_MIN, "height_ratio_min": HEIGHT_RATIO_MIN,
             "status": THRESHOLD_STATUS,
         },
         "source": source,
@@ -223,8 +276,10 @@ def main():
     with open(path, "w") as f:
         json.dump(result, f, ensure_ascii=False, indent=2)
     mark = "✅" if verdict == "PASS" else "❌"
+    pt = metrics.get("parts")
     print(f"{mark} [{verdict}] {name}  커버리지 {metrics['coverage_mean']}% "
-          f"빈 {metrics['empty_frames']} 조각 {metrics['parts_mean']}")
+          f"빈 {metrics['empty_frames']} 조각 {metrics['parts_mean']}"
+          + (f"  위 {pt['upper']} 아래 {pt['lower']} 높이 {pt['height_ratio']}" if pt else ""))
     for r in reasons:
         print(f"    사유: {r}")
     for w in warnings:

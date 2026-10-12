@@ -36,6 +36,9 @@ import sys
 import cv2
 import numpy as np
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from wham_track import pick_track  # noqa: E402
+
 
 def keyframe_score(mask):
     """키프레임 후보 점수.
@@ -391,11 +394,11 @@ def load_wham_track(pkl_path, track=None):
     keys = list(data.keys())
     if not keys:
         raise RuntimeError(f"WHAM 이 사람을 하나도 추적하지 못했다: {pkl_path}")
-    key = keys[0] if track is None else (track if track in data else type(keys[0])(track))
+    key = pick_track(data) if track is None else (track if track in data else type(keys[0])(track))
     if key not in data:
         raise RuntimeError(f"트랙 {track} 없음. 있는 트랙: {keys}")
     if track is None and len(keys) > 1:
-        print(f"  ⚠️  트랙이 {len(keys)}개다 — 첫 번째({key})를 쓴다. --track 으로 지정 가능")
+        print(f"  ⚠️  트랙이 {len(keys)}개다 — 가장 긴 것({key})을 쓴다. --track 으로 지정 가능")
     t = data[key]
     for k in ("pose", "frame_ids"):
         if k not in t:
