@@ -227,7 +227,7 @@ def rig_check(trellis, rig, name_by_idx):
       dominant    그 본이 최대 웨이트인 정점 수
       cross       좌우 본의 지배 정점 중 **쌍의 이등분면 반대편**에 있는 수
       limb_edges  서로 이웃하지 않는 부위의 본이 지배하는 두 정점을 잇는 엣지 수 (⑤).
-                  arm_leg 팔(팔꿈치·손목·손)–다리, arm_lowtorso 팔–하부 몸통(골반·Spine1·2),
+                  arm_leg 팔(위팔·팔꿈치·손목·손)–다리, arm_lowtorso 팔–하부 몸통(골반·Spine1·2),
                   leg_leg 좌다리–우다리(좌우 Hip 쌍은 사타구니에서 원래 만나므로 뺀다)
 
     cross 의 기준면에 주의. 2026-10-01 첫 측정은 몸 정중선을 수직면(x=0)으로 잡았는데,
@@ -272,7 +272,8 @@ def rig_check(trellis, rig, name_by_idx):
     # ⑤ 떨어져 있어야 할 부위가 메쉬 엣지로 이어져 있는가. 손 정점이 허벅지 본을 받거나
     # (정렬 불일치) 허벅지 정점이 손 본을 받으면(근접 번짐), 그 경계의 엣지는 팔이 움직일 때
     # 판자처럼 늘어난다. 정적 메쉬에서 셀 수 있다 — 동작을 돌려 볼 필요가 없다.
-    arm, leg, low = ("Elbow", "Wrist", "Hand"), ("Hip", "Knee", "Ankle", "Foot"), ("Pelvis", "Spine1", "Spine2")
+    # 팔에는 위팔(Shoulder)도 든다 (2026-10-12 — part_islands._ARM 과 같은 정의, 근거도 거기).
+    arm, leg, low = ("Shoulder", "Elbow", "Wrist", "Hand"), ("Hip", "Knee", "Ankle", "Foot"), ("Pelvis", "Spine1", "Spine2")
     pairs = {}
     for e in me.edges:
         a, b = dom_of[e.vertices[0]], dom_of[e.vertices[1]]

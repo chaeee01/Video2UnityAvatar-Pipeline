@@ -142,7 +142,8 @@ def main():
         v, reasons, warns, fl = run(name)
         clean = v == "PASS" and not fl["far"] and not fl["empty"] and not fl["crossed"]
         check(f"{name}: PASS, ①②③⑤ 모두 무경고 (⑤ 엣지 {fl['limb_edges']})",
-              clean and fl["limb_edges"] == 0, (v, fl) if not clean else "")
+              clean and fl["limb_edges"] <= _g.LIMB_EDGES_MAX
+              and not any("떨어져 있어야 할 부위" in w for w in warns), (v, fl) if not clean else "")
         # 합격 샘플은 "분포 위험" 을 받지 않아야 한다. 사지 본 비율 축이 있던 때는
         # zombie1 1024(21.0%)·512(26.5%)가 오탐 경고였다 (축은 10/12 에 뺐다).
         cls, _ = classify_fallback(fx[name]["fallback_detail"])
@@ -200,42 +201,51 @@ def main():
     print("\n── D. ⑤ 떨어져 있어야 할 부위를 잇는 엣지 — 7샘플")
     # 전(제약 없음) → 후(제약 적용). 고정 자료의 before 는 10/12 오전의 실측이다.
     want = {  # 이름: (전, 후, 재배정 정점)
-        "char_shuffle": (333, 65, 3500), "walker_walk_02": (561, 0, 4379),
-        "walker_walk_02_f18": (1628, 737, 1761),
-        "char_shuffle_f6": (0, 0, 0), "zombie1_1024": (0, 0, 0), "zombie1_t2": (0, 0, 0), "zombie1": (0, 0, 0)}
+        # 2026-10-12 저녁: 팔 정의에 위팔(Shoulder)을 넣은 뒤 다시 잰 값이다.
+        # 옛 정의에서는 f60 (333, 65, 3500) · f138 (561, 0, 4379) · f18 (1628, 737, 1761) · 합격 4건 (0, 0, 0).
+        "char_shuffle": (829, 533, 3667), "walker_walk_02": (1824, 1181, 4536),
+        "walker_walk_02_f18": (2690, 1768, 1801),
+        "char_shuffle_f6": (0, 0, 0), "zombie1_1024": (45, 45, 0), "zombie1_t2": (16, 16, 0), "zombie1": (3, 3, 0)}
     for name, (w_before, w_after, w_moved) in want.items():
         o = fx[name]
         before = o["before"]["limb_edges"]["arm_leg"] + o["before"]["limb_edges"]["arm_lowtorso"]
         after = o["rig_check"]["limb_edges"]["arm_leg"] + o["rig_check"]["limb_edges"]["arm_lowtorso"]
         check(f"{name}: ⑤ {before} → {after}, 재배정 {o['part_constraint']['verts']}정점",
               (before, after, o["part_constraint"]["verts"]) == (w_before, w_after, w_moved))
-    # 파일럿 f138 — 순수한 오배정이었다. 제약이 전부 고쳐 게이트가 무경고다.
+    # 파일럿 f138 — 손–허벅지 오배정은 제약이 고쳤다. 그러나 위팔–옆구리가 메쉬로 붙어 있어
+    # (roar_02 웨빙의 원인) 위팔을 팔에 넣은 ⑤ 는 경고한다. 옛 정의에서는 무경고였다.
     v, reasons, warns, fl = run("walker_walk_02")
-    check("파일럿 f138: 제약 뒤 PASS · 경고 0건 (⑤ 561 → 0)", v == "PASS" and not warns and fl["limb_edges"] == 0, warns)
+    w5 = [w for w in warns if "떨어져 있어야 할 부위" in w]
+    check("파일럿 f138: PASS + ⑤ 경고 (1,824 → 1,181, 위팔–Spine1 이 남는다)",
+          v == "PASS" and len(w5) == 1 and fl["limb_edges"] == 1181 and "Shoulder" in w5[0], (v, fl["limb_edges"], warns))
     d0, d1 = fx["walker_walk_02"]["before"]["dominant"], fx["walker_walk_02"]["rig_check"]["dominant"]
     check("파일럿 f138: 왼손목·왼손 지배 정점 8,025 · 741 → 10,325 · 2,625",
           (d0["L_Wrist"], d0["L_Hand"], d1["L_Wrist"], d1["L_Hand"]) == (8025, 741, 10325, 2625))
     # 파일럿 f18 — 메쉬가 실제로 붙어 있다. 제약으로 못 고친 몫이 ⑤ 에 남아 경고가 뜬다.
     v, reasons, warns, fl = run("walker_walk_02_f18")
     w5 = [w for w in warns if "떨어져 있어야 할 부위" in w]
-    check("파일럿 f18: PASS + ⑤ 경고 (1,628 → 737, 붙은 메쉬는 남는다)",
-          v == "PASS" and len(w5) == 1 and fl["limb_edges"] == 737, (v, fl["limb_edges"]))
+    check("파일럿 f18: PASS + ⑤ 경고 (2,690 → 1,768, 붙은 메쉬는 남는다)",
+          v == "PASS" and len(w5) == 1 and fl["limb_edges"] == 1768, (v, fl["limb_edges"]))
     check("파일럿 f18: 경고에 상위 쌍이 들어간다", "R_Elbow–Spine1" in w5[0] and "L_Hip–L_Wrist" in w5[0], w5[0][:150])
     for name in ("walker_walk_02", "walker_walk_02_f18"):
         cls, _ = classify_fallback(fx[name]["fallback_detail"])
         check(f"{name}: ④ 는 무해 (사지 본 100% 였지만 가까이서 빌림)", cls == "benign")
     v, reasons, warns, fl = run("char_shuffle")
-    check("f60: ⑤ 는 제약 뒤에도 경고 (333 → 65 > 20)",
-          fl["limb_edges"] == 65 and any("떨어져 있어야 할 부위" in w for w in warns), fl["limb_edges"])
-    check(f"합격 4건은 전·후 모두 0, 한 정점도 안 바뀐다 — 임계 {LIMB_EDGES_MAX}",
-          all(want[n] == (0, 0, 0) for n in ("char_shuffle_f6", "zombie1_1024", "zombie1_t2", "zombie1"))
-          and LIMB_EDGES_MAX == 20)
-    b = json.loads(json.dumps(base)); b["limb_edges"] = {"arm_leg": 20, "arm_lowtorso": 0, "leg_leg": 500, "top": {}}
+    check("f60: ⑤ 는 제약 뒤에도 경고 (829 → 533 > 100)",
+          fl["limb_edges"] == 533 and any("떨어져 있어야 할 부위" in w for w in warns), fl["limb_edges"])
+    goods = ("char_shuffle_f6", "zombie1_1024", "zombie1_t2", "zombie1")
+    check(f"합격 4건은 한 정점도 안 바뀌고(전 = 후) 최대 45 < 임계 {LIMB_EDGES_MAX}",
+          all(want[n][0] == want[n][1] and want[n][2] == 0 for n in goods)
+          and max(want[n][1] for n in goods) == 45 and LIMB_EDGES_MAX == 100)
+    for name in goods:
+        v, reasons, warns, fl = run(name)
+        check(f"{name}: ⑤ 경고 없음 ({fl['limb_edges']})", not any("떨어져 있어야 할 부위" in w for w in warns), warns)
+    b = json.loads(json.dumps(base)); b["limb_edges"] = {"arm_leg": 100, "arm_lowtorso": 0, "leg_leg": 500, "top": {}}
     r, w, fl = check_rig(b)
-    check("경계: 20 은 통과, 좌다리–우다리는 세지 않는다", not r and not w and fl["limb_edges"] == 20, w)
+    check("경계: 100 은 통과, 좌다리–우다리는 세지 않는다", not r and not w and fl["limb_edges"] == 100, w)
     b["limb_edges"]["arm_lowtorso"] = 1
     r, w, fl = check_rig(b)
-    check("경계: 21 은 경고 (불합격은 아니다)", not r and len(w) == 1, w)
+    check("경계: 101 은 경고 (불합격은 아니다)", not r and len(w) == 1, w)
     r, w, fl = check_rig(base)
     check("limb_edges 없음 → ⑤ 를 보지 않는다 (구버전 JSON 호환)", fl["limb_edges"] is None and not w)
 

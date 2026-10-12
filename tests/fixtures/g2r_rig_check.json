@@ -6,7 +6,7 @@
   "before": {
    "limb_edges": {
     "arm_leg": 249,
-    "arm_lowtorso": 84,
+    "arm_lowtorso": 580,
     "leg_leg": 1825
    },
    "dominant": {
@@ -17,8 +17,82 @@
    }
   },
   "part_constraint": {
-   "islands": 52,
-   "verts": 3500
+   "islands": 84,
+   "verts": 3667,
+   "detail": [
+    {
+     "from": "L_leg",
+     "to": "L_arm",
+     "verts": 1864,
+     "border": 196
+    },
+    {
+     "from": "L_leg",
+     "to": "L_arm",
+     "verts": 1382,
+     "border": 210
+    },
+    {
+     "from": "L_arm",
+     "to": "torso",
+     "verts": 18,
+     "border": 23
+    },
+    {
+     "from": "L_leg",
+     "to": "L_arm",
+     "verts": 16,
+     "border": 16
+    },
+    {
+     "from": "L_leg",
+     "to": "L_arm",
+     "verts": 14,
+     "border": 14
+    },
+    {
+     "from": "L_leg",
+     "to": "L_arm",
+     "verts": 13,
+     "border": 12
+    },
+    {
+     "from": "L_arm",
+     "to": "torso",
+     "verts": 10,
+     "border": 8
+    },
+    {
+     "from": "L_leg",
+     "to": "L_arm",
+     "verts": 10,
+     "border": 10
+    },
+    {
+     "from": "L_leg",
+     "to": "L_arm",
+     "verts": 10,
+     "border": 10
+    },
+    {
+     "from": "L_arm",
+     "to": "torso",
+     "verts": 9,
+     "border": 9
+    },
+    {
+     "from": "torso",
+     "to": "L_arm",
+     "verts": 9,
+     "border": 8
+    },
+    {
+     "from": "torso",
+     "to": "L_arm",
+     "verts": 9,
+     "border": 6
+    }
+   ]
   },
   "rig_check": {
    "vertices": 709783,
@@ -58,13 +132,13 @@
     "R_Knee": 62399,
     "R_Ankle": 19319,
     "R_Foot": 10256,
-    "Spine1": 84694,
-    "Spine2": 437,
+    "Spine1": 84821,
+    "Spine2": 441,
     "Spine3": 74168,
     "Neck": 12858,
     "Head": 42577,
-    "L_Collar": 23199,
-    "L_Shoulder": 20288,
+    "L_Collar": 23197,
+    "L_Shoulder": 20159,
     "L_Elbow": 21509,
     "L_Wrist": 3445,
     "L_Hand": 0,
@@ -96,7 +170,7 @@
    },
    "limb_edges": {
     "arm_leg": 0,
-    "arm_lowtorso": 65,
+    "arm_lowtorso": 533,
     "leg_leg": 1825,
     "edges": 1672682,
     "top": {
@@ -104,20 +178,15 @@
      "L_Foot|R_Ankle": 297,
      "L_Ankle|R_Ankle": 239,
      "L_Ankle|R_Knee": 230,
-     "L_Elbow|Spine1": 65,
-     "L_Foot|R_Knee": 5
+     "L_Shoulder|Spine1": 202,
+     "R_Shoulder|Spine1": 142,
+     "L_Shoulder|Spine2": 124,
+     "L_Elbow|Spine1": 65
     }
    }
   },
   "fallback_detail": {
    "verts": 26315,
-   "limb_pct": 47.528,
-   "cross_side_pct": 0.034,
-   "src_dist": {
-    "median": 0.02518,
-    "p90": 0.06064,
-    "max": 0.08842
-   },
    "by_bone": {
     "Spine3": 8245,
     "L_Elbow": 7050,
@@ -132,6 +201,13 @@
     "R_Collar": 15,
     "R_Hip": 3,
     "Pelvis": 1
+   },
+   "limb_pct": 47.528,
+   "cross_side_pct": 0.034,
+   "src_dist": {
+    "median": 0.02518,
+    "p90": 0.06064,
+    "max": 0.08842
    }
   }
  },
@@ -154,7 +230,8 @@
   },
   "part_constraint": {
    "islands": 0,
-   "verts": 0
+   "verts": 0,
+   "detail": []
   },
   "rig_check": {
    "vertices": 833540,
@@ -240,13 +317,6 @@
   },
   "fallback_detail": {
    "verts": 74357,
-   "limb_pct": 1.844,
-   "cross_side_pct": 0.042,
-   "src_dist": {
-    "median": 0.00849,
-    "p90": 0.02289,
-    "max": 0.03818
-   },
    "by_bone": {
     "Head": 43774,
     "L_Collar": 11782,
@@ -265,6 +335,13 @@
     "Pelvis": 4,
     "R_Knee": 3,
     "L_Hip": 3
+   },
+   "limb_pct": 1.844,
+   "cross_side_pct": 0.042,
+   "src_dist": {
+    "median": 0.00849,
+    "p90": 0.02289,
+    "max": 0.03818
    }
   }
  },
@@ -275,7 +352,7 @@
   "before": {
    "limb_edges": {
     "arm_leg": 0,
-    "arm_lowtorso": 0,
+    "arm_lowtorso": 45,
     "leg_leg": 130
    },
    "dominant": {
@@ -287,7 +364,8 @@
   },
   "part_constraint": {
    "islands": 0,
-   "verts": 0
+   "verts": 0,
+   "detail": []
   },
   "rig_check": {
    "vertices": 797746,
@@ -365,23 +443,17 @@
    },
    "limb_edges": {
     "arm_leg": 0,
-    "arm_lowtorso": 0,
+    "arm_lowtorso": 45,
     "leg_leg": 130,
     "edges": 1698189,
     "top": {
-     "L_Hip|R_Knee": 130
+     "L_Hip|R_Knee": 130,
+     "L_Shoulder|Spine2": 45
     }
    }
   },
   "fallback_detail": {
    "verts": 29276,
-   "limb_pct": 21.007,
-   "cross_side_pct": 0.085,
-   "src_dist": {
-    "median": 0.01402,
-    "p90": 0.03179,
-    "max": 0.04541
-   },
    "by_bone": {
     "Head": 20331,
     "L_Shoulder": 2506,
@@ -400,6 +472,13 @@
     "R_Ankle": 3,
     "Spine2": 3,
     "R_Hip": 2
+   },
+   "limb_pct": 21.007,
+   "cross_side_pct": 0.085,
+   "src_dist": {
+    "median": 0.01402,
+    "p90": 0.03179,
+    "max": 0.04541
    }
   }
  },
@@ -410,7 +489,7 @@
   "before": {
    "limb_edges": {
     "arm_leg": 0,
-    "arm_lowtorso": 0,
+    "arm_lowtorso": 16,
     "leg_leg": 151
    },
    "dominant": {
@@ -422,7 +501,8 @@
   },
   "part_constraint": {
    "islands": 0,
-   "verts": 0
+   "verts": 0,
+   "detail": []
   },
   "rig_check": {
    "vertices": 671643,
@@ -500,24 +580,18 @@
    },
    "limb_edges": {
     "arm_leg": 0,
-    "arm_lowtorso": 0,
+    "arm_lowtorso": 16,
     "leg_leg": 151,
     "edges": 1620325,
     "top": {
      "L_Hip|R_Knee": 144,
+     "L_Shoulder|Spine2": 16,
      "L_Knee|R_Knee": 7
     }
    }
   },
   "fallback_detail": {
    "verts": 9987,
-   "limb_pct": 26.524,
-   "cross_side_pct": 3.565,
-   "src_dist": {
-    "median": 0.01544,
-    "p90": 0.0336,
-    "max": 0.04847
-   },
    "by_bone": {
     "Head": 4926,
     "L_Foot": 989,
@@ -534,6 +608,13 @@
     "L_Elbow": 77,
     "L_Knee": 38,
     "L_Hand": 29
+   },
+   "limb_pct": 26.524,
+   "cross_side_pct": 3.565,
+   "src_dist": {
+    "median": 0.01544,
+    "p90": 0.0336,
+    "max": 0.04847
    }
   }
  },
@@ -544,7 +625,7 @@
   "before": {
    "limb_edges": {
     "arm_leg": 0,
-    "arm_lowtorso": 0,
+    "arm_lowtorso": 3,
     "leg_leg": 14
    },
    "dominant": {
@@ -556,7 +637,8 @@
   },
   "part_constraint": {
    "islands": 0,
-   "verts": 0
+   "verts": 0,
+   "detail": []
   },
   "rig_check": {
    "vertices": 5307,
@@ -634,24 +716,19 @@
    },
    "limb_edges": {
     "arm_leg": 0,
-    "arm_lowtorso": 0,
+    "arm_lowtorso": 3,
     "leg_leg": 14,
     "edges": 12444,
     "top": {
      "L_Knee|R_Knee": 7,
-     "L_Hip|R_Knee": 7
+     "L_Hip|R_Knee": 7,
+     "L_Shoulder|Spine2": 2,
+     "R_Shoulder|Spine2": 1
     }
    }
   },
   "fallback_detail": {
    "verts": 160,
-   "limb_pct": 59.375,
-   "cross_side_pct": 1.25,
-   "src_dist": {
-    "median": 0.04292,
-    "p90": 0.06357,
-    "max": 0.07429
-   },
    "by_bone": {
     "R_Wrist": 78,
     "Head": 51,
@@ -659,6 +736,13 @@
     "Spine3": 7,
     "R_Collar": 7,
     "R_Elbow": 2
+   },
+   "limb_pct": 59.375,
+   "cross_side_pct": 1.25,
+   "src_dist": {
+    "median": 0.04292,
+    "p90": 0.06357,
+    "max": 0.07429
    }
   }
  },
@@ -669,7 +753,7 @@
   "before": {
    "limb_edges": {
     "arm_leg": 532,
-    "arm_lowtorso": 29,
+    "arm_lowtorso": 1292,
     "leg_leg": 0
    },
    "dominant": {
@@ -680,8 +764,82 @@
    }
   },
   "part_constraint": {
-   "islands": 17,
-   "verts": 4379
+   "islands": 21,
+   "verts": 4536,
+   "detail": [
+    {
+     "from": "L_leg",
+     "to": "L_arm",
+     "verts": 2850,
+     "border": 267
+    },
+    {
+     "from": "L_leg",
+     "to": "L_arm",
+     "verts": 432,
+     "border": 107
+    },
+    {
+     "from": "L_leg",
+     "to": "L_arm",
+     "verts": 323,
+     "border": 88
+    },
+    {
+     "from": "L_leg",
+     "to": "L_arm",
+     "verts": 289,
+     "border": 42
+    },
+    {
+     "from": "L_leg",
+     "to": "L_arm",
+     "verts": 192,
+     "border": 61
+    },
+    {
+     "from": "L_arm",
+     "to": "torso",
+     "verts": 122,
+     "border": 40
+    },
+    {
+     "from": "L_leg",
+     "to": "L_arm",
+     "verts": 118,
+     "border": 61
+    },
+    {
+     "from": "L_leg",
+     "to": "L_arm",
+     "verts": 91,
+     "border": 45
+    },
+    {
+     "from": "L_leg",
+     "to": "L_arm",
+     "verts": 53,
+     "border": 55
+    },
+    {
+     "from": "torso",
+     "to": "L_arm",
+     "verts": 21,
+     "border": 21
+    },
+    {
+     "from": "torso",
+     "to": "L_arm",
+     "verts": 20,
+     "border": 19
+    },
+    {
+     "from": "L_arm",
+     "to": "torso",
+     "verts": 12,
+     "border": 14
+    }
+   ]
   },
   "rig_check": {
    "vertices": 865013,
@@ -721,13 +879,13 @@
     "R_Knee": 46865,
     "R_Ankle": 20345,
     "R_Foot": 5520,
-    "Spine1": 75873,
-    "Spine2": 2352,
+    "Spine1": 75866,
+    "Spine2": 2397,
     "Spine3": 44406,
     "Neck": 14809,
     "Head": 29995,
-    "L_Collar": 41774,
-    "L_Shoulder": 41181,
+    "L_Collar": 41851,
+    "L_Shoulder": 41066,
     "L_Elbow": 27305,
     "L_Wrist": 10325,
     "L_Hand": 2625,
@@ -759,21 +917,19 @@
    },
    "limb_edges": {
     "arm_leg": 0,
-    "arm_lowtorso": 0,
+    "arm_lowtorso": 1181,
     "leg_leg": 0,
     "edges": 1791824,
-    "top": {}
+    "top": {
+     "L_Shoulder|Spine1": 465,
+     "R_Shoulder|Spine1": 452,
+     "R_Shoulder|Spine2": 139,
+     "L_Shoulder|Spine2": 125
+    }
    }
   },
   "fallback_detail": {
    "verts": 9793,
-   "limb_pct": 100.0,
-   "cross_side_pct": 0.01,
-   "src_dist": {
-    "median": 0.01481,
-    "p90": 0.02859,
-    "max": 0.05451
-   },
    "by_bone": {
     "L_Knee": 5051,
     "L_Hip": 1770,
@@ -785,6 +941,13 @@
     "R_Foot": 128,
     "L_Ankle": 24,
     "L_Hand": 23
+   },
+   "limb_pct": 100.0,
+   "cross_side_pct": 0.01,
+   "src_dist": {
+    "median": 0.01481,
+    "p90": 0.02859,
+    "max": 0.05451
    }
   }
  },
@@ -795,7 +958,7 @@
   "before": {
    "limb_edges": {
     "arm_leg": 1260,
-    "arm_lowtorso": 368,
+    "arm_lowtorso": 1430,
     "leg_leg": 0
    },
    "dominant": {
@@ -806,8 +969,82 @@
    }
   },
   "part_constraint": {
-   "islands": 24,
-   "verts": 1761
+   "islands": 26,
+   "verts": 1801,
+   "detail": [
+    {
+     "from": "L_arm",
+     "to": "L_leg",
+     "verts": 532,
+     "border": 122
+    },
+    {
+     "from": "L_leg",
+     "to": "L_arm",
+     "verts": 313,
+     "border": 103
+    },
+    {
+     "from": "R_arm",
+     "to": "R_leg",
+     "verts": 165,
+     "border": 64
+    },
+    {
+     "from": "L_arm",
+     "to": "L_leg",
+     "verts": 140,
+     "border": 54
+    },
+    {
+     "from": "torso",
+     "to": "R_arm",
+     "verts": 86,
+     "border": 83
+    },
+    {
+     "from": "L_arm",
+     "to": "L_leg",
+     "verts": 85,
+     "border": 66
+    },
+    {
+     "from": "L_arm",
+     "to": "L_leg",
+     "verts": 69,
+     "border": 41
+    },
+    {
+     "from": "R_arm",
+     "to": "R_leg",
+     "verts": 63,
+     "border": 43
+    },
+    {
+     "from": "R_leg",
+     "to": "R_arm",
+     "verts": 50,
+     "border": 35
+    },
+    {
+     "from": "L_arm",
+     "to": "L_leg",
+     "verts": 49,
+     "border": 51
+    },
+    {
+     "from": "L_leg",
+     "to": "L_arm",
+     "verts": 41,
+     "border": 39
+    },
+    {
+     "from": "torso",
+     "to": "L_arm",
+     "verts": 39,
+     "border": 28
+    }
+   ]
   },
   "rig_check": {
    "vertices": 882870,
@@ -847,18 +1084,18 @@
     "R_Knee": 60782,
     "R_Ankle": 11967,
     "R_Foot": 5887,
-    "Spine1": 70271,
+    "Spine1": 70233,
     "Spine2": 3806,
     "Spine3": 35548,
     "Neck": 13973,
     "Head": 23584,
     "L_Collar": 37369,
-    "L_Shoulder": 59081,
+    "L_Shoulder": 59120,
     "L_Elbow": 30943,
     "L_Wrist": 8546,
     "L_Hand": 6647,
     "R_Collar": 39667,
-    "R_Shoulder": 27327,
+    "R_Shoulder": 27326,
     "R_Elbow": 34677,
     "R_Wrist": 11379,
     "R_Hand": 3177
@@ -885,25 +1122,22 @@
    },
    "limb_edges": {
     "arm_leg": 420,
-    "arm_lowtorso": 317,
+    "arm_lowtorso": 1348,
     "leg_leg": 0,
     "edges": 1809211,
     "top": {
+     "R_Shoulder|Spine1": 514,
      "R_Elbow|Spine1": 317,
      "L_Hip|L_Wrist": 235,
-     "L_Hand|L_Hip": 185
+     "L_Hand|L_Hip": 185,
+     "R_Shoulder|Spine2": 178,
+     "L_Shoulder|Spine1": 177,
+     "L_Shoulder|Spine2": 162
     }
    }
   },
   "fallback_detail": {
    "verts": 21490,
-   "limb_pct": 100.0,
-   "cross_side_pct": 0.014,
-   "src_dist": {
-    "median": 0.01153,
-    "p90": 0.02482,
-    "max": 0.03784
-   },
    "by_bone": {
     "L_Knee": 6449,
     "R_Hip": 5716,
@@ -914,6 +1148,13 @@
     "R_Foot": 78,
     "L_Ankle": 48,
     "L_Elbow": 35
+   },
+   "limb_pct": 100.0,
+   "cross_side_pct": 0.014,
+   "src_dist": {
+    "median": 0.01153,
+    "p90": 0.02482,
+    "max": 0.03784
    }
   }
  }

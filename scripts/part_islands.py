@@ -13,7 +13,11 @@ def region_of(bone):
     return "torso"
 
 
-_ARM, _LEG, _LOW = ("Elbow", "Wrist", "Hand"), ("Hip", "Knee", "Ankle", "Foot"), ("Pelvis", "Spine1", "Spine2")
+# 팔에는 위팔(Shoulder)도 든다 — 2026-10-12 에 넣었다. 그 전에는 팔꿈치 아래만 팔로 봐서,
+# walker f138 의 위팔–Spine1 엣지 961개를 ⑤ 가 0 으로 기록했고 섬 고치기도 손대지 않았다
+# (roar_02 에서 팔을 들자 그 엣지가 막처럼 늘어났다). 위팔과 **상부** 몸통(Spine3 · Collar ·
+# Neck)은 원래 이웃이라 충돌이 아니다 — _LOW 에 없다.
+_ARM, _LEG, _LOW = ("Shoulder", "Elbow", "Wrist", "Hand"), ("Hip", "Knee", "Ankle", "Foot"), ("Pelvis", "Spine1", "Spine2")
 
 
 def limb_conflict(a, b):
