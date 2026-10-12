@@ -11,8 +11,25 @@ transferred.blend 의 SMPL_rig 에 WHAM pose(69프레임)를 키프레임으로 
       --blend ~/data/06_rig/zombie_sample1/transferred.blend \
       --npz ~/data/06_rig/zombie_sample1/wham_pose.npz \
       --out ~/data/06_rig/zombie_sample1/animated.blend
+
+**다른 클립의 동작을 굽기 (모션 트랙, 2026-10-12~).** 리그를 만든 클립이 아닌 클립의 pose 를
+구울 때는 기준 자세를 그 클립에서 찾을 수 없다. 리그 옆의 rest_pose.json(make_rest_pose.py)
+을 --ref-pose 로 준다:
+
+      --blend ~/data/06_rig/walker_walk_02/transferred.blend \
+      --npz   ~/data/06_rig/walker/motions/idle/wham_pose.npz \
+      --ref-pose ~/data/06_rig/walker_walk_02/rest_pose.json \
+      --action-name idle --height-ratio 1.0 \
+      --out   ~/data/06_rig/walker/motions/idle/animated.blend
+
+회전은 그 기준 자세 대비 상대 회전으로, 루트 이동은 **클립의 첫 프레임을 원점**으로 한다
+(방향은 리그 기준 자세 그대로). 리그의 rest 가 첫 프레임 자세가 아니므로 그 차이는
+rest_pose.json 의 (trans_first - trans_ref) 로 메운다 — 모션 클립의 첫 프레임이 리그 클립의
+첫 프레임과 같은 자세라는 가정이다(make_rest_pose.py 독스트링). --height-ratio 는
+리그 체형의 신장 ÷ 모션 클립 체형의 신장이다 (betas 가 다르면 보폭이 달라야 한다).
 """
 import argparse
+import json
 import sys
 
 import bpy
@@ -39,6 +56,12 @@ def parse_args():
     ap.add_argument("--frame", type=int, default=3,
                     help="리그 rest 에 해당하는 프레임 (메쉬 생성 프레임)")
     ap.add_argument("--fps", type=int, default=24)
+    ap.add_argument("--ref-pose", default=None,
+                    help="rest_pose.json — 기준 자세를 다른 클립에서 받는다 (모션 트랙). "
+                         "주면 --frame 은 쓰지 않는다")
+    ap.add_argument("--height-ratio", type=float, default=1.0,
+                    help="루트 이동에 곱할 신장비 (리그 신장 ÷ 모션 클립 신장). --ref-pose 와 함께")
+    ap.add_argument("--action-name", default=None, help="저장할 액션 이름 (기본: Blender 가 붙이는 이름)")
     return ap.parse_args(argv)
 
 
@@ -77,8 +100,21 @@ def main():
     pose = data["pose"].reshape(-1, 24, 3)   # (T,24,3)
     trans = data["trans"]                    # (T,3)
     T = len(pose)
-    ref = a.frame
-    print(f"[1/3] pose {pose.shape}, 기준 프레임 {ref}")
+    if a.ref_pose:
+        rp = json.load(open(a.ref_pose))
+        ref_pose = np.asarray(rp["pose"], dtype=np.float64).reshape(24, 3)
+        # 원점은 이 클립의 첫 프레임. 리그 rest(키프레임)와 첫 프레임 자세의 차이는 리그
+        # 클립에서 잰 값으로 메운다.
+        t_origin = trans[0]
+        t_shift = np.asarray(rp["trans_first"], dtype=np.float64) - np.asarray(rp["trans_ref"], dtype=np.float64)
+        ratio = a.height_ratio
+        print(f"[1/3] pose {pose.shape}, 기준 자세 {rp['rig_sample']} f{rp['frame']} "
+              f"(다른 클립), 신장비 {ratio}")
+    else:
+        ref = a.frame
+        ref_pose = pose[ref]
+        t_origin, t_shift, ratio = trans[ref], np.zeros(3), 1.0
+        print(f"[1/3] pose {pose.shape}, 기준 프레임 {ref}")
 
     # 좌표 변환: WHAM 공간 -> 아마추어(월드) 공간
     if smpl is not None:
@@ -96,7 +132,7 @@ def main():
     for name in SMPL_NAMES:
         B[name] = np.array(rig.data.bones[name].matrix_local.to_3x3())
 
-    Rg_ref = global_rots(pose[ref])
+    Rg_ref = global_rots(ref_pose)
 
     bpy.context.view_layer.objects.active = rig
     bpy.ops.object.mode_set(mode="POSE")
@@ -115,8 +151,8 @@ def main():
             pb = rig.pose.bones[name]
             pb.rotation_quaternion = Matrix(basis.tolist()).to_quaternion()
             pb.keyframe_insert("rotation_quaternion", frame=f)
-        # 루트 이동 (frame ref 기준 상대)
-        t = scale * (Rw @ (trans[f] - trans[ref]))
+        # 루트 이동 (기준 대비 상대). 같은 클립이면 (trans[f] - trans[ref]) 그대로다.
+        t = scale * (Rw @ (ratio * (trans[f] - t_origin) + t_shift))
         loc = pelvis_B.T @ t
         pb = rig.pose.bones["Pelvis"]
         pb.location = loc.tolist()
@@ -124,6 +160,8 @@ def main():
         if f % 10 == 0:
             print(f"  frame {f}/{T-1}")
 
+    if a.action_name and rig.animation_data and rig.animation_data.action:
+        rig.animation_data.action.name = a.action_name
     scn = bpy.context.scene
     scn.render.fps = a.fps
     scn.frame_start = 0

@@ -9,6 +9,16 @@ TRELLIS 좀비뿐입니다.
       --python export_unity_fbx.py -- \
       --blend ~/data/06_rig/zombie_sample1/animated.blend \
       --out ~/data/07_unity/zombie_sample1/zombie_wham.fbx
+
+**캐릭터 FBX 1개 + 클립 FBX 여러 개 (2026-10-12~).** 동작마다 메쉬를 넣으면 클립당 53MB 이고
+Unity 에서 임포트 설정이 반복된다. 메쉬는 한 번만, 동작은 골격만 내보낸다:
+
+      --blend <리그>/transferred.blend --out walker.fbx --no-anim              # 캐릭터 (메쉬 + 골격)
+      --blend <클립>/animated.blend --out walker@walk_02.fbx \
+          --armature-only --take-name walk_02                                  # 클립 (골격 + 동작)
+
+Unity 는 `<모델>@<클립>.fbx` 를 그 모델의 애니메이션 파일로 읽는다. 클립 FBX 의 Rig 탭에서
+Avatar Definition 을 **Copy From Other Avatar** 로 두고 캐릭터 FBX 의 아바타를 지정한다.
 """
 import argparse
 import sys
@@ -26,6 +36,14 @@ def parse_args():
                     help="내보내기에서 제외할 보조 메쉬")
     ap.add_argument("--keep-smpl", action="store_true",
                     help="SMPL_body 도 포함하고 싶으면 지정")
+    ap.add_argument("--armature-only", action="store_true",
+                    help="메쉬 없이 골격과 동작만 내보낸다 (클립 FBX)")
+    ap.add_argument("--no-anim", action="store_true",
+                    help="동작 없이 메쉬와 골격만 내보낸다 (캐릭터 FBX)")
+    ap.add_argument("--take-name", default=None,
+                    help="FBX 테이크(Unity 클립) 이름. 기본은 Blender 씬 이름")
+    ap.add_argument("--no-embed-textures", action="store_true",
+                    help="텍스처를 FBX 에 넣지 않는다 (텍스처는 PNG 로 따로 납품할 때)")
     return ap.parse_args(argv)
 
 
@@ -44,11 +62,26 @@ def main():
             bpy.data.objects.remove(smpl, do_unlink=True)
             print(f"제외: {a.smpl_name}")
 
-    # 아마추어 + 그 자식 메쉬만 선택
+    if a.armature_only and a.no_anim:
+        raise RuntimeError("--armature-only 와 --no-anim 을 함께 주면 내보낼 것이 없다")
+    if a.no_anim:
+        # 캐릭터 FBX 는 rest 자세로 내보낸다. 액션이 걸려 있으면 그 프레임의 자세로 구워진다.
+        if rig.animation_data:
+            rig.animation_data.action = None
+        for pb in rig.pose.bones:
+            pb.rotation_mode = "QUATERNION"
+            pb.rotation_quaternion = (1, 0, 0, 0)
+            pb.location = (0, 0, 0)
+    if a.take_name:
+        # 액션 하나를 씬 범위로 굽는 설정이라 테이크 이름이 씬 이름을 따른다.
+        bpy.context.scene.name = a.take_name
+
+    # 아마추어 + 그 자식 메쉬만 선택 (클립 FBX 는 아마추어만)
     bpy.ops.object.select_all(action="DESELECT")
     rig.select_set(True)
-    for child in rig.children_recursive:
-        child.select_set(True)
+    if not a.armature_only:
+        for child in rig.children_recursive:
+            child.select_set(True)
     bpy.context.view_layer.objects.active = rig
     n_sel = len(bpy.context.selected_objects)
     print(f"내보낼 오브젝트 {n_sel}개")
@@ -61,7 +94,7 @@ def main():
         armature_nodetype="NULL",
         use_armature_deform_only=True,
         # --- 애니메이션 ---
-        bake_anim=True,
+        bake_anim=not a.no_anim,
         bake_anim_use_all_bones=True,
         bake_anim_use_nla_strips=False,
         bake_anim_use_all_actions=False,
@@ -71,8 +104,8 @@ def main():
         axis_forward="-Z",
         axis_up="Y",
         # --- 기타 ---
-        path_mode="COPY",
-        embed_textures=True,
+        path_mode="STRIP" if a.no_embed_textures else "COPY",
+        embed_textures=not a.no_embed_textures,
         mesh_smooth_type="FACE",
     )
     print(f"저장: {a.out}")
