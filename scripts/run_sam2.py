@@ -26,6 +26,7 @@ notebooks/sam2/SAM2_try6_260711.ipynb 를 Pod 실행용으로 정제한 것.
   - 시각화 셀([추가1~3], 코랩 재생용 셀)은 제외
 """
 import argparse
+import json
 import os
 import shutil
 import subprocess
@@ -37,6 +38,7 @@ from tqdm import tqdm
 
 # 키프레임 점수·선정은 select_keyframes.py 로 옮겼다 (2026-10-08, G1a 독립화).
 # S2 는 마스크만으로 1차 후보를 내고, S5 뒤의 재선정 단계가 같은 모듈로 다시 매긴다.
+import silhouette
 from select_keyframes import (LEG_OK, LEG_SIGNAL_P, apply_leg_term, export_keyframes,
                               keyframe_score, leg_gap_ratio, pick_keyframes,
                               write_candidates)
@@ -50,8 +52,13 @@ def parse_args():
                     help="입력 영상 (예: /workspace/data/00_raw/zombie_sample1.mp4)")
     ap.add_argument("--out", required=True,
                     help="출력 폴더 (예: /workspace/data/02_sam2/zombie_sample1)")
+    ap.add_argument("--prompt", choices=["auto6", "auto10", "box", "point"], default=None,
+                    help="첫 프레임 프롬프트. auto6 · auto10 = 실루엣 위에 점 6개 · 10개, "
+                         "box = 실루엣 bbox, point = --point 의 좌표. 기본: --point 가 있으면 "
+                         "point, 없으면 auto6. 근거는 scripts/silhouette.py 독스트링")
     ap.add_argument("--point", default=None,
-                    help="첫 프레임의 좀비 좌표 'x,y'. 생략 시 프레임 중앙")
+                    help="첫 프레임의 대상 좌표 'x,y'. 여러 점은 ';' 로 잇는다 "
+                         "(예: 540,250;380,520). --prompt point 와 함께 쓴다")
     ap.add_argument("--sam2-root", default="/workspace/repos/sam2",
                     help="SAM2 소스 루트 (pip install -e . 한 경로)")
     ap.add_argument("--checkpoint", default=None,
@@ -114,6 +121,55 @@ def load_predictor(args):
     return build_sam2_video_predictor(args.model_cfg, ckpt, device=device), torch, device
 
 
+def parse_points(text):
+    """'x,y;x,y' → [(x, y), ...]"""
+    pts = []
+    for part in text.split(";"):
+        x, y = (int(v) for v in part.split(","))
+        pts.append((x, y))
+    return pts
+
+
+def build_prompt(args, frame0, out):
+    """첫 프레임 프롬프트를 정하고 <out>/prompt.json · silhouette0.png 로 남긴다.
+
+    실루엣은 프롬프트가 point 여도 뽑는다 — 게이트(gate_s2)의 부위 분포 판정이 그것을
+    쓴다. 다만 point 일 때는 실루엣 실패로 멈추지 않는다(사람이 좌표를 직접 준 경우다).
+    auto · box 에서 실루엣을 못 뽑으면 **멈춘다** — 점 하나로 조용히 돌아가지 않는다.
+    """
+    mode = args.prompt or ("point" if args.point else "auto6")
+    if mode == "point" and not args.point:
+        raise SystemExit("[중단] --prompt point 에는 --point 가 필요하다")
+    fg, err = None, None
+    try:
+        fg = silhouette.foreground(frame0)
+    except silhouette.SilhouetteError as e:
+        err = str(e)
+        if mode != "point":
+            raise SystemExit(f"[중단] 첫 프레임에서 실루엣을 뽑지 못했다 — {e}\n"
+                             f"       입력 조건(단색 배경 · 전신)을 확인하거나 --prompt point "
+                             f"--point x,y[;x,y...] 로 좌표를 직접 준다.")
+    prompt = {"mode": mode, "points": None, "box": None, "silhouette_error": err}
+    if mode == "point":
+        prompt["points"] = parse_points(args.point)
+    elif mode == "box":
+        prompt["box"] = list(silhouette.bbox(fg))
+    else:
+        prompt["points"] = silhouette.prompt_points(fg, 6 if mode == "auto6" else 10)
+    sil = os.path.join(out, "silhouette0.png")
+    if fg is not None:
+        prompt["silhouette_bbox"] = list(silhouette.bbox(fg))
+        cv2.imwrite(sil, fg.astype(np.uint8) * 255)
+    elif os.path.exists(sil):
+        os.remove(sil)                     # 이전 시도의 실루엣이 남아 판정에 쓰이지 않게
+    with open(os.path.join(out, "prompt.json"), "w") as f:
+        json.dump(prompt, f, ensure_ascii=False, indent=1)
+    what = (f"상자 {prompt['box']}" if mode == "box"
+            else f"점 {len(prompt['points'])}개 {prompt['points']}")
+    print(f"      프롬프트 {mode}: {what}")
+    return prompt
+
+
 def main():
     args = parse_args()
     out = os.path.expanduser(args.out)
@@ -128,21 +184,19 @@ def main():
 
     n_frames, fps, (w, h) = extract_frames(os.path.expanduser(args.video), frames_dir)
 
-    if args.point:
-        px, py = (int(v) for v in args.point.split(","))
-    else:
-        px, py = w // 2, h // 2          # 노트북은 [640, 360] 고정이었음
-    print(f"      타겟 좌표 ({px}, {py})")
+    prompt = build_prompt(args, cv2.imread(os.path.join(frames_dir, "00000.jpg")), out)
 
     predictor, torch, device = load_predictor(args)
     state = predictor.init_state(video_path=frames_dir)
-    predictor.add_new_points_or_box(
-        inference_state=state,
-        frame_idx=0,
-        obj_id=args.obj_id,
-        points=np.array([[px, py]], dtype=np.float32),
-        labels=np.array([1], dtype=np.int32),   # 1 = 전경
-    )
+    if prompt["mode"] == "box":
+        predictor.add_new_points_or_box(
+            inference_state=state, frame_idx=0, obj_id=args.obj_id,
+            box=np.array(prompt["box"], dtype=np.float32))
+    else:
+        predictor.add_new_points_or_box(
+            inference_state=state, frame_idx=0, obj_id=args.obj_id,
+            points=np.array(prompt["points"], dtype=np.float32),
+            labels=np.ones(len(prompt["points"]), dtype=np.int32))   # 1 = 전경
 
     # 클립은 프레임을 ffmpeg 에 그대로 흘려보내 h264 로 굽는다. OpenCV 의 mp4v
     # 출력물은 브라우저·Jupyter 에서 재생되지 않아 Pod 검증 때 교체했다.

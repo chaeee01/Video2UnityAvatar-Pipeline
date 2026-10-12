@@ -13,7 +13,7 @@ apply_wham_pose.py 가 읽는 형식으로 맞춰 주는 다리 역할입니다.
   pose   (T, 72)  프레임별 24관절 axis-angle
   trans  (T, 3)   루트 이동
 
-pkl 에 트랙이 여러 개면 첫 번째를 쓰고 경고합니다 (--track 으로 지정 가능).
+pkl 에 트랙이 여러 개면 가장 긴 것을 쓰고 경고합니다 (--track 으로 지정 가능).
 트랙이 2개 이상이라는 건 WHAM 이 다른 물체를 사람으로 잡았다는 뜻이라,
 그대로 진행하기 전에 overlay.mp4 를 확인하는 편이 좋습니다.
 """
@@ -24,6 +24,9 @@ import sys
 from pathlib import Path
 
 import numpy as np
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from wham_track import pick_track  # noqa: E402
 
 try:
     import joblib
@@ -52,9 +55,9 @@ def main():
         if key not in data:
             raise RuntimeError(f"트랙 {a.track} 없음. 있는 트랙: {keys}")
     else:
-        key = keys[0]
+        key = pick_track(data)               # 가장 긴 트랙 (wham_track.py)
         if len(keys) > 1:
-            print(f"[!] 트랙이 {len(keys)}개입니다 {keys} — {key} 를 사용합니다. "
+            print(f"[!] 트랙이 {len(keys)}개입니다 {keys} — 가장 긴 {key} 를 사용합니다. "
                   "overlay.mp4 로 사람을 제대로 잡았는지 확인하세요.")
     track = data[key]
 

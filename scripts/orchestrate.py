@@ -57,8 +57,8 @@ STAGES = [
     # WHAM pose(시선각·다리 움직임)가 필요해서다. 같은 Pod 에서 직렬로 도므로 순서를
     # 바꿔도 총 시간은 같다. G3 가 생기면 S5 와 G1a 사이에 들어간다 — 동작을 먼저
     # 확정해야 G3 재시도가 S3 를 무효화하지 않는다.
-    dict(key="S5",   section=POD, env="wham",     gate=None,
-         desc="WHAM 동작 복원 (G3 미구현 — 설계 7절)"),
+    dict(key="S5",   section=POD, env="wham",     gate="gate_s5",
+         desc="WHAM 동작 복원 (게이트는 트랙 연속성만 — G3 미구현, 설계 7절)"),
     dict(key="G1a",  section=POD, env="wham",     gate=None,
          desc="키프레임 재선정 (마스크 + WHAM 시선각·다리 움직임)"),
     dict(key="S3",   section=POD, env="trellis2", gate="gate_g2",
@@ -233,7 +233,9 @@ def stage_command(key, c):
     if key == "S2":
         cmd = ["python", str(S / "run_sam2.py"), "--video", str(c["video"]),
                "--out", str(sam2)]
-        if c.get("point"):
+        if c.get("s2_prompt"):
+            cmd += ["--prompt", c["s2_prompt"]]
+        if c.get("s2_prompt", "point") == "point" and c.get("point"):
             cmd += ["--point", c["point"]]
         return cmd
     if key == "S3":
@@ -301,7 +303,18 @@ def gate_command(key, c, run: "Run", tag):
         if c.get("frames"):
             # G0 가 실측한 프레임 수. 없으면 붙이지 않는다 (0 을 넘기면 오판한다).
             cmd += ["--frames", str(c["frames"])]
+        sil = data("02_sam2", n, "silhouette0.png")
+        if Path(sil).exists():
+            cmd += ["--silhouette", str(sil)]          # 부위 분포 판정 (2026-10-12)
         return cmd
+    if key == "S5":
+        if not c.get("frames"):
+            # 프레임 수 없이는 "클립 전체를 덮었는가" 를 판정할 수 없다. 추측하지 않는다.
+            raise SystemExit("[오류] S5 게이트에 G0 프레임 수가 없다 (run.json 의 frames)")
+        return ["python", str(S / "gate_s5.py"),
+                "--pkl", str(data("04_wham", f"{n}_masked", "wham_output.pkl")),
+                "--frames", str(c["frames"]),
+                "--out", str(out), "--name", f"{n}_{tag}"]
     if key == "S3":
         return ["python", str(S / "gate_g2.py"),
                 "--glb", str(data("03_trellis2", n, f"{n}.glb")),
@@ -359,20 +372,23 @@ def probe_input(video, dry):
 # 설계 3절. 상한은 제안값이고 근거는 설계 문서에 있다.
 S2_MAX_TRIES, G2_MAX_TRIES = 3, 2
 
-# 비율 좌표다 — 해상도가 달라져도 같은 전략이 성립한다.
-# 1번은 지정값(또는 중앙), 2번 이후가 대안이다.
-S2_OFFSETS = [(0.50, 0.50), (0.50, 0.38), (0.50, 0.62), (0.46, 0.45), (0.54, 0.45)]
+# 2026-10-12 변경 — 점 하나의 위치를 바꿔 가며 재시도하던 것을, 프롬프트의 **종류**를
+# 바꾸는 것으로 고쳤다. 점 하나는 옷이 여러 겹인 캐릭터에서 한 겹만 잡는다: listener_walk_fwd
+# 가 중앙 · 위 · 아래 세 점 모두 부분 선택이었고(커버리지 11.1 · 11.1 · 11.7%), 손으로 찍은
+# 6점은 전신(43.7%)을 잡았다. 점은 첫 프레임 실루엣에서 자동으로 고른다 (silhouette.py).
+#   1차 auto6  — 실루엣 6개 높이에 한 점씩
+#   2차 auto10 — 어깨 · 골반 줄에 좌우 점 추가
+#   3차 box    — 실루엣 bbox
+# 그래도 불합격이면 사람에게 넘긴다. 사용자가 --point 를 주면 1차에 그것을 쓴다.
+S2_PROMPTS = ["auto6", "auto10", "box"]
 
 
-def s2_point(try_n, c):
-    """시도 번호 → '--point x,y'. 1번은 사용자 지정이 있으면 그것."""
-    if try_n == 1 and c.get("point"):
-        return c["point"], "지정값"
-    rx, ry = S2_OFFSETS[min(try_n - 1, len(S2_OFFSETS) - 1)]
-    w, h = c.get("width"), c.get("height")
-    if not w:
-        return None, "해상도 미상 — 스크립트 기본값(중앙)"
-    return f"{int(w * rx)},{int(h * ry)}", f"비율 ({rx}, {ry})"
+def s2_prompt(try_n, c):
+    """시도 번호 → (프롬프트 종류, 설명). 1번은 사용자 지정 좌표가 있으면 그것."""
+    if try_n == 1 and c.get("user_point"):
+        return "point", f"지정 좌표 {c['user_point']}"
+    mode = S2_PROMPTS[min(try_n - 1, len(S2_PROMPTS) - 1)]
+    return mode, {"auto6": "실루엣 6점", "auto10": "실루엣 10점", "box": "실루엣 상자"}[mode]
 
 
 def preserve_probe(path: Path, tag, dry):
@@ -499,7 +515,7 @@ def main():
     # --- 실행 ---
     print("\n" + "=" * 62)
     ctx = dict(name=a.name, video=a.video or run.meta().get("video"),
-               point=a.point, keyframe=a.keyframe, seed=0,
+               user_point=a.point, keyframe=a.keyframe, seed=0,
                force_keyframe=a.force_keyframe)
     ctx.update({k: v for k, v in run.meta().items()
                 if k in ("frames", "width", "height", "frame", "keyframe")})
@@ -598,8 +614,9 @@ def run_stage(s, c, run: Run, dry) -> int:
         note = ""
         # 재시도 파라미터 (설계 3절)
         if key == "S2":
-            pt, how = s2_point(n, c)
-            c["point"], note = pt, f"point={pt} ({how})"
+            c["s2_prompt"], how = s2_prompt(n, c)
+            c["point"] = c.get("user_point") if c["s2_prompt"] == "point" else None
+            note = f"prompt={c['s2_prompt']} ({how})"
         elif key == "S3" and n > 1:
             c["seed"] = n - 1
             note = f"seed={c['seed']}"
@@ -710,7 +727,7 @@ def run_stage(s, c, run: Run, dry) -> int:
 
 def gate_params(key, c):
     if key == "S2":
-        return {"point": c.get("point")}
+        return {"prompt": c.get("s2_prompt"), "point": c.get("point")}
     if key == "S3":
         return {"seed": c.get("seed"), "keyframe": str(c.get("keyframe"))}
     return {}
@@ -748,8 +765,15 @@ def exhausted(key, c, run: Run):
               f"\n  (격자 생성 실패 — {run.logs / 'frame_grid.log'})")
         print(f"  이 그림에서 대상 몸통의 픽셀 좌표를 읽어:")
         print(f"    python orchestrate.py --name {c['name']} --resume --point <x>,<y>")
-        print("  층진 의상(겉옷 안 속옷)이면 단일 포인트로는 어렵다 — listener 사례.")
-        print("  다중 포인트는 v1 범위 밖이다 (설계 7절).")
+        print("  여러 점은 ';' 로 잇는다: --point 540,250;380,520;540,1190")
+        print("  자동 프롬프트(실루엣 6점 → 10점 → 상자)가 모두 불합격한 경우다 — 옷의 겹마다")
+        print("  한 점씩(머리 · 겉옷 · 속살 · 바지) 찍어 준다.")
+    elif key == "S5":
+        print("\n  WHAM 이 클립 전체를 한 사람으로 추적하지 못했다. 다시 돌려도 같은 결과다.")
+        print("  먼저 마스크를 본다 — 몸의 일부만 잡힌 마스크에서 이렇게 된다 (listener 사례):")
+        print(f"    {data('02_sam2', c['name'], c['name'] + '_masked.mp4')}")
+        print("  마스크가 틀렸으면 S2 부터 다시:")
+        print(f"    python orchestrate.py --name {c['name']} --resume --point <x>,<y>[;<x>,<y>...]")
     elif key == "S3":
         print(f"\n  seed 를 바꿔도 같은 실패가 반복됐다. 모델이 이 입력에서 일관되게")
         print("  실패하는 것이라 다른 키프레임을 시도하는 편이 낫다:")

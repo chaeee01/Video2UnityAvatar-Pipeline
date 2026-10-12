@@ -20,13 +20,18 @@ SMPL 리깅 1단계: WHAM 결과에서 SMPL 메쉬를 뽑아냅니다.
 """
 import argparse
 import json
+import os
 import pickle
+import sys
 from pathlib import Path
 
 import joblib
 import numpy as np
 import torch
 import trimesh
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from wham_track import pick_track  # noqa: E402
 
 SMPL_DIR = "/workspace/repos/WHAM/dataset/body_models/smpl"
 
@@ -57,7 +62,8 @@ def main() -> None:
     out.mkdir(parents=True, exist_ok=True)
     print(f"샘플명: {name}  →  {out}")
 
-    track = next(iter(joblib.load(a.pkl).values()))
+    data = joblib.load(a.pkl)
+    track = data[pick_track(data)]              # 가장 긴 트랙 (wham_track.py)
     verts = np.asarray(track["verts"])          # (T, 6890, 3)
     betas = np.asarray(track["betas"])          # (T, 10)
     T = len(verts)
