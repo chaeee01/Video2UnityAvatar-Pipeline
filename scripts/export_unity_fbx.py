@@ -42,6 +42,8 @@ def parse_args():
                     help="동작 없이 메쉬와 골격만 내보낸다 (캐릭터 FBX)")
     ap.add_argument("--take-name", default=None,
                     help="FBX 테이크(Unity 클립) 이름. 기본은 Blender 씬 이름")
+    ap.add_argument("--no-embed-textures", action="store_true",
+                    help="텍스처를 FBX 에 넣지 않는다 (텍스처는 PNG 로 따로 납품할 때)")
     return ap.parse_args(argv)
 
 
@@ -102,8 +104,8 @@ def main():
         axis_forward="-Z",
         axis_up="Y",
         # --- 기타 ---
-        path_mode="COPY",
-        embed_textures=True,
+        path_mode="STRIP" if a.no_embed_textures else "COPY",
+        embed_textures=not a.no_embed_textures,
         mesh_smooth_type="FACE",
     )
     print(f"저장: {a.out}")
