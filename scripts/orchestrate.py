@@ -26,6 +26,7 @@
 import argparse
 import json
 import os
+import re
 import shlex
 import subprocess
 import sys
@@ -609,8 +610,12 @@ def run_stage(s, c, run: Run, dry) -> int:
         print(f"    키프레임: {Path(kf).name if kf else '(dry)'}  frame={frame}")
 
     max_tries = {"S2": S2_MAX_TRIES, "S3": G2_MAX_TRIES}.get(key, 1)
+    base = prior_tries(run, key)
     for n in range(1, max_tries + 1):
-        tag = f"try{n}"
+        # 로그 · 판정 JSON 의 이름표. 이어받기(--resume)로 같은 단계를 다시 돌리면 번호를
+        # 이어 붙인다 — 2026-10-12 에 dog 의 G2r FAIL 판정(gate_g2r_try1.json)이 다음 날
+        # 재판정 PASS 로 덮여 사라졌다. 실패 판정은 게이트의 시험지다 (9/10 교훈).
+        tag = f"try{base + n}"
         note = ""
         # 재시도 파라미터 (설계 3절)
         if key == "S2":
@@ -715,7 +720,7 @@ def run_stage(s, c, run: Run, dry) -> int:
             print("\n[정지] G2r 불합격 — 자동 재시도 대상이 아니다")
             for r in reasons:
                 print(f"  - {r}")
-            print("\n  스케일 이탈은 이상 탐지 신호다 (9/22 재정의). 같은 입력을 다시 돌려도")
+            print("\n  G2r 의 불합격 사유는 이상 탐지 신호다 (9/22 재정의). 같은 입력을 다시 돌려도")
             print("  같은 값이 나온다. 상류를 봐야 한다 — 메쉬 잘림, 부유 지오메트리로 인한")
             print("  높이 부풀음, WHAM 체형 추정 이상.")
             print(f"  판정: {gj}")
@@ -723,6 +728,13 @@ def run_stage(s, c, run: Run, dry) -> int:
 
     # ---- 상한 도달 → 사람 개입 ----
     return exhausted(key, c, run)
+
+
+def prior_tries(run: "Run", key):
+    """이 run 에서 이 단계가 이미 몇 번 시도됐는가 — 남아 있는 로그의 가장 큰 번호."""
+    nums = [int(m.group(1)) for f in run.logs.glob(f"{key}_try*.log")
+            if (m := re.fullmatch(rf"{re.escape(key)}_try(\d+)\.log", f.name))]
+    return max(nums, default=0)
 
 
 def gate_params(key, c):
