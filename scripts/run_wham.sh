@@ -10,6 +10,7 @@
 # "완료" 로 오보한 사고).
 set -eo pipefail
 VIDEO="${1:?입력 영상 경로를 지정하세요}"
+SCRIPTS="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 shift
 VOL=/workspace
 OUT=$VOL/data/04_wham
@@ -44,6 +45,17 @@ if [ -f "$RESULT/wham_output.pkl" ]; then
     if [ "${TRACKS:-0}" -lt 1 ]; then
         echo "실패: WHAM 이 사람을 하나도 추적하지 못했습니다 (트랙 0개) — $RESULT/wham_output.pkl" >&2
         echo "      마스크가 몸 전체를 담고 있는지 확인하세요 (S2 부분 선택이면 얼굴·옷 조각만 남는다)." >&2
+        exit 1
+    fi
+    # 트랙이 잠깐 끊겨 갈린 것은 이어 붙인다 (공백 3프레임 이하만 — stitch_wham_tracks.py).
+    # 트랙이 하나여도 부른다: 이전 실행이 남긴 stitched 파일을 치워 이번 판정에 섞이지 않게 한다.
+    # 종료 코드 0 = 이었거나 필요 없음, 3 = 조건에 맞지 않아 잇지 않음 (gate_s5 가 판정한다).
+    set +e
+    python "$SCRIPTS/stitch_wham_tracks.py" --pkl "$RESULT/wham_output.pkl" --video "$VIDEO"
+    SRC=$?
+    set -e
+    if [ $SRC -ne 0 ] && [ $SRC -ne 3 ]; then
+        echo "실패: 트랙 이어 붙이기가 오류로 끝났습니다 (종료 코드 $SRC)" >&2
         exit 1
     fi
     echo "완료: $RESULT (트랙 ${TRACKS}개)"

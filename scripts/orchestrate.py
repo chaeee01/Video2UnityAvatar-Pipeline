@@ -225,6 +225,13 @@ def blender(script, *args):
     return [BLENDER, "--background", "--python", str(scripts_dir() / script), "--", *args]
 
 
+def wham_pkl(name):
+    """하류가 읽을 WHAM pkl. 이어 붙인 것(stitch_wham_tracks.py)이 있으면 그것, 없으면 원본."""
+    d = data("04_wham", f"{name}_masked")
+    st = d / "wham_output_stitched.pkl"
+    return st if st.exists() else d / "wham_output.pkl"
+
+
 def stage_command(key, c):
     """단계 → 실행할 argv. c 는 실행 맥락(ctx)."""
     n, S = c["name"], scripts_dir()
@@ -248,13 +255,13 @@ def stage_command(key, c):
     if key == "G1a":
         cmd = ["python", str(S / "select_keyframes.py"), "--sam2-dir", str(sam2),
                "--video", str(c["video"]),
-               "--wham-pkl", str(data("04_wham", f"{n}_masked", "wham_output.pkl"))]
+               "--wham-pkl", str(wham_pkl(n))]
         if c.get("force_keyframe"):
             cmd.append("--allow-closed-legs")
         return cmd
     if key == "5-1":
         return ["python", str(S / "generate_smpl_mesh.py"),
-                "--pkl", str(data("04_wham", f"{n}_masked", "wham_output.pkl")),
+                "--pkl", str(wham_pkl(n)),
                 "--frame", str(c["frame"]), "--name", n]
     if key == "5-2":
         return blender("align_smpl_to_trellis.py",
@@ -288,7 +295,7 @@ def pre_command(key, c):
     if key == "5-5":
         # wham_output.pkl -> wham_pose.npz (RUNBOOK 5-5)
         return ["python3", str(scripts_dir() / "convert_wham_npz.py"),
-                "--pkl", str(data("04_wham", f"{c['name']}_masked", "wham_output.pkl")),
+                "--pkl", str(wham_pkl(c["name"])),
                 "--out", str(data("06_rig", c["name"], "wham_pose.npz"))]
     return None
 
@@ -313,7 +320,7 @@ def gate_command(key, c, run: "Run", tag):
             # 프레임 수 없이는 "클립 전체를 덮었는가" 를 판정할 수 없다. 추측하지 않는다.
             raise SystemExit("[오류] S5 게이트에 G0 프레임 수가 없다 (run.json 의 frames)")
         return ["python", str(S / "gate_s5.py"),
-                "--pkl", str(data("04_wham", f"{n}_masked", "wham_output.pkl")),
+                "--pkl", str(wham_pkl(n)),
                 "--frames", str(c["frames"]),
                 "--out", str(out), "--name", f"{n}_{tag}"]
     if key == "S3":

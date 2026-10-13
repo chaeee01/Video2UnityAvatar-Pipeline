@@ -64,6 +64,14 @@ def main():
         chosen = pick_track(data)
         gaps = frame_gaps(data[chosen]["frame_ids"])
         verdict, reasons, warnings = judge(lengths, chosen, gaps, a.frames)
+    stitch = None
+    if os.path.basename(a.pkl) == "wham_output_stitched.pkl":
+        # 이어 붙인 pkl 이다. 통과해도 사람이 이음매를 볼 수 있게 남긴다.
+        sj = os.path.join(os.path.dirname(os.path.expanduser(a.pkl)), "stitch.json")
+        stitch = json.load(open(sj)) if os.path.exists(sj) else {"seams": []}
+        warnings.append("이어 붙인 트랙이다 — " + ", ".join(
+            f"f{s['after']}→f{s['before']} 공백 {s['gap']}프레임 · 이음매 튐 {s['jump']}배"
+            for s in stitch.get("seams", [])) + ". 재생 영상에서 그 프레임을 확인할 것")
     n = lengths.get(chosen, 0)
     result = {
         "gate": "S5", "version": 1, "name": name, "verdict": verdict,
@@ -72,7 +80,7 @@ def main():
                     "chosen": None if chosen is None else str(chosen),
                     "chosen_frames": n, "frames_expected": a.frames,
                     "coverage": round(n / a.frames, 4) if a.frames else None,
-                    "gaps": gaps},
+                    "gaps": gaps, "stitch": stitch},
         "thresholds": {"coverage_min": COVERAGE_MIN,
                        "status": "잠정 (불량 표본 1건). 재보정: PASS 후 하류 실패 발생 시"},
         "source": {"pkl": a.pkl},
