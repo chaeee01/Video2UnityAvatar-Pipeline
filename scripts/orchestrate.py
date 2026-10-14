@@ -118,6 +118,9 @@ class Run:
 
     def __init__(self, root: Path, name: str):
         self.root, self.name = root, name
+        # --dry-run 이면 True. 기록(마커 · 시도 · 메타)을 쓰지 않는다 — 2026-10-13 에 dry-run 이
+        # 5-1.done 을 남겨, 이어진 실제 실행이 "마커는 있는데 산출물이 없다" 로 멈췄다.
+        self.dry = False
         self.done = root / "done"
         self.gates = root / "gates"
         self.logs = root / "logs"
@@ -148,6 +151,8 @@ class Run:
 
     # --- 메타 ---
     def write_meta(self, d):
+        if self.dry:
+            return
         cur = self.meta()
         cur.update(d)
         (self.root / "run.json").write_text(json.dumps(cur, indent=2, ensure_ascii=False))
@@ -160,6 +165,8 @@ class Run:
     # 규칙(설계 5절): 마커는 **게이트 PASS 까지 끝난 뒤에만** 쓴다. 단계는 돌았지만
     # 게이트가 FAIL 이면 쓰지 않는다 — 그래야 재개가 그 단계부터 다시 시작한다.
     def mark_done(self, key, outputs, elapsed_s):
+        if self.dry:
+            return
         (self.done / f"{key}.done").write_text(json.dumps({
             "stage": key,
             "finished": datetime.now().isoformat(timespec="seconds"),
@@ -176,6 +183,8 @@ class Run:
 
     # --- 시도 이력 ---
     def add_attempt(self, rec):
+        if self.dry:
+            return
         f = self.root / "attempts.json"
         hist = json.loads(f.read_text()) if f.exists() else []
         hist.append(rec)
@@ -493,6 +502,7 @@ def main():
             print("[오류] 첫 실행에는 --video 가 필요하다 (이어받으려면 --resume)")
             return EXIT_FAIL
         run = Run.create(a.name, a.video, runs_dir)
+    run.dry = a.dry_run
 
     print(f"run: {run.root}")
     print(f"샘플: {a.name}   모드: {'dry-run' if a.dry_run else '실행'}")
