@@ -17,6 +17,8 @@
 
 데이터 루트는 `$PIPELINE_VOL/data` 입니다 (맥북 미러는 `PIPELINE_VOL=$HOME`, Pod 는 기본 `/workspace`).
 
+**레포 안의 이 위치에서 실행하세요.** `kf_metrics.py` · `pick_apose_key.py` · `tonematch.py` 는 레포의 `scripts/`(`select_keyframes` · `silhouette`)를 이 파일 기준 상대 경로(`../../scripts`)로 찾습니다. 로그 폴더 등으로 복사해 돌리면 `ModuleNotFoundError` 가 납니다(2026-10-15 Pod 에서 실제로 겪음).
+
 ## 리그 비교표를 다시 만드는 절차
 
 1. 새 리그에 동작을 굽는다 — `bake_character.sh` (리그 폴더에 `rest_pose.json` 필요: `scripts/make_rest_pose.py`).
