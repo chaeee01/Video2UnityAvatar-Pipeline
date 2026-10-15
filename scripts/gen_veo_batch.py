@@ -74,6 +74,10 @@ REF_BY_PREFIX = {
     "listener": "manor_listener_01_v4_1116.png",
     "stalker": "manor_stalker_01_v4_1116.png",
     "dog": "dog_02.png",
+    # 2026-10-15 신규 — 레퍼런스는 9:16 판 (00_raw/_refs_new_1015/README_record.json)
+    "player": "player_01.png",
+    "lurker": "lurker_01.png",
+    "oiler": "oiler_01.png",
 }
 
 # 엑셀 프롬프트는 웹 UI(10초) 용으로 쓰였다. API 는 1080p 에서 8초만 받으므로 길이 문구만
