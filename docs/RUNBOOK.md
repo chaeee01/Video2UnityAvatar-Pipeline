@@ -266,6 +266,26 @@ MR 텍스처 B 평균 254.7), 그대로 두면 Unity 에서 빛을 삼키는 검
 - **transformers 버전** — 4.57.3 으로 고정돼 있다. 5.x 는 DINOv3ViTModel 구조가 달라져
   `AttributeError: 'DINOv3ViTModel' object has no attribute 'layer'` 가 난다.
 
+### seed 변주와 채택본 등록 (2026-10-13~)
+
+얼굴 · 무늬 세부나 기하 결함(목 구멍 등)이 seed 마다 달라서, 외형 트랙은 확정 키프레임으로
+**seed 2~3판**을 따로 뽑고 사람이 고른다. 오케스트레이터 밖에서 돌린다:
+
+```bash
+micromamba run -n trellis2 python scripts/run_trellis2.py --image <키프레임 PNG> \
+    --out /workspace/data/03_trellis2/<샘플>_s<N> --name <샘플>_s<N> --seed <N>
+```
+
+- 같은 샘플에서 **이미 쓴 seed 와 겹치지 않게** 고른다 (`03_trellis2/*/params.json` 의 `seed`).
+- 판별은 `tools/review/render_diag.py` 의 정면 렌더(lit · flat, `--scale 3`)와 얼굴 · 무늬 확대를
+  키프레임과 나란히 놓고 한다. seed 를 바꿔도 세부 손실 정도는 같았다(10/13 listener 3판) —
+  seed 는 **기하 결함을 피하는 수단**이지 세부를 살리는 수단이 아니다.
+- **채택본 등록**: 채택한 `_s<N>` 폴더를 규약 경로 `03_trellis2/<샘플>/` 로 **복사**하고
+  GLB 를 `<샘플>.glb` 로 하나 더 둔다. 사유를 `ADOPTED.md` 에, 기각본에는 `REJECTED.md` 를 남긴다(지우지 않는다).
+  그다음 run 폴더의 `done/S3.done` 을 손으로 쓰고(`"note"` 에 수동 기록임을 적는다)
+  `orchestrate.py --name <샘플> --resume --keyframe <키프레임>` 으로 5-1 부터 잇는다.
+- 톤 매칭(`tools/review/tonematch.py`)은 **자동 적용하지 않는다** — 원본과 나란히 렌더해 사람이 고른다.
+
 ---
 
 ## 4. WHAM — 동작 복원 (S5)
@@ -313,6 +333,11 @@ pkl 이 있는 폴더에 `overlay.mp4` 가 생긴다. WHAM 내장 렌더러(3D �
   종료 코드 0 을 내는 것과 같은 계열이다** — 종료 코드도, 산출물 파일의 존재도 성공의 증거가
   아니다. 산출물의 **내용**을 본다. `run_wham.sh` 가 트랙 수 ≥ 1 을 검사하도록 고쳤다.
   원인은 대개 상류다: 마스크가 몸 전체를 담고 있는지 S2 로 돌아가 확인한다.
+- **트랙이 둘로 갈림 (gate_s5 불합격)** — WHAM 이 몇 프레임 추적을 놓치면 트랙이 둘이 된다.
+  공백이 3프레임 이하면 `run_wham.sh` 가 `stitch_wham_tracks.py` 로 이어 붙여
+  `wham_output_stitched.pkl` + `stitch.json` 을 남긴다(원본 pkl 은 그대로). 소비 측은
+  이어 붙인 pkl 을 먼저 쓴다. **맥북에서 이어 붙인 pkl 은 numpy 2 로 저장돼 Pod 의 `wham`
+  환경(numpy 1)에서 열리지 않는다** — Pod 에서 쓸 것은 Pod 에서 이어 붙인다.
 
 ---
 
@@ -499,6 +524,20 @@ python3 scripts/convert_wham_npz.py \
 - Unity 는 **Generic 리그**를 쓴다. rest 가 T포즈가 아니라 Humanoid 근육 변환이 성립하지 않는다.
 
 **확인 포인트** — Blender에서 재생해 **원본 영상과 같은 보행 패턴**이 나오는지 본다.
+
+**모션 트랙 — 다른 클립의 동작을 기존 리그에 굽기 (2026-10-12~).** 리그를 만든 클립이 아닌
+동작은 그 클립 안에서 기준 자세를 찾을 수 없으므로, 리그 옆의 기준 자세 기록을 준다:
+
+```bash
+python3 scripts/make_rest_pose.py --character <캐릭터> --sample <리그 샘플> --frame <키프레임>   # 1회
+OUTDIR=<결과 폴더> tools/review/bake_character.sh <리그 샘플> x <클립 id> …
+```
+
+`make_rest_pose.py` 가 `06_rig/<리그 샘플>/rest_pose.json` 과 캐릭터 포인터
+`06_rig/<캐릭터>/character.json` 을 쓴다(리그를 옮기지 않고 가리키기만 한다 — 바꾸기 전
+포인터는 `character_prev_<…>.json` 으로 남긴다). 루트 이동은 신장비(리그 T포즈 키 ÷ 클립 T포즈 키)로
+맞추므로 **클립마다 5-1 의 T포즈 메쉬가 있어야 한다.** "첫 프레임 가정"(모션 클립의 첫 프레임 =
+리그 클립의 첫 프레임 자세)이 틀어지면 루트 원점만 밀린다.
 
 ### 흔한 실패 (5단계 공통)
 - **Blender 5.2 사용** — 5.2의 FBX 임포터에 조명 객체 파싱 버그가 있다. **4.5 LTS**로 돈다.
