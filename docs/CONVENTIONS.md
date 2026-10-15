@@ -28,6 +28,19 @@ S번호를 추정하지 말 것. **S번호는 이 규약과 무관하게 바뀌�
 `04_wham` 은 WHAM 의 원출력이고 `06_rig` 는 그것을 가공한 결과다. 이 성격 구분에 따라
 `wham_pose.npz`(pose·trans 추출본, S6)는 `06_rig` 에 둔다.
 
+**2026-10-12~14 에 생긴 이름들.**
+
+| 경로 | 내용 |
+|---|---|
+| `00_raw/_refs_apose/` | 외형 전용 영상의 시작 프레임 레퍼런스. `<캐릭터>_apose_ref_<판>_<날짜>.png`(+ 원본 `.src.*`), 생성 스크립트가 찾는 고정 이름 `manor_<캐릭터>_01_v4_1116.png` 은 심볼릭 링크. 내력은 `README_record.json` |
+| `00_raw/_superseded/` | 다시 만들어 대체된 영상. 지우지 않고 옮기며 사유는 `MOVED.md` |
+| `00_raw/<캐릭터>_apose_<NN>` | 외형 트랙 영상(캐릭터당 대표 1편). 번호는 판마다 올린다 |
+| `03_trellis2/<샘플>_s<N>/` | seed `N` 변주판. 채택본은 `<샘플>/` 로 복사하고 `ADOPTED.md`, 기각본은 `REJECTED.md` |
+| `04_wham/<샘플>_masked/wham_output_stitched.pkl` · `stitch.json` | 트랙 이어붙이기 결과 (원본 pkl 옆) |
+| `06_rig/<캐릭터>/character.json` | 캐릭터 → 리그 샘플 포인터와 판정. 이전 포인터는 `character_prev_<…>.json` |
+| `06_rig/<리그 샘플>/rest_pose.json` | 모션 트랙 굽기의 기준 자세 |
+| `06_rig/<리그 샘플>/motions/<클립>/` | 다른 클립의 동작을 구운 `animated.blend` · `wham_pose.npz` |
+
 ### 구번호 대응표
 
 2026-09-03 이전에 작성된 기록·데이터의 번호는 아래로 읽는다.
