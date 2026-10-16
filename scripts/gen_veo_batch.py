@@ -78,6 +78,8 @@ REF_BY_PREFIX = {
     "player": "player_01.png",
     "lurker": "lurker_01.png",
     "oiler": "oiler_01.png",
+    # 2026-10-16 공통 동작(common_*) — walker 레퍼런스로 생성한다(표준 체형 · 추적 안정). 굽는 리그는 따로 정한다.
+    "common": "manor_walker_01_v4_1116.png",
 }
 
 # 엑셀 프롬프트는 웹 UI(10초) 용으로 쓰였다. API 는 1080p 에서 8초만 받으므로 길이 문구만
