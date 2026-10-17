@@ -1,6 +1,6 @@
 # 좀비 영상 → 유니티 아바타 파이프라인 — 진행 상황 정리
 
-작성일: 2026-08-11 (최종 갱신: 2026-10-12)
+작성일: 2026-08-11 (최종 갱신: 2026-10-17)
 레포: [Video2UnityAvatar-Pipeline](https://github.com/chaeee01/Video2UnityAvatar-Pipeline) — 초기 이름 `3DGS-Character-Generation-Pipeline`에서 개명. SuGaR(3DGS) 기반 복원을 설계에서 제외하면서 이름이 실제 구성과 어긋나 정리함.
 목표: 좀비 영상 한 편을 입력하면 SAM2로 객체를 분리하고, TRELLIS로 외형을, WHAM으로 동작을 복원한 뒤 유니티 에셋(아바타 + 애니메이션)으로 반입하는 파이프라인 구축.
 
@@ -78,7 +78,8 @@
 - 텍스처 입힌 좀비가 Mixamo 좀비 애니메이션으로 정상 동작 확인.
 - "외형 + 리깅 + 텍스처 + 동작"이 유니티에서 결합되는 전체 절차 검증 완료.
 
-### WHAM 동작의 유니티 반입 — 미해결 (유일한 미완 구간)
+### WHAM 동작의 유니티 반입 — Mixamo 리타게팅 경로 폐기, v4 로 해결
+- **현황 (2026-10-17)**: 아래 리타게팅 경로는 폐기했고 v4(SMPL 골격 직접 리깅, 4절)로 해결됐다 — 8/24 M1 Unity 재생, 10/17 게임팀이 납품 71편의 Unity 반입을 확인했다. 아래는 폐기 당시(8월) 기록이다.
 - pkl → FBX 변환 자체는 성공: Blender bpy 스크립트로 SMPL Unity FBX 템플릿에 동작을 구움. Blender에서 팔다리 동작 정상 재생 확인.
 - 실패 지점: SMPL 골격(24본) 동작을 Mixamo 골격(65본) 캐릭터로 옮기는 리타게팅. 세 가지 방식을 시도해 모두 실패.
 
@@ -851,6 +852,8 @@ WHAM betas(체형) + 키프레임 pose(자세) → 그 좀비와 같은 자세·
 
   > **모든 납품물은 Unity 반입이 검증되지 않았다.** Blender 로 다시 읽어 본 수 · 프레임 · fps · 텍스처 내장 여부를 확인한 것이 전부다. Unity 확인은 게임팀이 맡았다(10/14). 각 README 의 텍스처 연결 절차도 Unity 에서 직접 해 본 것이 아니라고 명시했다. 이 문서의 납품 관련 서술은 게임팀의 첫 반입 결과가 나오기 전까지 확정이 아니다.
 
+  > **해소 (10/17)**: 게임팀 회신으로 Unity 반입 성공을 확인했다 — 아래 2026-10-17 항목.
+
   **벌림각-변형 상충 가설 (검증 전).** 기준 자세의 위팔 벌림각을 키우면 메쉬에서 위팔과 옆구리가 떨어지지만, 동작에서 팔을 내릴 때 겨드랑이가 그만큼 늘어난다는 가설이다. 37°(stalker v2) 한 점이 통과했고 50° 이상(walker `apose_04`, listener `apose_04` · `apose_05`)이 팔 쪽에서 문제를 냈다. 캐릭터 · 의상 · 팔꿈치 굽힘이 함께 달라 벌림각만의 효과로 분리되지 않는다. 검증용으로 팔을 내린 v3 레퍼런스(walker · listener)로 외형 영상을 만들었다 — WHAM 실측 벌림각 walker 약 29°, listener 약 37°.
 
   **함께 고친 것.** `orchestrate.py --dry-run` 이 완료 마커 · 시도 기록을 쓰던 결함(10/13 Pod 에서 실제로 멈췄다)을 고쳤다(`b7511c1`). 검증 도구를 `tools/review/` 로 옮겼다(`feature/review-tools`, 10/13 결과 재현 시험 포함).
@@ -865,12 +868,43 @@ WHAM betas(체형) + 키프레임 pose(자세) → 그 좀비와 같은 자세·
 
   > **모든 납품물은 여전히 Unity 반입이 검증되지 않았다.** player 의 Humanoid 리타게팅 절차도 Unity 에서 해 보지 않았다. 게임팀의 첫 반입 결과 전까지 확정이 아니다.
 
+  > **해소 (10/17)**: Unity 반입 성공, player 는 게임 모델이 TRELLIS + Mixamo 리깅(Humanoid)이라 리타게팅 전제 성립 — 아래 2026-10-17 항목.
+
   **함께 고친 것**: `gen_veo_batch.py` 에 player · lurker · oiler 접두사(`feature/veo-batch`, 최소 수정), `tools/review` README 에 "레포 안에서 실행".
+
+- **2026-10-16 — player 추가 7편 · 체형별 멈춤 · 공통 동작 → 납품 67편**:
+
+  **player 기본 · 액션 7편** (`idle` · `walk` · `run` · `jump` · `throw` · `bat_hit` · `bat_swing`). Pod 에서 S2 · S5 모두 PASS(트랙 1개 · 192/192), player 리그 굽기에서 0.10 초과 엣지 7편 모두 0. `run` · `bat_hit` 은 프롬프트를 고친 v2 판이다. 일부 클립은 사용 구간을 주석으로 달았다.
+
+  **체형별 멈춤 · 경계 9편** — 8편 추적 통과. 납품 6편(walker `walk_stop` · `alert`, stalker `walk_stop` · `run_stop` · `alert`, listener `walk_stop`), 격리 3편(walker `run_stop` · listener `alert` · listener `run_stop`)은 각 리그의 알려진 한계(팔 드는 동작의 소매–옆구리, 깊은 숙임의 가랑이)를 재현했다.
+
+  **공통 동작 → stalker 10편** (돌기 3 · 부딪힘 3 · 두드리기 · `crawl_to_run` · `fall_start` · `crawl_loop`). **사람형 기는 자세는 WHAM 이 추적했다** — `common_crawl_to_run` 네발 구간까지 192/192 한 트랙. dog 6편 실측(네발 추적 실패)과 다른 결과로, 4족 추적 백로그를 닫는 근거가 됐다. crawl 3편은 5-1 없이 평균 신장 대체(±0.4%). 다른 캐릭터로의 확산은 게임팀 회신 대기.
+
+  **운영 사고 1건** — 남아 있던 백그라운드 rsync 가 검증을 마친 업로드 파일을 부분 파일로 덮어썼다. G0 가 잡았고(moov atom 없음), 부분 파일은 보존한 뒤 단일 프로세스 업로더 + 작업 직전 sha256 재대조로 절차를 바꿨다.
+
+- **2026-10-17 — run · roar 재작업 · 납품 71편 · 게임팀 반입 확인 · M2 종결**:
+
+  **run 전진감 재작업 (게임팀 피드백).** 원인은 프롬프트의 다리를 묶는 문구("knees barely bending" · "short strides" · "no airborne moment")였다 — 엉덩이 앞뒤 스윙이 stalker(38~41°)의 절반 이하였다. stalker 보폭 문구를 옮기고 팔은 낮게 두자 walker 19° → 42°, listener 16° → 60°, oiler 21° → 31°. roar 는 팔을 들지 않는 포효로 위팔 들림을 walker 43~109° → 30°, listener 85~89° → 38~39° 로 낮춰 두 리그의 겨드랑이 한계를 피했다. 납품: walker `run`(f120 이후 사용) · `roar`, listener `roar` · `run`(f24~66 가랑이 늘어남 주석 — 게임팀 판단 요청), oiler `run_fwd` 교체. listener run 은 3판 실측상 좁은 스탠스와 긴 보폭을 동시에 얻기 어려워 프롬프트 재시도를 끝냈다.
+
+  **player 외형 품질 상향 시험 — 여지 없음.** 텍스처 4096 + 무손실 저장, 면 수 10배로도 얼굴 선명도가 오르지 않았다(웹판 107 · 2048 89 · 4096 83). seed 무관 실측(10/13 · 10/15)과 같은 결론 — **세부 손실은 TRELLIS.2 생성 모델의 특성**이다. 부수 발견: `run_trellis2.py` 도 GLB 텍스처를 WebP 로 저장한다(`extension_webp=True`).
+
+  **납품 71편** — walker 9 · char_shuffle 1 · stalker 26 · listener 9 · lurker 4 · oiler 4 · player 14 · dog 4. 좀비 5종(walker · stalker · listener · lurker · oiler) 모두 run · roar 를 갖췄다.
+
+  **게임팀 회신 ① · ②** — ① Unity 반입 성공: 납품 문서의 "미검증" 을 "게임팀 반입 확인(10/17)" 으로 고쳤다. ② 게임 player 모델은 TRELLIS 외형 + Mixamo 리깅이라 Humanoid — player 클립의 Humanoid 리타게팅 전제가 성립한다. 남은 회신은 ③ 공통 동작 대상 캐릭터, ④ run · roar 재작업 의도 부합, ⑤ listener `run` 가랑이 허용.
+
+  **M2 · M3 판정.** **M2 는 종결**한다 — 핵심(원커맨드 E2E · 게이트 G0 · S2 · G1a · S5 · G2 · G2r · 환경 재현 1 · 2단)은 완료, G2 seed 재시도와 2트랙 배치는 수동 운용으로 대체, 게이트 3종(G1m · G3 · G4)은 재정의했다. **M3 는 생산 목표를 달성**했다(좀비 5종 + player 동작, Unity 반입 확인). 판정표와 게이트 재정의는 ROADMAP M2 체크리스트.
+
+  **게이트 재정의.** ① **G1m 흡수 종결** — 입력이 1인 · 고정 카메라 생성 영상이라 인원수 · 가림 위험이 낮고, 실제로 난 문제(부분 마스크 — listener 바지만 · walker 14%, 그 마스크로 인한 트랙 분할)를 계기로 10/12 `gate_s2` 부위 분포와 `gate_s5` 를 넣었고(`6591e10`), 이후 `gate_s5` 가 실전에서 dog 6편 · `listener_run_stop`(f74~84 공백)을 걸렀다. ② **G3 축소** — MPJPE 는 생성 영상에 3D 정답이 없어 정의대로는 구현할 수 없다. 재투영 PCK + 발 미끄러짐으로 줄이고, WHAM 산출물에 2D 키포인트가 남는지 확인하는 것이 전제다(구현은 백로그). ③ **G4 는 `tools/review/edge_stats.py` 기반** — 이 기간의 실제 불합격은 겨드랑이 · 가랑이 늘어남이었고 그 측정이 이미 있다. 다음 실작업 후보.
 
 ## 9. 다음 단계 (우선순위)
 
-1. **SMPL 리깅 1단계**: betas + pose → SMPL 메쉬 생성 스크립트 (smplx 패키지, 맥북)
-2. 2단계: TRELLIS 메쉬와 정렬 (ICP/바운딩박스)
-3. 3단계: 웨이트 전이 (bpy Data Transfer) → WHAM 동작 직접 재생 검증
-4. 병행: SAM2 RunPod 이전(Colab → 볼륨 설치), 기준 미달인 테스트 영상을 조건 충족 클립으로 교체
-5. 이후: TRELLIS 로컬 설치, 게이트 연결, 오케스트레이터 가동, Dockerfile 고정
+2026-10-17 기준. 이전 목록(8월, SMPL 리깅 1~3단계 · SAM2 이전 · TRELLIS 로컬 설치 · 게이트 · 오케스트레이터)은 모두 끝났다.
+
+1. **웨이트 수리** — 겨드랑이(팔 드는 roar · attack 류), 가랑이(listener `run` f24~66, oiler 배–허벅지 막), 허리 경계(치마형 의상 R_Hip–Spine3 · Spine1–Spine3). 게임팀 회신 ⑤ 에 따라 listener `run` 재굽기 포함.
+2. **EH-211 T포즈 rest 통일** — 기존 3캐릭터(walker · stalker · listener). 캐릭터 간 모션 공유(회신 ③ 공통 동작 확산)의 전제.
+3. **gate_s2 보강** — 실루엣-마스크 면적 차 점검, 실루엣과 독립된 좌우 팔 점검.
+4. **Docker 이미지화** (EH-229) — GitHub Actions 경로.
+
+**다음 실작업 후보: G4 — `edge_stats` 기반 게이트.** 위 1번 웨이트 수리의 효과를 재는 자로도 쓴다.
+
+백로그: G3 축소판(WHAM 2D 키포인트 확인 선행), README 자동화 사용법, G2 seed 재시도 실전 검증, 2트랙 배치 래퍼.
