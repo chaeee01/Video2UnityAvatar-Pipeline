@@ -8,6 +8,12 @@ SMPL 리깅 3단계-③ (v3): SMPL 웨이트를 TRELLIS 메쉬로 2단계 전이
       정점에서 복사. 공간상 가깝지만 천으로는 떨어진 부위(자락-소매)로
       웨이트가 건너뛰는 오배정을 방지. 엣지로 도달 불가한 고립 조각만
       직선거리 폴백.
+      --bfs-weld on 이면 BFS 가 UV 이음매(같은 좌표 정점)를 넘는다 — 2026-10-21 추가,
+      근거는 seam_smooth.py 독스트링. **기본값은 off 다** — 2026-10-21 listener_apose_06 실측:
+      폴백은 11.64% → 0.66%(빌린 거리 최대 0.120 → 0.040)로 정합성은 좋아졌지만 늘어남이
+      오히려 늘었다. 04b 0.10 초과 579 → 610, run · run_slow 의 겨드랑이 266 · 257 → 394 · 385,
+      ⑤ 팔–하부몸통 1,048 → 1,159. 이음매 너머의 딱 잘린 웨이트를 그대로 복사해 겨드랑이 경계가
+      나빠진 것으로 본다. 켜려면 새 실측이 필요하다(기록: review_1021/02_wfix).
 
   /Applications/Blender4.5.app/Contents/MacOS/Blender --background \
       --python transfer_weights.py -- \
@@ -26,6 +32,7 @@ from mathutils import kdtree
 # Blender 는 --python 스크립트의 폴더를 sys.path 에 넣지 않는다.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from part_islands import ISLAND_MAX_RATIO, find_islands, limb_conflict, region_of  # noqa: E402,F401
+from seam_smooth import coincident_pairs  # noqa: E402
 
 
 def parse_args():
@@ -39,6 +46,9 @@ def parse_args():
     ap.add_argument("--part-constraint", choices=["on", "off"], default="on",
                     help="부위 제약 (기본 on). off 는 2026-10-12 이전 동작 재현용 — "
                          "근거는 part_constraint() 독스트링")
+    ap.add_argument("--bfs-weld", choices=["on", "off"], default="off",
+                    help="2차 BFS 전파가 UV 이음매(같은 좌표 정점)를 넘게 한다. 기본 off — "
+                         "2026-10-21 실측에서 폴백은 줄었으나 겨드랑이 늘어남이 늘었다(모듈 독스트링)")
     return ap.parse_args(argv)
 
 
@@ -357,6 +367,12 @@ def main():
             va, vb = e.vertices
             adj[va].append(vb)
             adj[vb].append(va)
+        if a.bfs_weld == "on":
+            welds = coincident_pairs([tuple(v.co) for v in me.vertices])
+            for va, vb in welds:
+                adj[va].append(vb)
+                adj[vb].append(va)
+            print(f"  이음매 용접: 가상 엣지 {len(welds)}")
 
         src = dict.fromkeys(weights.keys())
         for vi in weights:
@@ -437,6 +453,7 @@ def main():
         "target_mesh": trellis.name,
         "vertices": n_verts,
         "max_dist": a.max_dist,          # 정렬 공간 단위 (미터 아님)
+        "bfs_weld": a.bfs_weld,
         "transfer": {
             "direct":     {"verts": n_direct,   "pct": pct(n_direct)},
             "bfs":        {"verts": filled_topo, "pct": pct(filled_topo)},
