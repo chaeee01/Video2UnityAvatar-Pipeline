@@ -488,6 +488,51 @@ SMPL 몸체의 웨이트를 TRELLIS 메쉬로 옮긴다. 1차는 **0.08 안쪽�
 - 로그의 "엣지로 도달 불가(고립 조각) N개"는 물리적 고립 섬이 아닐 수 있다. glTF 임포트는 UV 심에서
   정점을 분리하므로 표면상 이어진 곳도 별개 조각으로 보인다 (zombie1: 연결 요소 148개였지만 거리
   병합 시 1개). 비율이 크면 그때 실제 고립 여부를 따진다.
+- `--bfs-weld on` 은 2차 전파가 UV 이음매를 넘게 한다(2026-10-21). 폴백은 크게 줄지만(listener
+  11.64% → 0.66%) 같은 날 실측에서 겨드랑이 늘어남이 늘어 **기본값은 off** 다. 근거는
+  `transfer_weights.py` 독스트링.
+
+### 5-4b. 경계 스무딩 (맥북, 선택 — 2026-10-21~)
+
+```bash
+# 가랑이 → 겨드랑이 순서로 두 번 돌린다 (listener_apose_06_wfix 의 값)
+/Applications/Blender4.5.app/Contents/MacOS/Blender --background \
+    --python scripts/smooth_seams.py -- \
+    --blend ~/data/06_rig/<샘플>/transferred.blend --out <중간>.blend \
+    --pairs L_Hip:R_Hip --rings 10 --iters 40
+/Applications/Blender4.5.app/Contents/MacOS/Blender --background \
+    --python scripts/smooth_seams.py -- \
+    --blend <중간>.blend --out ~/data/06_rig/<샘플>_wfix/transferred.blend \
+    --pairs L_Shoulder:Spine1,L_Shoulder:Spine2,R_Shoulder:Spine1,R_Shoulder:Spine2 \
+    --rings 20 --iters 160
+```
+
+5-4 의 웨이트는 정점마다 가장 가까운 SMPL 표면에서 오므로, 다리 사이 천 · 옆구리에 붙은 소매처럼
+**두 본 사이에 걸친 메쉬**에서 "한 정점은 왼다리만, 옆 정점은 오른다리만" 따르는 딱 잘린 경계가
+생긴다. 다리가 벌어지거나 팔을 흔들면 그 한 줄이 찢어지듯 늘어난다. 이 단계는 **지정한 본 쌍의
+경계에서 N 겹 안의 정점만** 이웃 평균으로 웨이트를 고르게 해, 벌어짐을 띠 전체가 나눠 받게 한다.
+띠 밖의 웨이트는 한 정점도 바뀌지 않는다. 순수 로직은 `scripts/seam_smooth.py`.
+
+**본 쌍 · 겹 수 · 반복 수는 캐릭터별 튜닝값이다.** 오케스트레이터에는 아직 넣지 않았다(설정 파일
+설계가 필요 — 백로그). 원래 리그 폴더는 그대로 두고 `<샘플>_wfix` 같은 새 폴더에 만든 뒤
+`06_rig/<캐릭터>/character.json` 포인터를 바꾼다(이전 포인터는 `character_prev_<리그>_<날짜>.json`).
+
+**실측 (listener_apose_06, 2026-10-21)** — 늘어난 엣지 = rest 길이 4배 초과이면서 0.05/0.10 초과,
+본 쌍은 원래 리그의 지배 본으로 고정해 같은 엣지를 비교했다.
+
+| | 바꾼 것 | 결과 |
+|---|---|---|
+| 가랑이 10겹 · 40회 | 띠 24,695정점 | `run_04b` 가랑이 0.10 초과 471(f34) → 0, 전체 579 → 72, 최장 0.179 → 0.119 |
+| + 겨드랑이 20겹 · 160회 | 띠 46,059정점 | `run` · `run_slow` 왼쪽 겨드랑이 0.10 초과 266 · 257 → 0, 0.05 초과 1,044 · 812 → 125 · 72 |
+| 회귀 (납품 10편) | — | 0.10 초과가 는 클립 0편. 대기 · 걷기는 0.05 초과 0~47 → 0 |
+| 겨드랑이 10겹 (비교) | 띠 19,831 | 수치는 20겹과 같으나 소매 옆 조각이 남음 → 20겹 채택 |
+
+**확인 포인트**
+- 로그의 **"경계 씨앗 N · 띠 M"**. 씨앗이 0 이면 본 이름이 틀렸거나 고칠 경계가 없는 것이다(오류로 멈춘다).
+- 결과 옆 `<out>_smooth_params.json` 의 `rig_check` 로 G2r 를 다시 돌린다(⑤ 가 줄어야 정상 —
+  listener 1,048 → 880).
+- **겹 수를 키울 때는 부작용을 같이 본다** — 띠가 넓을수록 소매 · 옆구리 정점이 원래 위치에서 더 벗어난다
+  (listener 겨드랑이 10겹 → 20겹: 소매 정점 이동 p95 0.004 → 0.016). 전신 재생 영상으로 소매 처짐을 본다.
 
 ### 5-5. WHAM 동작 베이킹 (맥북)
 
@@ -900,5 +945,6 @@ python /workspace/repos/Video2UnityAvatar-Pipeline/scripts/run_trellis.py \
 | 5-2. 정렬 | GLB + obj | `aligned.blend` | 맥북 |
 | 5-3. 아마추어 | `aligned.blend` + joints | `rigged.blend` | 맥북 |
 | 5-4. 웨이트 | `rigged.blend` | `transferred.blend` | 맥북 |
+| 5-4b. 경계 스무딩 (선택) | `transferred.blend` | `<샘플>_wfix/transferred.blend` + `_smooth_params.json` | 맥북 |
 | 5-5. 베이킹 | `transferred.blend` + npz | `animated.blend` | 맥북 |
 | 6. Unity | `animated.blend` | `zombie_wham.fbx` | 맥북 |
