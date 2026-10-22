@@ -2,6 +2,8 @@
 # 캐릭터 리그에 동작 클립들을 굽고(늘어난 엣지 덤프 + 원본 대조 영상) 한 줄씩 요약한다.
 #   OUTDIR=<결과 폴더> bake_character.sh <리그 샘플> x <클립 id ...>     (둘째 인자는 쓰지 않는다)
 #   리그 폴더에 rest_pose.json(make_rest_pose.py)이 있어야 한다. 데이터 루트는 $PIPELINE_VOL/data (기본 ~/data).
+#   G4 게이트(scripts/gate_g4.py)를 클립마다 돌려 $OUTDIR/g4/ 에 남긴다. 클립 역할표는 G4_ROLES=<clip_roles.json>
+#   (없으면 역할 미지정으로 판정 — run 이름 클립은 CHECK). 모아 보기: tools/review/g4_report.py $OUTDIR/g4
 set -u; RIGN=$1; CH=$2; shift 2
 T=$(cd "$(dirname "$0")" && pwd); S=$T/../../scripts; B=${BLENDER:-/Applications/Blender4.5.app/Contents/MacOS/Blender}
 D=${PIPELINE_VOL:-$HOME}/data; RIG=$D/06_rig/$RIGN
@@ -17,6 +19,7 @@ ys=[float(l.split()[2]) for l in open('$D/05_smpl_mesh/$c/smpl_tpose.obj') if l.
   $B --background --python $S/apply_wham_pose.py -- --blend $RIG/transferred.blend --npz $M/wham_pose.npz --ref-pose $RIG/rest_pose.json --height-ratio $r --action-name $c --out $M/animated.blend > $M/bake.log 2>&1
   [ -f $M/animated.blend ] || { echo "FAIL bake $c"; continue; }
   $B --background --python $T/dump2.py -- $M/animated.blend $OUT/_dump/L_${RIGN}_$c 2 0 > /dev/null 2>&1
+  $B --background --python $S/gate_g4.py -- --blend $M/animated.blend --clip $c ${G4_ROLES:+--roles $G4_ROLES} --out $OUT/g4 2>&1 | grep "^G4 " || echo "FAIL g4 $c"
   $B --background --python $S/render_playback.py -- --blend $M/animated.blend --out $M/_playback > $M/render.log 2>&1
   V=$(ls $D/00_raw/${c}__*.mp4 $D/00_raw/$(echo $c | sed -E "s/_(mp|s2new)$//")__*.mp4 2>/dev/null | head -1)
   ffmpeg -y -loglevel error -i $V -framerate 24 -i $M/_playback/%04d.png -filter_complex "[0:v]scale=540:960,setsar=1[a];[1:v]scale=540:960,setsar=1[b];[a][b]hstack=inputs=2" -c:v libx264 -pix_fmt yuv420p -crf 18 -an $OUT/${c}_original_vs_rig.mp4 || echo "FAIL ffmpeg $c"

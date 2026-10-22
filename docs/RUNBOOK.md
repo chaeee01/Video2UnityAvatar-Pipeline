@@ -676,6 +676,39 @@ G2r 의 ①~④ 는 `--transferred <06_rig/샘플/transferred_params.json>` 을 
 
 ---
 
+## 5.6. G4 — 클립 품질 게이트 (5-5 뒤, 2026-10-22~)
+
+5-5 로 구운 클립마다 **늘어남** 과 **발 쓸기** 를 재서 PASS / CHECK / FAIL / ACCEPTED 를 낸다. 판정 규칙은
+`scripts/g4_rules.py`(bpy 없음, `tests/test_g4_rules.py`), 측정은 `scripts/gate_g4.py`. 다른 게이트와 달리
+**종료 코드는 판정과 무관하게 0** 이다(측정 실패만 1) — CHECK 는 사람이 보고 수용 여부를 정한다.
+
+```bash
+/Applications/Blender4.5.app/Contents/MacOS/Blender --background --python scripts/gate_g4.py -- \
+    --blend ~/data/06_rig/<리그>/motions/<클립>/animated.blend --clip <납품 이름> \
+    --roles ~/data/06_rig/<캐릭터>/clip_roles.json --out <판정폴더>
+python3 tools/review/g4_report.py <판정폴더>          # 표 + 판정별 개수
+# bake_character.sh 는 굽고 나서 자동으로 돈다 — G4_ROLES=<clip_roles.json> 로 역할표를 넘긴다
+```
+
+| 항목 | 측정 | 판정 |
+|---|---|---|
+| 늘어남 | rest 대비 4배 넘고 0.10 넘는 엣지 수(프레임별 최대) · 최장 | PASS: ≤ 10 그리고 ≤ 0.11 / 그 밖 CHECK |
+| 발 쓸기 | 접지한 발의 골반 기준 전방 속도 중앙값(H/초), **나쁜 발** 기준 | move 클립만: PASS ≤ −0.45 / CHECK ~ −0.20 / FAIL > −0.20 |
+
+- **클립 역할표** `06_rig/<캐릭터>/clip_roles.json` — 클립(납품 이름)마다 `role`(move 이동용 / inplace 제자리
+  연출용), `source`(굽기 폴더 이름), `accepted`(수용 기록). 역할이 없는데 이름에 `run` 이 있으면 CHECK.
+- **수용 기록** — 사람이 받아들인 CHECK/FAIL 은 `accepted` 에 `gate`(edges/sweep) · 사유 · 날짜 · 그때 수치를
+  적는다. 다시 돌려 수치가 나빠지지 않았으면 ACCEPTED, 나빠졌으면 원래 판정.
+- **기준치 근거 (2026-10-22, 납품 86편 — dog 제외)**: 웨이트 수리 뒤 77편이 0.10 초과 0. 문제 삼지 않은
+  stalker `run_03`(6, 0.105) · listener `run_stop`(1, 0.100) 은 통과, 격리 이력 최소값(74)과 주석 수용 클립
+  (24~416)은 CHECK. 발 쓸기는 stalker `run_fwd` −0.80 · listener `run_slow` −0.469 통과, 게임에서 미끄러진
+  listener 04b(−0.003) 불합격.
+- **역검증 (86편)**: PASS 78 · ACCEPTED 8 · CHECK 0 · FAIL 0. ACCEPTED = 늘어남 7(oiler 가랑이 3 · player
+  가랑이 2 · stalker 기기 무릎 2) + 발 쓸기 2(walker `run` −0.202, oiler `run_fwd` −0.13 — 실결함, 미끄러짐
+  피드백 시 재작업 1순위), oiler `run_fwd` 는 둘 다.
+- **G2r ⑤ 와의 관계** — ⑤ 는 리그당 한 번, 정지 상태의 부위 경계를 본다. G4 는 클립마다 동작 중의 늘어남을
+  본다. ⑤ 가 0 이어도 동작에서 늘어날 수 있다(walker 수리 전).
+
 ## 6. Unity 반입 (S7)
 
 ```bash
@@ -949,4 +982,5 @@ python /workspace/repos/Video2UnityAvatar-Pipeline/scripts/run_trellis.py \
 | 5-4. 웨이트 | `rigged.blend` | `transferred.blend` | 맥북 |
 | 5-4b. 경계 스무딩 (선택) | `transferred.blend` | `<샘플>_wfix/transferred.blend` + `_smooth_params.json` | 맥북 |
 | 5-5. 베이킹 | `transferred.blend` + npz | `animated.blend` | 맥북 |
+| 5.6. G4 | `animated.blend` + `clip_roles.json` | `g4_<클립>.json` | 맥북 |
 | 6. Unity | `animated.blend` | `zombie_wham.fbx` | 맥북 |
