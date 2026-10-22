@@ -4,8 +4,9 @@
 
 | 파일 | 하는 일 | 실행 |
 |---|---|---|
-| `bake_character.sh` | 캐릭터 리그에 동작 여러 편을 굽고, 늘어난 엣지 덤프와 원본 대조 영상을 만든다 | `OUTDIR=<폴더> bake_character.sh <리그 샘플> x <클립 id> …` |
+| `bake_character.sh` | 캐릭터 리그에 동작 여러 편을 굽고, 늘어난 엣지 덤프 · G4 판정(`G4_ROLES=` 로 역할표) · 원본 대조 영상을 만든다 | `OUTDIR=<폴더> bake_character.sh <리그 샘플> x <클립 id> …` |
 | `dump2.py` | 프레임별 늘어난 엣지(rest 의 4배↑, 길이 0.05 · 0.10 초과)와 본 쌍 | `Blender --background --python dump2.py -- <animated.blend> <출력 접두사> <프레임 간격> <0\|1>` |
+| `g4_report.py` | `scripts/gate_g4.py` 가 낸 `g4_<클립>.json` 들을 표 하나로 (판정별 개수 포함) | `python3 g4_report.py <폴더> …` |
 | `edge_stats.py` | `dump2.py` JSON → 클립별 다리 쪽 · 팔 쪽 · 전체 엣지 요약 (리그 비교표) | `python3 edge_stats.py <접두사>.json …` |
 | `legspread.py` | 구운 리그에서 좌우 허벅지 사이 각 · 발목 간격(키 대비) | `Blender --background --python legspread.py -- <기준자세 animated.blend> <클립 animated.blend> …` → 표준출력 `LEG[…]` |
 | `dump.py` · `analyze.py` | 겨드랑이 단면(위팔 축 수직 띠) · 정지 상태 위팔–하부몸통 엣지. `analyze.py` 는 `dump.py … 1` 이 낸 npz 를 읽는다 | `Blender --background --python dump.py -- <blend> <접두사> <간격> 1` → `python3 analyze.py <접두사>` |
