@@ -1,6 +1,6 @@
 # 좀비 영상 → 유니티 아바타 파이프라인 — 진행 상황 정리
 
-작성일: 2026-08-11 (최종 갱신: 2026-10-21)
+작성일: 2026-08-11 (최종 갱신: 2026-10-22)
 레포: [Video2UnityAvatar-Pipeline](https://github.com/chaeee01/Video2UnityAvatar-Pipeline) — 초기 이름 `3DGS-Character-Generation-Pipeline`에서 개명. SuGaR(3DGS) 기반 복원을 설계에서 제외하면서 이름이 실제 구성과 어긋나 정리함.
 목표: 좀비 영상 한 편을 입력하면 SAM2로 객체를 분리하고, TRELLIS로 외형을, WHAM으로 동작을 복원한 뒤 유니티 에셋(아바타 + 애니메이션)으로 반입하는 파이프라인 구축.
 
@@ -920,11 +920,23 @@ WHAM betas(체형) + 키프레임 pose(자세) → 그 좀비와 같은 자세·
 
   **함께 남긴 것**: 오케스트레이터 자동 통합은 백로그 — 본 쌍 · 겹 수가 캐릭터별 튜닝값이라 설정 파일 설계가 먼저다. RUNBOOK 5-4b 절.
 
+  **가슴 3차 · 구제 납품 (같은 날).** 남은 attack 의 늘어남(좌우 Collar · Collar–Spine1)에 Collar 세 쌍 10겹 · 40회를 더해 `06_rig/listener_apose_06_wfixc` 로 다시 교체했다(이전 `_wfix` 보존). attack 0.10 초과 239 → 0, roar_02 27 → 0, 18편 회귀 증가 0, 목 · 머리 정점 이동 p95 0. 격리 9편을 모두 구제 납품해 listener 19편(납품 81편) — 달리기 4편(`run_b` · `run_c` · `run_d` · `run_stop`)은 발 쓸기가 약 0 이라 "제자리 연출용" 으로 주석.
+
+  **walker ⑤ 기록 불일치.** `06_rig/walker_walk_02/transferred_params.json` 의 ⑤(팔–하부몸통)는 0 인데, 같은 메쉬를 다시 재면 위팔–Spine1 경계 엣지가 좌 509 · 우 452 있다. 10/12 에 ⑤ 정의에 위팔(Shoulder)을 넣기 전에 계산된 값일 가능성이 있으나 확인하지 않았다.
+
+- **2026-10-22 — walker 웨이트 수리 · 리그 교체 · 구제 9편 · 납품 90편**:
+
+  listener 와 같은 5-4b 를 walker(`walker_walk_02`, f138)에 적용했다 — 가랑이 10겹 · 40회 + 겨드랑이 네 쌍 20겹 · 160회(`06_rig/walker_walk_02_wfix`, 이전 리그 보존, G2r PASS). 비교판(겨드랑이만)과 18편(납품 9 + 격리 9)을 같은 자로 재 보니 **0.10 초과가 두 판 모두 18편 전부 0**(이전 최대 idle_03 946, roar_02 357)이고, 가랑이를 더한 판은 0.05 초과까지 18편 전부 0 이라 그쪽을 채택했다. 부작용(소매 · 옆구리 정점 이동 p95)은 0.002~0.010. roar_02 에서 들어 올린 팔 아래의 옆구리 막이 사라졌다.
+
+  격리 9편을 모두 구제 납품했다(`roar_arms` 계열 · `idle_lurch` · `attack` · `run_b` · `run_c` · `run_d` · `run_stop`). 달리기 4편은 발 쓸기가 약 0 이라 "제자리 연출용" 으로 주석했다. 기존 walker `run` 의 "f120 이후 사용" 제한은 해소됐다(0.10 초과 278 → 0). `walker.fbx` · `listener.fbx` 를 수리판으로 바꿔 `deliverable_20261022.zip`(90편) — 이전 캐릭터 FBX 는 `deliverable_archive/charfbx_prewfix_20261022/`.
+
+  참고: 납품 중인 walker `run` 의 발 쓸기는 −0.27 / −0.36 H/s 로 stalker `run_fwd`(−0.8)의 약 40% 다. listener `run` 미끄러짐과 같은 지적이 나올 수 있다.
+
 ## 9. 다음 단계 (우선순위)
 
 2026-10-21 기준. 이전 목록(8월, SMPL 리깅 1~3단계 · SAM2 이전 · TRELLIS 로컬 설치 · 게이트 · 오케스트레이터)은 모두 끝났다.
 
-1. **웨이트 수리** — listener 는 10/21 완료(가랑이 · 겨드랑이 경계 스무딩, 리그 교체). 남은 것: walker(소매–옆구리, 설계 보고 후), oiler 배–허벅지 막, listener 가슴(attack · roar_02 의 Collar), 허리 경계(치마형 의상).
+1. ~~**웨이트 수리**~~ — **완료(10/22)**: listener(가랑이 · 겨드랑이 · 가슴) · walker(가랑이 · 겨드랑이). 남은 소건은 oiler 배–허벅지 막(필요 시 같은 5-4b).
 2. **EH-211 T포즈 rest 통일** — 기존 3캐릭터(walker · stalker · listener). 캐릭터 간 모션 공유(회신 ③ 공통 동작 확산)의 전제.
 3. **gate_s2 보강** — 실루엣-마스크 면적 차 점검, 실루엣과 독립된 좌우 팔 점검.
 4. **Docker 이미지화** (EH-229) — GitHub Actions 경로.
