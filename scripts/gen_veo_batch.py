@@ -64,7 +64,13 @@ from orchestrate import probe_input  # G0 기준을 한 곳에 둔다  # noqa: E
 
 REPO = Path(__file__).resolve().parent.parent
 
-MODELS = {"std": "veo-3.1-generate-preview", "fast": "veo-3.1-fast-generate-preview"}
+MODELS = {"std": "veo-3.1-generate-preview", "fast": "veo-3.1-fast-generate-preview",
+          # 2026-10-23 추가. Veo 3.1 Preview 는 Gemini API 에서 2026-10-22 에 종료됐다(공식 폐기 문서의 권고 대체).
+          # Interactions API(REST)로 부른다 — 설치된 google-genai 1.47.0 에는 interactions 가 없다.
+          # 길이 파라미터가 없고(문서 미기재), 이미지 1장은 "모델이 쓰임을 정한다" — 시작 프레임 고정은
+          # 프롬프트 문구("use the image as the starting frame")에 기댄다. first_frame 방식만 받는다.
+          "omni": "gemini-omni-1.1-flash"}
+OMNI_URL = "https://generativelanguage.googleapis.com/v1beta/interactions"
 MODE_TAG = {"first_frame": "ff", "reference": "ref"}
 
 # id 접두사 → 레퍼런스 파일. 엑셀의 ref_image 열이 비어 있어 여기서 정한다.
@@ -260,6 +266,11 @@ def prepare_refs(jobs):
 
 
 def request_config(args, job):
+    if args.model == "omni":
+        # Omni 는 길이 · 인물 생성 설정이 없다. 기록 표의 칸을 맞추려고 None 으로 둔다.
+        return {"aspect_ratio": job["aspect_ratio"], "resolution": args.resolution,
+                "duration_seconds": None, "person_generation": None, "number_of_videos": 1,
+                "task": "image_to_video"}
     return {"aspect_ratio": job["aspect_ratio"], "resolution": args.resolution,
             "duration_seconds": args.duration, "person_generation": "allow_adult",
             "number_of_videos": 1}
@@ -295,8 +306,97 @@ def probe(mp4):
     return m
 
 
+class _HTTPErr(Exception):
+    def __init__(self, code, status, message):
+        super().__init__(message)
+        self.code, self.status, self.message = code, status, message
+
+
+def attempt_omni(args, job, cfg):
+    """Omni(Interactions API) 생성 1회 — REST 동기 호출. (기록 dict, 재시도해도 되는가).
+
+    요청을 보낸 뒤의 시간 초과 · 응답 해석 실패는 재시도하지 않는다(서버에서 완성돼 과금됐을 수 있다).
+    """
+    import base64
+    import urllib.error
+    import urllib.request
+    a = {"started": time.strftime("%Y-%m-%d %H:%M:%S"), "operation": None, "waits_429": 0}
+    body = {
+        "model": MODELS["omni"],
+        "input": [{"type": "image", "data": base64.b64encode(job["ref"].read_bytes()).decode(), "mime_type": "image/png"},
+                  {"type": "text", "text": job["prompt"]}],
+        "response_format": {"type": "video", "aspect_ratio": cfg["aspect_ratio"], "resolution": cfg["resolution"]},
+        "generation_config": {"video_config": {"task": cfg["task"]}},
+        "background": False, "store": False, "stream": False,
+    }
+    data = json.dumps(body).encode()
+    t0 = time.time()
+    wait = 60
+    while True:
+        req = urllib.request.Request(OMNI_URL, data=data, method="POST",
+                                     headers={"Content-Type": "application/json", "x-goog-api-key": _KEY})
+        try:
+            with urllib.request.urlopen(req, timeout=args.timeout) as r:
+                raw = r.read()
+            break
+        except urllib.error.HTTPError as e:
+            args.budget.give_back()
+            try:
+                err = json.loads(e.read().decode()).get("error", {})
+            except Exception:
+                err = {}
+            he = _HTTPErr(e.code, err.get("status", "?"), err.get("message", str(e)))
+            text = api_error_text(he)
+            if is_quota(he):
+                raise QuotaStop(text)
+            if is_fatal(he):
+                raise Fatal(text)
+            if e.code == 429 and a["waits_429"] < args.max_429_waits:
+                a["waits_429"] += 1
+                log(f"  [{job['stem']}] 429 — {wait}s 대기 ({a['waits_429']}/{args.max_429_waits}): {text[:200]}")
+                time.sleep(wait)
+                wait = min(wait * 2, 480)
+                args.budget.take()
+                continue
+            blocked = any(w in text.lower() for w in SAFETY_WORDS)
+            a.update(status="blocked" if blocked else "error", message=text)
+            return a, (e.code not in (400,) and not blocked)
+        except Exception as e:  # 시간 초과 · 연결 끊김 — 서버에서는 생성됐을 수 있다
+            a.update(status="error", message=f"요청 뒤 응답을 받지 못함(재시도 안 함): {scrub(e)}")
+            return a, False
+    a["generate_s"] = round(time.time() - t0, 1)
+    try:
+        resp = json.loads(raw.decode())
+    except Exception as e:
+        a.update(status="error", message=f"응답 JSON 해석 실패(재시도 안 함): {scrub(e)}")
+        return a, False
+    a["operation"] = resp.get("id") or resp.get("name")
+    vids, meta = [], []
+    for st in resp.get("steps", []) or []:
+        for c in st.get("content", []) or []:
+            if c.get("type") == "video":
+                vids.append(c)
+            meta.append({k: (v if k != "data" else f"<{len(v)} b64>") for k, v in c.items()})
+    a["response_meta"] = {"keys": sorted(resp.keys()), "content": meta[:10], "usage": resp.get("usage") or resp.get("usage_metadata")}
+    if not vids or not vids[0].get("data"):
+        msg = json.dumps(a["response_meta"], ensure_ascii=False)[:800]
+        blocked = any(w in msg.lower() for w in SAFETY_WORDS)
+        a.update(status="blocked" if blocked else "error", message=f"응답에 영상 데이터가 없다(재시도 안 함): {msg}")
+        return a, False
+    t1 = time.time()
+    tmp = job["mp4"].with_name(job["mp4"].name + ".part")
+    tmp.write_bytes(base64.b64decode(vids[0]["data"]))
+    if job["mp4"].exists():
+        raise Fatal(f"{job['mp4']} 가 생성 도중 생겼다 — 덮어쓰지 않는다. 받은 파일은 {tmp}")
+    os.replace(tmp, job["mp4"])
+    a.update(status="success", download_s=round(time.time() - t1, 1), mime_type=vids[0].get("mime_type"))
+    return a, False
+
+
 def attempt(client, types, errors, args, job, cfg):
     """생성 1회. (기록 dict, 재시도해도 되는가) 를 돌려준다."""
+    if args.model == "omni":
+        return attempt_omni(args, job, cfg)
     a = {"started": time.strftime("%Y-%m-%d %H:%M:%S"), "operation": None, "waits_429": 0}
     image = types.Image.from_file(location=str(job["ref"]))
     kw = dict(cfg)
@@ -464,7 +564,8 @@ def print_plan(args, jobs):
         print(f"레퍼런스: {src}")
     for j in jobs:
         c = request_config(args, j)
-        how = "image" if args.mode == "first_frame" else "referenceImages[asset] x1"
+        how = ("input[image]+text (Interactions API)" if args.model == "omni"
+               else "image" if args.mode == "first_frame" else "referenceImages[asset] x1")
         print(f"| {j['mp4'].name} | {MODELS[args.model]} | {args.mode} | {how} | {c['aspect_ratio']} "
               f"| {c['resolution']} | {c['duration_seconds']} | {c['person_generation']} "
               f"| {j['ref'].name} ({j['ref_size'][0]}x{j['ref_size'][1]}) | {len(j['prompt'])} "
@@ -497,7 +598,7 @@ def main():
     ap.add_argument("--xlsx", type=Path, required=True, help="프롬프트 엑셀 (시트 prompts)")
     ap.add_argument("--refs", type=Path, required=True, help="레퍼런스 이미지 폴더")
     ap.add_argument("--out", type=Path, default=Path("~/data/00_raw"), help="출력 폴더 (기본 ~/data/00_raw)")
-    ap.add_argument("--model", choices=sorted(MODELS), help="std=Veo 3.1, fast=Veo 3.1 Fast (생성 시 필수)")
+    ap.add_argument("--model", choices=sorted(MODELS), help="std=Veo 3.1, fast=Veo 3.1 Fast (2026-10-22 종료), omni=Gemini Omni Flash (생성 시 필수)")
     ap.add_argument("--mode", choices=sorted(MODE_TAG), default="first_frame",
                     help="first_frame=레퍼런스를 시작 프레임으로, reference=참조 이미지로")
     ap.add_argument("--ids", help="쉼표로 구분한 id. 생략하면 엑셀 전체")
@@ -523,6 +624,8 @@ def main():
             ap.error("--model 이 필요하다")
         if args.daily_cap is not None and args.daily_cap < 1:
             ap.error("--daily-cap 은 1 이상이어야 한다")
+        if args.model == "omni" and args.mode != "first_frame":
+            ap.error("--model omni 는 --mode first_frame 만 된다")
         if args.duration != 8 and (args.resolution == "1080p" or args.mode == "reference"):
             ap.error("1080p 와 reference 는 --duration 8 만 된다")
         jobs = build_jobs(args, rows)
