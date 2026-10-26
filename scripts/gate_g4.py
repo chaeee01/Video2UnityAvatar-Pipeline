@@ -1,4 +1,4 @@
-"""G4 게이트: 5-5 로 구운 클립의 "늘어남" 과 "발 쓸기" 를 재고 판정한다 (판정 규칙은 g4_rules.py).
+"""G4 게이트: 5-5 로 구운 클립의 "늘어남" · "발 쓸기" · "바닥" 을 재고 판정한다 (판정 규칙은 g4_rules.py).
 
   /Applications/Blender4.5.app/Contents/MacOS/Blender --background --python gate_g4.py -- \\
       --blend ~/data/06_rig/<리그>/motions/<클립>/animated.blend \\
@@ -12,6 +12,7 @@ CHECK/FAIL 은 사람이 본다(일괄 표는 tools/review/g4_report.py). 측정
           최악 프레임의 상위 본 쌍(양 끝 정점의 지배 본)을 함께 남긴다 — 어디가 늘었는지 보려고.
   발 쓸기 SMPL 발 본(L/R_Foot · Ankle)의 월드 위치. 접지 = 발 높이가 최저 5% 분위 + 키의 3% 안, 첫 1초 제외.
           접지 프레임에서 발의 골반 기준 수평 속도를 전방(발끝 방향 평균)으로 투영한 중앙값을 H/초 로.
+  바닥    프레임별 메쉬 최저점 − rest 메쉬 최저점. 처음 · 끝 6프레임 안의 최저값과 전체 최저값(가장 깊이 묻힌 곳).
 """
 import argparse
 import json
@@ -23,6 +24,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from g4_rules import judge  # noqa: E402
+from ground_align import WINDOW  # noqa: E402
 
 STRETCH = 4.0
 
@@ -70,6 +72,7 @@ def measure(rig, mesh, sc, fps):
     missing = [x for x in bones if x not in rig.pose.bones]
     P = {x: [] for x in bones if x not in missing}
     per = []
+    lows = []
     worst = (-1, None, None)
     frames = list(range(sc.frame_start, sc.frame_end + 1))
     for f in frames:
@@ -79,6 +82,7 @@ def measure(rig, mesh, sc, fps):
         me = ev.to_mesh()
         c = world_co(me, ev.matrix_world)
         ev.to_mesh_clear()
+        lows.append(float(c[:, 2].min()))
         ln = np.linalg.norm(c[E[:, 0]] - c[E[:, 1]], axis=1)
         st = ok & (ln > STRETCH * np.where(ok, rl, 1))
         s5, s10 = st & (ln > 0.05), st & (ln > 0.10)
@@ -116,7 +120,11 @@ def measure(rig, mesh, sc, fps):
             sweep[f"{s}_contact_frac"] = round(float(contact.sum()) / max(1, len(frames) - skip), 3)
         d = P["Pelvis"][-1, :2] - P["Pelvis"][0, :2]
         sweep["root_disp_fwd_H"] = round(float(d @ fw) / H, 3)
-    return edges, sweep, len(frames), missing
+    d = np.array(lows) - float(rest[:, 2].min())
+    k = min(WINDOW, len(d))
+    ground = {"floor": round(float(rest[:, 2].min()), 4), "first": round(float(d[:k].min()), 4),
+              "last": round(float(d[-k:].min()), 4), "sink": round(float(d.min()), 4), "f_sink": frames[int(np.argmin(d))]}
+    return edges, sweep, ground, len(frames), missing
 
 
 def main():
@@ -131,10 +139,10 @@ def main():
         raise RuntimeError("메쉬 없음")
     mesh = max(meshes, key=lambda o: len(o.data.vertices))
     fps = sc.render.fps / sc.render.fps_base
-    edges, sweep, nframes, missing = measure(rig, mesh, sc, fps)
+    edges, sweep, ground, nframes, missing = measure(rig, mesh, sc, fps)
     roles = json.load(open(a.roles)) if a.roles else None
-    res = judge(a.clip, edges, sweep, roles)
-    res.update(gate="G4", version=1, blend=a.blend, frames=nframes, roles_file=a.roles,
+    res = judge(a.clip, edges, sweep, roles, ground)
+    res.update(gate="G4", version=2, blend=a.blend, frames=nframes, roles_file=a.roles,
                missing_bones=missing)
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
@@ -142,7 +150,8 @@ def main():
     p.write_text(json.dumps(res, indent=1, ensure_ascii=False))
     sw = res["sweep"]
     print(f"G4 {res['verdict']} {res['clip']}  늘어남 {res['edges']['verdict']} (0.10 초과 {edges['max10']}, 최장 {edges['longest']})"
-          f"  발 쓸기 {sw['verdict']} (나쁜 발 {sw['worst']})  → {p}")
+          f"  발 쓸기 {sw['verdict']} (나쁜 발 {sw['worst']})"
+          f"  바닥 {res['ground']['verdict']} (시작 {ground['first']:+.3f} · 끝 {ground['last']:+.3f} · 최저 {ground['sink']:+.3f})  → {p}")
 
 
 if __name__ == "__main__":

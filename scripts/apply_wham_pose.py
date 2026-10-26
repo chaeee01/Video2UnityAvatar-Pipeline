@@ -27,10 +27,14 @@ transferred.blend 의 SMPL_rig 에 WHAM pose(69프레임)를 키프레임으로 
 rest_pose.json 의 (trans_first - trans_ref) 로 메운다 — 모션 클립의 첫 프레임이 리그 클립의
 첫 프레임과 같은 자세라는 가정이다(make_rest_pose.py 독스트링). --height-ratio 는
 리그 체형의 신장 ÷ 모션 클립 체형의 신장이다 (betas 가 다르면 보폭이 달라야 한다).
+
+첫 프레임이 선 자세가 아니면(누워서 시작하는 get_up 등) 위 가정이 깨져 몸이 뜬다.
+--ground-align 은 루트 높이만 옮겨 처음 · 끝의 메쉬 최저점을 바닥에 맞춘다 (ground_align.py, 기본 꺼짐).
 """
 import argparse
 import json
 import sys
+from pathlib import Path
 
 import bpy
 import numpy as np
@@ -62,6 +66,9 @@ def parse_args():
     ap.add_argument("--height-ratio", type=float, default=1.0,
                     help="루트 이동에 곱할 신장비 (리그 신장 ÷ 모션 클립 신장). --ref-pose 와 함께")
     ap.add_argument("--action-name", default=None, help="저장할 액션 이름 (기본: Blender 가 붙이는 이름)")
+    ap.add_argument("--ground-align", action="store_true",
+                    help="루트 높이를 옮겨 처음 · 끝 0.25초의 메쉬 최저점을 바닥(rest 메쉬 최저점)에 맞춘다 "
+                         "(ground_align.py). 결과는 out 옆 ground_align.json")
     return ap.parse_args(argv)
 
 
@@ -85,6 +92,48 @@ def global_rots(pose_f):
         p = SMPL_PARENTS[i]
         Rg[i] = Rl if p < 0 else Rg[p] @ Rl
     return Rg
+
+
+def ground_align_root(rig, smpl_name, T, locs, pelvis_B):
+    """구운 루트 이동에 프레임별 높이 보정을 더해 다시 키를 넣는다. 반환: 요약 dict."""
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from ground_align import WINDOW, lift, offsets
+
+    meshes = [o for o in bpy.data.objects if o.type == "MESH" and o.name != smpl_name]
+    mesh = max(meshes, key=lambda o: len(o.data.vertices))
+
+    def low_z(me, mw):
+        co = np.empty(len(me.vertices) * 3, np.float32)
+        me.vertices.foreach_get("co", co)
+        M = np.array(mw)
+        return float((co.reshape(-1, 3) @ M[2, :3] + M[2, 3]).min())
+
+    floor = low_z(mesh.data, mesh.matrix_world)      # rest 메쉬 (변형 전)
+    sc = bpy.context.scene
+    k = min(WINDOW, T)
+    ext, lows = [], []
+    for f in range(T):
+        sc.frame_set(f)
+        hz = [(rig.matrix_world @ rig.pose.bones[n].head).z for n in SMPL_NAMES]
+        ext.append(max(hz) - min(hz))
+        ev = mesh.evaluated_get(bpy.context.evaluated_depsgraph_get())
+        me = ev.to_mesh()
+        lows.append(low_z(me, ev.matrix_world))
+        ev.to_mesh_clear()
+    lows = np.array(lows)
+    off, info = offsets(lows[:k], lows[-k:], ext, floor)
+    up = lift(lows + off, floor)                     # 보정 뒤에도 묻힌 프레임만 올린다
+    off = off + up
+    info.update(lift_max=round(float(up.max()), 4), lift_frames=int((up > 1e-6).sum()),
+                max_abs=round(float(np.abs(off).max()), 4))
+    Rinv = np.linalg.inv(np.array(rig.matrix_world.to_3x3()))
+    pb = rig.pose.bones["Pelvis"]
+    for f in range(T):
+        pb.location = (locs[f] + pelvis_B.T @ (Rinv @ np.array([0.0, 0.0, off[f]]))).tolist()
+        pb.keyframe_insert("location", frame=f)
+    info.update(floor=round(floor, 4), mesh=mesh.name, frames=T,
+                ext_first=round(float(np.mean(ext[:k])), 4), ext_last=round(float(np.mean(ext[-k:])), 4))
+    return info
 
 
 def main():
@@ -141,6 +190,7 @@ def main():
 
     print(f"[3/3] {T}프레임 베이킹")
     pelvis_B = B["Pelvis"]
+    locs = []
     for f in range(T):
         Rg_f = global_rots(pose[f])
         Rd = [Rw @ Rg_f[i] @ Rg_ref[i].T @ Rw.T for i in range(24)]
@@ -154,11 +204,18 @@ def main():
         # 루트 이동 (기준 대비 상대). 같은 클립이면 (trans[f] - trans[ref]) 그대로다.
         t = scale * (Rw @ (ratio * (trans[f] - t_origin) + t_shift))
         loc = pelvis_B.T @ t
+        locs.append(loc)
         pb = rig.pose.bones["Pelvis"]
         pb.location = loc.tolist()
         pb.keyframe_insert("location", frame=f)
         if f % 10 == 0:
             print(f"  frame {f}/{T-1}")
+
+    if a.ground_align:
+        info = ground_align_root(rig, a.smpl_name, T, locs, pelvis_B)
+        Path(a.out).with_name("ground_align.json").write_text(json.dumps(info, indent=1, ensure_ascii=False))
+        print(f"바닥 정렬: 시작 {info['o0']:+.4f} · 끝 {info['o1']:+.4f} ({info['mode']}), 최대 |보정| {info['max_abs']}"
+              f", 묻힘 들어 올림 최대 {info['lift_max']} ({info['lift_frames']}프레임)")
 
     if a.action_name and rig.animation_data and rig.animation_data.action:
         rig.animation_data.action.name = a.action_name
