@@ -21,7 +21,7 @@ Blender 없이 돈다 (bpy 를 쓰지 않는다). 그래서 tests/ 에서 그대
 
 **바닥** — 메쉬 최저점 − 바닥(rest 메쉬 최저점), 키 약 1.0 단위. 처음 · 끝은 0.25초(6프레임) 안의 최저점이다
 (달리기의 공중 프레임에 흔들리지 않게 — ground_align.py 와 같은 창).
-  PASS  처음 · 끝 모두 |값| ≤ 0.03 그리고 −0.05 보다 깊이 묻힌 프레임이 없거나, 있어도 연속 0.25초(6프레임)
+  PASS  처음 · 끝이 떠 있지 않고(≤ +0.03) 묻히지 않고(≥ −0.05), −0.05 보다 깊이 묻힌 프레임이 없거나, 있어도 연속 0.25초(6프레임)
         이하 · −0.08 까지인 **순간 침하**(값을 사유에 "허용" 으로 남긴다)
   CHECK 그 밖 — 떠 있음(+) / 묻힘(−) / 지속 침하(6프레임 넘게 −0.05 아래) / −0.08 보다 깊음
 근거(2026-10-26 실측): 서서 시작하는 클립의 첫 프레임은 ±0.01 안, 누워서 시작하는 get_up 은 +0.36~0.45,
@@ -38,7 +38,7 @@ EDGE_MAX10 = 10          # 0.10 초과 엣지 수 (프레임별 최대) 상한
 LONGEST_MAX = 0.11       # 최장 늘어난 엣지 길이 상한 (정규화 공간, 키 약 1.0)
 SWEEP_PASS = -0.45       # 이하면 PASS
 SWEEP_FAIL = -0.20       # 초과면 FAIL
-GROUND_END = 0.03        # 처음 · 끝 최저점이 바닥에서 이만큼 넘게 떨어지면 CHECK
+GROUND_END = 0.03        # 처음 · 끝 최저점이 이만큼 넘게 떠 있으면 CHECK (묻힘은 GROUND_SINK)
 GROUND_SINK = 0.05       # 이만큼 넘게 바닥 아래인 프레임이 연속 MOMENT 를 넘으면 CHECK (지속 침하)
 GROUND_SINK_MOMENT = 0.08  # 순간 침하 허용 한도 — 이보다 깊으면 길이와 무관하게 CHECK
 MOMENT = 6               # 순간 = 연속 0.25초 (24fps) 이하
@@ -88,8 +88,10 @@ def judge_ground(ground):
     reasons = []
     for k, label in (("first", "시작"), ("last", "끝")):
         v = ground[k]
-        if abs(v) > GROUND_END:
-            reasons.append(f"{label} {'떠 있음' if v > 0 else '묻힘'} {v:+.3f} (|값| ≤ {GROUND_END})")
+        if v > GROUND_END:
+            reasons.append(f"{label} 떠 있음 {v:+.3f} (≤ +{GROUND_END})")
+        elif v < -GROUND_SINK:
+            reasons.append(f"{label} 묻힘 {v:+.3f} (≥ −{GROUND_SINK})")
     note = []
     sink, run = ground["sink"], ground.get("deep_run")
     if sink < -GROUND_SINK_MOMENT:
