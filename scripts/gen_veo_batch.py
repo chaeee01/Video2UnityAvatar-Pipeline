@@ -309,7 +309,9 @@ def is_quota(e):
 
 def is_fatal(e):
     msg = str(getattr(e, "message", e)).lower()
-    return (getattr(e, "code", None) in (401, 403) or getattr(e, "status", None) in FATAL_STATUS
+    # 402 Payment Required(선불 크레딧 소진 — 2026-10-16 · 10-26) 도 다음 편이 똑같이 실패하므로 즉시 멈춘다.
+    # 10/26 에는 402 를 일반 오류로 보고 재시도가 1회 나갔다(omni 경로는 HTTP 오류 때 상한 자리를 돌려준다).
+    return (getattr(e, "code", None) in (401, 402, 403) or getattr(e, "status", None) in FATAL_STATUS
             or any(w in msg for w in BILLING_WORDS))
 
 
