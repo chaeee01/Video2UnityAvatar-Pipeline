@@ -950,7 +950,7 @@ WHAM betas(체형) + 키프레임 pose(자세) → 그 좀비와 같은 자세·
 
   **수정.** ① `apply_wham_pose.py --ground-align`(기본 꺼짐, `scripts/ground_align.py`): 처음 · 끝 0.25초의 메쉬 최저점을 바닥(rest 최저점)에 맞추고 사이는 관절 높이 폭(자세)으로 보간, 그 뒤에도 0.02 넘게 묻힌 프레임만 매끄럽게 올린다. 서서 시작 · 끝나는 6편의 보정은 0.002~0.008. ② **G4 v3 바닥 판정** — 처음 · 끝 뜸 ≤ +0.03 · 묻힘 ≥ −0.05, −0.05 아래 연속 6프레임(0.25초) 이하 · −0.08 까지는 순간 침하로 PASS(값을 사유에), 넘으면 지속 침하 CHECK. 수용 기록에 `ground` 추가.
 
-  **역검증.** 납품 86편의 늘어남 · 발 쓸기 수치는 10/22 과 전부 같다(회귀 0). 바닥은 98편(납품 86 + 추가 12) PASS 76 · ACCEPTED 8 · CHECK 14. 실결함 2편 — stalker `crawl_loop`(엎드린 몸 전체 +0.16 뜸)와 walker `idle_lurch`(숙일 때 몸 전체 −0.142, 발 −0.62) — 을 바닥 정렬판으로 교체해 ACCEPTED · PASS(발 −0.46~−0.50 유지). 남은 12편은 −0.05~−0.07 의 지속 침하(7~33프레임) 또는 끝 묻힘 · 뜸으로, 눈 확인 전이며 납품물은 그대로다(경계 2편 stalker `fall_start` +0.047 · `crawl_to_run` −0.061 은 측정값만 기록).
+  **역검증.** 납품 86편의 늘어남 · 발 쓸기 수치는 10/22 과 전부 같다(회귀 0). 바닥은 98편(납품 86 + 추가 12) PASS 76 · ACCEPTED 8 · CHECK 14. 실결함 2편 — stalker `crawl_loop`(엎드린 몸 전체 +0.16 뜸)와 walker `idle_lurch`(숙일 때 몸 전체 −0.142, 발 −0.62) — 을 바닥 정렬판으로 교체해 ACCEPTED · PASS(발 −0.46~−0.50 유지). 남은 12편(−0.05~−0.08 의 지속 침하 7~33프레임 또는 끝 묻힘 · 뜸, 경계 2편 stalker `fall_start` +0.047 · `crawl_to_run` −0.061 포함)도 같은 날 바닥 정렬판으로 교체했다 — 늘어남 수치 · 발 쓸기 판정 불변, 바닥 전부 ±0.02 안. **최종 98편 PASS 85 · ACCEPTED 13 · CHECK 0.** 이전 판은 `deliverable_archive/ground_prefix_20261026/`.
 
   **납품.** 추가 12편은 바닥 정렬로 굽고 G4 PASS 7 · ACCEPTED 5(listener `fall_front` · `fall_back` · `get_up`, stalker `fall_front` · `get_up` — 무릎 꿇기 · 눕기의 가랑이 · 옷자락 늘어남, "가랑이 막과 같은 유형, 게임 카메라 거리 허용"). `deliverable_20261026.zip` **102편**, MANIFEST 133파일 sha256 전수 일치. 이전 판은 `deliverable_archive/ground_prefix_20261026/` · `docs_pre_extra_motion_20261026/` · `docs_101편_20261026/`. stalker 웨이트 수리(5-4b, 무릎 꿇기 자세)는 백로그.
 
