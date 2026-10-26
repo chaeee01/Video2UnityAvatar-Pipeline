@@ -208,6 +208,21 @@ def read_rows(xlsx):
     return rows
 
 
+def read_row_refs(xlsx):
+    """엑셀 ref_image 열에 적힌 행별 시작 이미지(PNG 경로). 비어 있으면 그 행은 접두사 규칙(REF_BY_PREFIX)을 따른다.
+
+    2026-10-26 추가 — get_up 을 같은 캐릭터 fall_back 영상의 마지막 프레임에서 시작시키기 위해.
+    지금까지의 엑셀은 이 열이 전부 비어 있어 동작이 바뀌지 않는다.
+    """
+    import openpyxl
+    ws = openpyxl.load_workbook(xlsx, read_only=True, data_only=True)["prompts"]
+    out = {}
+    for r in list(ws.iter_rows(values_only=True))[1:]:
+        if r and r[0] and len(r) > 1 and r[1] and str(r[1]).strip():
+            out[str(r[0]).strip()] = str(r[1]).strip()
+    return out
+
+
 def find_ref(refs, name):
     """<name> 또는 <name>_clean. 둘 다 있으면 어느 쪽인지 정할 수 없으므로 멈춘다."""
     stem, ext = os.path.splitext(name)
@@ -235,7 +250,12 @@ def build_jobs(args, rows):
         prefix = rid.split("_")[0]
         if prefix not in REF_BY_PREFIX:
             sys.exit(f"[중단] {rid}: 접두사 '{prefix}' 에 대응하는 레퍼런스가 없다")
-        src = find_ref(args.refs, REF_BY_PREFIX[prefix])
+        if rid in args.row_refs:
+            src = Path(args.row_refs[rid]).expanduser().resolve()
+            if not src.is_file() or src.suffix.lower() != ".png":
+                sys.exit(f"[중단] {rid}: ref_image 열의 시작 이미지가 없거나 PNG 가 아니다: {src}")
+        else:
+            src = find_ref(args.refs, REF_BY_PREFIX[prefix])
         w, h = png_size(src)
         stem = stem_of(rid, args.model, args.mode)
         jobs.append({
@@ -624,6 +644,7 @@ def main():
     args.out = args.out.expanduser().resolve()
 
     rows = read_rows(args.xlsx)
+    args.row_refs = read_row_refs(args.xlsx)
     if not args.count_tokens:
         if not args.model:
             ap.error("--model 이 필요하다")
