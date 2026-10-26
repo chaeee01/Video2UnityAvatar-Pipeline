@@ -5,7 +5,8 @@
   - 발 쓸기: 나쁜 발 기준 PASS ≤ −0.45 / FAIL > −0.20 — stalker −0.8 · run_slow −0.469 통과, 04b 불합격
   - inplace 면제, 역할 없는 run 은 CHECK
   - 수용 기록: 나빠지지 않으면 ACCEPTED, 나빠지면 원래 판정
-  - 바닥(2026-10-26): 처음 · 끝 |값| ≤ 0.03, 최저 ≥ −0.05 이면 PASS — get_up +0.36 뜸 · fall_front −0.13 묻힘은 CHECK
+  - 바닥(2026-10-26): 처음 · 끝 |값| ≤ 0.03, 최저 ≥ −0.05 이면 PASS — get_up +0.36 뜸 · fall_front −0.13 묻힘은 CHECK.
+    −0.05 아래가 연속 6프레임(0.25초) 이하이고 −0.08 까지면 순간 침하로 PASS(사유에 값), 6프레임 넘으면 지속 침하 CHECK
 """
 import os
 import sys
@@ -76,6 +77,13 @@ def main():
     v, rs = judge_ground({"first": 0.0, "last": -0.13, "sink": -0.13, "f_sink": 200})
     check("fall_front 묻힘 (−0.13) → CHECK, '묻힘' · 'f200 바닥 아래'", v == "CHECK" and "묻힘" in rs[0] and "f200" in rs[1])
     check("경계값 (0.03 / −0.03 / −0.05) → PASS", judge_ground({"first": 0.03, "last": -0.03, "sink": -0.05, "f_sink": 1})[0] == "PASS")
+    v, rs = judge_ground({"first": 0.0, "last": -0.01, "sink": -0.071, "f_sink": 112, "deep_run": 4})
+    check("순간 침하 −0.071 · 4프레임 → PASS, 사유에 값 · '허용'", v == "PASS" and "허용" in rs[0] and "-0.071" in rs[0])
+    check("순간 경계 (−0.08 · 6프레임) → PASS", judge_ground({"first": 0, "last": 0, "sink": -0.08, "f_sink": 1, "deep_run": 6})[0] == "PASS")
+    v, rs = judge_ground({"first": 0, "last": 0, "sink": -0.06, "f_sink": 1, "deep_run": 7})
+    check("지속 침하 −0.06 · 7프레임 → CHECK", v == "CHECK" and "지속" in rs[0])
+    check("−0.142 (idle_lurch) 는 짧아도 CHECK", judge_ground({"first": 0, "last": 0, "sink": -0.142, "f_sink": 75, "deep_run": 2})[0] == "CHECK")
+    check("연속 길이 없음(v2 결과) + −0.06 → 지속으로 보고 CHECK", judge_ground({"first": 0, "last": 0, "sink": -0.06, "f_sink": 1})[0] == "CHECK")
     r = judge("idle", E0, None, roles)
     check("바닥 없이 부르면(이전 호출) 종합은 그대로 PASS · 바닥 N/A", r["verdict"] == "PASS" and r["ground"]["verdict"] == "N/A")
     gr = {"clips": {"get_up": {"accepted": [{"gate": "ground", "reason": "시험", "date": "2026-10-26",

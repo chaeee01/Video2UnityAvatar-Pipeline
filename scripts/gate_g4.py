@@ -12,7 +12,8 @@ CHECK/FAIL 은 사람이 본다(일괄 표는 tools/review/g4_report.py). 측정
           최악 프레임의 상위 본 쌍(양 끝 정점의 지배 본)을 함께 남긴다 — 어디가 늘었는지 보려고.
   발 쓸기 SMPL 발 본(L/R_Foot · Ankle)의 월드 위치. 접지 = 발 높이가 최저 5% 분위 + 키의 3% 안, 첫 1초 제외.
           접지 프레임에서 발의 골반 기준 수평 속도를 전방(발끝 방향 평균)으로 투영한 중앙값을 H/초 로.
-  바닥    프레임별 메쉬 최저점 − rest 메쉬 최저점. 처음 · 끝 6프레임 안의 최저값과 전체 최저값(가장 깊이 묻힌 곳).
+  바닥    프레임별 메쉬 최저점 − rest 메쉬 최저점. 처음 · 끝 6프레임 안의 최저값, 전체 최저값(가장 깊이 묻힌 곳),
+          −0.05 아래 연속 프레임의 최장 길이(순간 · 지속 침하 구분).
 """
 import argparse
 import json
@@ -23,7 +24,7 @@ import bpy
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from g4_rules import judge  # noqa: E402
+from g4_rules import GROUND_SINK, judge  # noqa: E402
 from ground_align import WINDOW  # noqa: E402
 
 STRETCH = 4.0
@@ -38,6 +39,14 @@ def parse_args():
     ap.add_argument("--out", required=True)
     ap.add_argument("--rig-name", default="SMPL_rig")
     return ap.parse_args(argv)
+
+
+def longest_run(mask):
+    best = cur = 0
+    for m in mask:
+        cur = cur + 1 if m else 0
+        best = max(best, cur)
+    return best
 
 
 def world_co(mesh_data, mw):
@@ -123,7 +132,8 @@ def measure(rig, mesh, sc, fps):
     d = np.array(lows) - float(rest[:, 2].min())
     k = min(WINDOW, len(d))
     ground = {"floor": round(float(rest[:, 2].min()), 4), "first": round(float(d[:k].min()), 4),
-              "last": round(float(d[-k:].min()), 4), "sink": round(float(d.min()), 4), "f_sink": frames[int(np.argmin(d))]}
+              "last": round(float(d[-k:].min()), 4), "sink": round(float(d.min()), 4), "f_sink": frames[int(np.argmin(d))],
+              "deep_run": longest_run(d < -GROUND_SINK)}
     return edges, sweep, ground, len(frames), missing
 
 
@@ -142,7 +152,7 @@ def main():
     edges, sweep, ground, nframes, missing = measure(rig, mesh, sc, fps)
     roles = json.load(open(a.roles)) if a.roles else None
     res = judge(a.clip, edges, sweep, roles, ground)
-    res.update(gate="G4", version=2, blend=a.blend, frames=nframes, roles_file=a.roles,
+    res.update(gate="G4", version=3, blend=a.blend, frames=nframes, roles_file=a.roles,
                missing_bones=missing)
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)

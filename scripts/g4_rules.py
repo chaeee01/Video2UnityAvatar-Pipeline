@@ -21,11 +21,14 @@ Blender 없이 돈다 (bpy 를 쓰지 않는다). 그래서 tests/ 에서 그대
 
 **바닥** — 메쉬 최저점 − 바닥(rest 메쉬 최저점), 키 약 1.0 단위. 처음 · 끝은 0.25초(6프레임) 안의 최저점이다
 (달리기의 공중 프레임에 흔들리지 않게 — ground_align.py 와 같은 창).
-  PASS  처음 · 끝 모두 |값| ≤ 0.03 그리고 어느 프레임도 −0.05 보다 깊이 묻히지 않음
-  CHECK 그 밖 — 떠 있음(+) / 묻힘(−) 을 사유에 적는다
+  PASS  처음 · 끝 모두 |값| ≤ 0.03 그리고 −0.05 보다 깊이 묻힌 프레임이 없거나, 있어도 연속 0.25초(6프레임)
+        이하 · −0.08 까지인 **순간 침하**(값을 사유에 "허용" 으로 남긴다)
+  CHECK 그 밖 — 떠 있음(+) / 묻힘(−) / 지속 침하(6프레임 넘게 −0.05 아래) / −0.08 보다 깊음
 근거(2026-10-26 실측): 서서 시작하는 클립의 첫 프레임은 ±0.01 안, 누워서 시작하는 get_up 은 +0.36~0.45,
 fall_back 의 누운 끝 +0.08~0.12, fall_front 의 엎드린 끝 −0.13. 바닥 정렬(apply_wham_pose --ground-align) 뒤
 다시 잰다. 늘어남 · 발 쓸기와 달리 역할과 무관하게 모든 클립에 적용한다.
+순간 침하 완화(2026-10-26 사용자 결정): 납품 86편에서 −0.05 를 넘긴 18편이 달리기 · 덤벼들기의 발 · 무릎이 한 순간
+묻히는 −0.04~−0.08 이었다. 실결함(stalker crawl_loop +0.16 뜸, walker idle_lurch −0.14)만 CHECK 에 남기려는 조정이다.
 
 **수용 기록** — 사람이 보고 받아들인 CHECK/FAIL 은 clip_roles.json 의 accepted 에 사유 · 날짜 · 그때의 수치와
 함께 적는다. 다시 돌렸을 때 수치가 기록보다 나빠지지 않았으면 ACCEPTED 로, 나빠졌으면 원래 판정으로 돌아간다.
@@ -36,7 +39,9 @@ LONGEST_MAX = 0.11       # 최장 늘어난 엣지 길이 상한 (정규화 공�
 SWEEP_PASS = -0.45       # 이하면 PASS
 SWEEP_FAIL = -0.20       # 초과면 FAIL
 GROUND_END = 0.03        # 처음 · 끝 최저점이 바닥에서 이만큼 넘게 떨어지면 CHECK
-GROUND_SINK = 0.05       # 어느 프레임이든 이만큼 넘게 바닥 아래면 CHECK
+GROUND_SINK = 0.05       # 이만큼 넘게 바닥 아래인 프레임이 연속 MOMENT 를 넘으면 CHECK (지속 침하)
+GROUND_SINK_MOMENT = 0.08  # 순간 침하 허용 한도 — 이보다 깊으면 길이와 무관하게 CHECK
+MOMENT = 6               # 순간 = 연속 0.25초 (24fps) 이하
 WORSEN_TOL = {"max10": 0, "longest": 0.005, "sweep_worst": 0.02,
               "float_first": 0.01, "float_last": 0.01, "sink_depth": 0.01}   # 수용 기록 대비 "나빠짐" 여유
 
@@ -76,7 +81,8 @@ def judge_sweep(left, right, role, name):
 
 
 def judge_ground(ground):
-    """ground: {"first", "last", "sink", "f_sink"} (없으면 None → N/A)."""
+    """ground: {"first", "last", "sink", "f_sink", "deep_run"} (없으면 None → N/A).
+    deep_run: −GROUND_SINK 아래 연속 프레임의 최장 길이 (없으면 지속으로 본다 — G4 v2 결과)."""
     if ground is None:
         return "N/A", []
     reasons = []
@@ -84,9 +90,16 @@ def judge_ground(ground):
         v = ground[k]
         if abs(v) > GROUND_END:
             reasons.append(f"{label} {'떠 있음' if v > 0 else '묻힘'} {v:+.3f} (|값| ≤ {GROUND_END})")
-    if ground["sink"] < -GROUND_SINK:
-        reasons.append(f"f{ground.get('f_sink')} 바닥 아래 {ground['sink']:+.3f} (≥ −{GROUND_SINK})")
-    return ("CHECK" if reasons else "PASS"), reasons
+    note = []
+    sink, run = ground["sink"], ground.get("deep_run")
+    if sink < -GROUND_SINK_MOMENT:
+        reasons.append(f"f{ground.get('f_sink')} 바닥 아래 {sink:+.3f} (≥ −{GROUND_SINK_MOMENT})")
+    elif sink < -GROUND_SINK:
+        if run is None or run > MOMENT:
+            reasons.append(f"지속 침하 — f{ground.get('f_sink')} 바닥 아래 {sink:+.3f}, −{GROUND_SINK} 아래 연속 {run}프레임 (> {MOMENT})")
+        else:
+            note.append(f"순간 침하 허용 — f{ground.get('f_sink')} {sink:+.3f}, 연속 {run}프레임 (≤ {MOMENT}, ≥ −{GROUND_SINK_MOMENT})")
+    return ("CHECK" if reasons else "PASS"), reasons + note
 
 
 def ground_metrics(ground):
