@@ -244,8 +244,9 @@ def build_jobs(args, rows):
             "ref_src": src, "ref_size": [w, h],
             # --refs 가 이미 --out 안이면 그 자리의 파일을 쓴다 (복사하지 않는다)
             "ref": src if args.out in src.parents else args.out / "_refs" / src.name,
-            # Veo 는 16:9 · 9:16 만 받는다. 레퍼런스 구도를 따른다.
-            "aspect_ratio": "9:16" if h > w else "16:9",
+            # Veo 는 16:9 · 9:16 만 받는다. 기본(auto)은 레퍼런스 구도를 따르고, --aspect 로 덮어쓸 수 있다
+            # (2026-10-26 — 세로 레퍼런스로 16:9 옆모습을 만들기 위해. 덮어쓰기는 reference 방식에서만 의미가 있다).
+            "aspect_ratio": args.aspect if args.aspect != "auto" else ("9:16" if h > w else "16:9"),
             "mp4": args.out / f"{stem}.mp4", "json": args.out / f"{stem}.params.json",
         })
     return jobs
@@ -270,7 +271,9 @@ def request_config(args, job):
         # Omni 는 길이 · 인물 생성 설정이 없다. 기록 표의 칸을 맞추려고 None 으로 둔다.
         return {"aspect_ratio": job["aspect_ratio"], "resolution": args.resolution,
                 "duration_seconds": None, "person_generation": None, "number_of_videos": 1,
-                "task": "image_to_video"}
+                # reference 방식(2026-10-26): 이미지는 외형 참조로만, 시작 구도는 프롬프트로. 동작 설명은 문서에 없다 —
+                # 문서에는 허용값 목록(text_to_video · image_to_video · reference_to_video · edit · extend)만 있다.
+                "task": "reference_to_video" if args.mode == "reference" else "image_to_video"}
     return {"aspect_ratio": job["aspect_ratio"], "resolution": args.resolution,
             "duration_seconds": args.duration, "person_generation": "allow_adult",
             "number_of_videos": 1}
@@ -564,7 +567,7 @@ def print_plan(args, jobs):
         print(f"레퍼런스: {src}")
     for j in jobs:
         c = request_config(args, j)
-        how = ("input[image]+text (Interactions API)" if args.model == "omni"
+        how = (f"input[image]+text (Interactions API, {c.get('task')})" if args.model == "omni"
                else "image" if args.mode == "first_frame" else "referenceImages[asset] x1")
         print(f"| {j['mp4'].name} | {MODELS[args.model]} | {args.mode} | {how} | {c['aspect_ratio']} "
               f"| {c['resolution']} | {c['duration_seconds']} | {c['person_generation']} "
@@ -603,6 +606,8 @@ def main():
                     help="first_frame=레퍼런스를 시작 프레임으로, reference=참조 이미지로")
     ap.add_argument("--ids", help="쉼표로 구분한 id. 생략하면 엑셀 전체")
     ap.add_argument("--resolution", default="1080p", choices=["720p", "1080p"])
+    ap.add_argument("--aspect", default="auto", choices=["auto", "9:16", "16:9"],
+                    help="auto=레퍼런스 구도를 따름(기본). reference 방식에서만 덮어쓸 수 있다")
     ap.add_argument("--duration", type=int, default=8, choices=[4, 6, 8],
                     help="1080p 와 reference 는 8초만 된다")
     ap.add_argument("--concurrency", type=int, default=1)
@@ -624,8 +629,8 @@ def main():
             ap.error("--model 이 필요하다")
         if args.daily_cap is not None and args.daily_cap < 1:
             ap.error("--daily-cap 은 1 이상이어야 한다")
-        if args.model == "omni" and args.mode != "first_frame":
-            ap.error("--model omni 는 --mode first_frame 만 된다")
+        if args.aspect != "auto" and args.mode == "first_frame":
+            ap.error("--aspect 덮어쓰기는 --mode reference 에서만 된다 (first_frame 은 시작 이미지의 구도를 따른다)")
         if args.duration != 8 and (args.resolution == "1080p" or args.mode == "reference"):
             ap.error("1080p 와 reference 는 --duration 8 만 된다")
         jobs = build_jobs(args, rows)
