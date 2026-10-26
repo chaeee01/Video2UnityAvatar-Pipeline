@@ -1,6 +1,6 @@
 # 좀비 영상 → 유니티 아바타 파이프라인 — 진행 상황 정리
 
-작성일: 2026-08-11 (최종 갱신: 2026-10-22)
+작성일: 2026-08-11 (최종 갱신: 2026-10-26)
 레포: [Video2UnityAvatar-Pipeline](https://github.com/chaeee01/Video2UnityAvatar-Pipeline) — 초기 이름 `3DGS-Character-Generation-Pipeline`에서 개명. SuGaR(3DGS) 기반 복원을 설계에서 제외하면서 이름이 실제 구성과 어긋나 정리함.
 목표: 좀비 영상 한 편을 입력하면 SAM2로 객체를 분리하고, TRELLIS로 외형을, WHAM으로 동작을 복원한 뒤 유니티 에셋(아바타 + 애니메이션)으로 반입하는 파이프라인 구축.
 
@@ -940,6 +940,20 @@ WHAM betas(체형) + 키프레임 pose(자세) → 그 좀비와 같은 자세·
 
   `bake_character.sh` 가 굽고 나서 G4 를 돌린다(`G4_ROLES=`). 오케스트레이터 통합은 5-4b 와 함께 백로그.
 
+- **2026-10-26 — 추가 동작 12편(피격 · 넘어짐 · 일어나기) 납품 · 바닥 버그 발견과 바닥 정렬 · G4 바닥 판정**:
+
+  게임팀 추가 요청(`hit_01` · `fall_front` · `fall_back` · `get_up` × walker · listener · stalker)을 만들었다. Veo 3.1 Preview 가 10/22 Gemini API 에서 종료돼 **Gemini Omni Flash**(`gemini-omni-1.1-flash`, 240프레임 · 24fps · 1080p, 편당 약 $1.52)로 생성했다. 안전 필터가 "보이지 않는 충격으로 넘어짐" · stalker 의 "corpse" 묘사를 막아 표현을 바꿨다(납품 메모에 기록). 정면 fall_back 은 누운 몸과 선 모습이 겹쳐 WHAM 이 누운 자세를 못 잡아(최대 27°), **참조 이미지 + 16:9 옆모습 · 고정 카메라** 로 다시 만들고 get_up 은 그 fall_back 마지막 프레임에서 시작했다. walker `get_up` 은 차단 · 402(크레딧) 로 만들지 못해 **stalker 동작을 walker 리그에 구운 이식판**(왼팔 짚기 특성 미반영)으로 냈다.
+
+  Pod 2회로 S2 → S5 + 5-1. 피격 2편에 끼어든 손은 S2 마스크에 들지 않았고(S5 f20~45 관절 변화 최대 1.94° · 1.36°), listener 영상 가장자리 조명 막대도 마스크 밖이었다. **S5 트랙이 둘로 갈린 3편은 이음 게이트(JUMP_MAX)를 우회하지 않고** 사람이 정해 굽었다 — walker `fall_back` 은 트랙 0(f0~79)만(넘어짐이 그 안에서 끝남), stalker `fall_back` · listener `fall_front` 는 **합성 전환**(`blend_track_seam.py`, 관절별 slerp 0.5초 — stalker f86~97 + 누운 자세 유지 f98~112, listener f121~132). 납품 문서에 "합성 전환 포함" 을 적었다.
+
+  **바닥 버그 — 발견 경위.** 첫 베이킹 뒤 재생 프레임에서 누운 몸이 선 자세의 머리보다 위에 그려져 메쉬 최저점을 재 보니, get_up 은 누운 시작이 바닥에서 +0.36~0.45(키 약 1.0 단위, 약 65~80cm) 떠 있었고 fall_back 의 누운 끝 +0.08~0.12, fall_front 의 엎드린 끝 −0.13 이었다. 원인은 `apply_wham_pose.py` 의 **"첫 프레임 가정"** — 클립의 첫 프레임을 리그의 선 자세 골반 높이에 둔다 — 이 누워서 시작하는 클립에서 깨지는 것과, 누운 구간의 WHAM 높이 오차다. **G4 는 늘어남 · 발 쓸기만 봐서 모두 PASS 였다.**
+
+  **수정.** ① `apply_wham_pose.py --ground-align`(기본 꺼짐, `scripts/ground_align.py`): 처음 · 끝 0.25초의 메쉬 최저점을 바닥(rest 최저점)에 맞추고 사이는 관절 높이 폭(자세)으로 보간, 그 뒤에도 0.02 넘게 묻힌 프레임만 매끄럽게 올린다. 서서 시작 · 끝나는 6편의 보정은 0.002~0.008. ② **G4 v3 바닥 판정** — 처음 · 끝 뜸 ≤ +0.03 · 묻힘 ≥ −0.05, −0.05 아래 연속 6프레임(0.25초) 이하 · −0.08 까지는 순간 침하로 PASS(값을 사유에), 넘으면 지속 침하 CHECK. 수용 기록에 `ground` 추가.
+
+  **역검증.** 납품 86편의 늘어남 · 발 쓸기 수치는 10/22 과 전부 같다(회귀 0). 바닥은 98편(납품 86 + 추가 12) PASS 76 · ACCEPTED 8 · CHECK 14. 실결함 2편 — stalker `crawl_loop`(엎드린 몸 전체 +0.16 뜸)와 walker `idle_lurch`(숙일 때 몸 전체 −0.142, 발 −0.62) — 을 바닥 정렬판으로 교체해 ACCEPTED · PASS(발 −0.46~−0.50 유지). 남은 12편은 −0.05~−0.07 의 지속 침하(7~33프레임) 또는 끝 묻힘 · 뜸으로, 눈 확인 전이며 납품물은 그대로다(경계 2편 stalker `fall_start` +0.047 · `crawl_to_run` −0.061 은 측정값만 기록).
+
+  **납품.** 추가 12편은 바닥 정렬로 굽고 G4 PASS 7 · ACCEPTED 5(listener `fall_front` · `fall_back` · `get_up`, stalker `fall_front` · `get_up` — 무릎 꿇기 · 눕기의 가랑이 · 옷자락 늘어남, "가랑이 막과 같은 유형, 게임 카메라 거리 허용"). `deliverable_20261026.zip` **102편**, MANIFEST 133파일 sha256 전수 일치. 이전 판은 `deliverable_archive/ground_prefix_20261026/` · `docs_pre_extra_motion_20261026/` · `docs_101편_20261026/`. stalker 웨이트 수리(5-4b, 무릎 꿇기 자세)는 백로그.
+
 ## 9. 다음 단계 (우선순위)
 
 2026-10-21 기준. 이전 목록(8월, SMPL 리깅 1~3단계 · SAM2 이전 · TRELLIS 로컬 설치 · 게이트 · 오케스트레이터)은 모두 끝났다.
@@ -949,6 +963,6 @@ WHAM betas(체형) + 키프레임 pose(자세) → 그 좀비와 같은 자세·
 3. **gate_s2 보강** — 실루엣-마스크 면적 차 점검, 실루엣과 독립된 좌우 팔 점검.
 4. **Docker 이미지화** (EH-229) — GitHub Actions 경로.
 
-**G4 구현 완료(10/22)** — `scripts/gate_g4.py`, RUNBOOK 5.6절.
+**G4 구현 완료(10/22)** — `scripts/gate_g4.py`, RUNBOOK 5.6절. **바닥 판정 · 바닥 정렬 추가(10/26)** — RUNBOOK 5-5 · 5.6절.
 
 백로그: G3 축소판(WHAM 2D 키포인트 확인 선행), README 자동화 사용법, G2 seed 재시도 실전 검증, 2트랙 배치 래퍼, **5-4b · G4 오케스트레이터 통합**(캐릭터별 본 쌍 · 겹 수 · 클립 역할 설정 파일 설계 선행).

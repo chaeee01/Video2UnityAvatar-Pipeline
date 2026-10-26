@@ -19,6 +19,17 @@ Blender 없이 돈다 (bpy 를 쓰지 않는다). 그래서 tests/ 에서 그대
 클립 역할(clip_roles.json)이 move 일 때만 판정한다. inplace(제자리 연출용)는 면제하고 수치만 남긴다. 역할이
 없는데 이름에 run 이 들어가면 CHECK("역할 미지정") — 새 달리기 클립이 조용히 면제되지 않게 하기 위해서다.
 
+**바닥** — 메쉬 최저점 − 바닥(rest 메쉬 최저점), 키 약 1.0 단위. 처음 · 끝은 0.25초(6프레임) 안의 최저점이다
+(달리기의 공중 프레임에 흔들리지 않게 — ground_align.py 와 같은 창).
+  PASS  처음 · 끝이 떠 있지 않고(≤ +0.03) 묻히지 않고(≥ −0.05), −0.05 보다 깊이 묻힌 프레임이 없거나, 있어도 연속 0.25초(6프레임)
+        이하 · −0.08 까지인 **순간 침하**(값을 사유에 "허용" 으로 남긴다)
+  CHECK 그 밖 — 떠 있음(+) / 묻힘(−) / 지속 침하(6프레임 넘게 −0.05 아래) / −0.08 보다 깊음
+근거(2026-10-26 실측): 서서 시작하는 클립의 첫 프레임은 ±0.01 안, 누워서 시작하는 get_up 은 +0.36~0.45,
+fall_back 의 누운 끝 +0.08~0.12, fall_front 의 엎드린 끝 −0.13. 바닥 정렬(apply_wham_pose --ground-align) 뒤
+다시 잰다. 늘어남 · 발 쓸기와 달리 역할과 무관하게 모든 클립에 적용한다.
+순간 침하 완화(2026-10-26 사용자 결정): 납품 86편에서 −0.05 를 넘긴 18편이 달리기 · 덤벼들기의 발 · 무릎이 한 순간
+묻히는 −0.04~−0.08 이었다. 실결함(stalker crawl_loop +0.16 뜸, walker idle_lurch −0.14)만 CHECK 에 남기려는 조정이다.
+
 **수용 기록** — 사람이 보고 받아들인 CHECK/FAIL 은 clip_roles.json 의 accepted 에 사유 · 날짜 · 그때의 수치와
 함께 적는다. 다시 돌렸을 때 수치가 기록보다 나빠지지 않았으면 ACCEPTED 로, 나빠졌으면 원래 판정으로 돌아간다.
 """
@@ -27,7 +38,12 @@ EDGE_MAX10 = 10          # 0.10 초과 엣지 수 (프레임별 최대) 상한
 LONGEST_MAX = 0.11       # 최장 늘어난 엣지 길이 상한 (정규화 공간, 키 약 1.0)
 SWEEP_PASS = -0.45       # 이하면 PASS
 SWEEP_FAIL = -0.20       # 초과면 FAIL
-WORSEN_TOL = {"max10": 0, "longest": 0.005, "sweep_worst": 0.02}   # 수용 기록 대비 "나빠짐" 여유
+GROUND_END = 0.03        # 처음 · 끝 최저점이 이만큼 넘게 떠 있으면 CHECK (묻힘은 GROUND_SINK)
+GROUND_SINK = 0.05       # 이만큼 넘게 바닥 아래인 프레임이 연속 MOMENT 를 넘으면 CHECK (지속 침하)
+GROUND_SINK_MOMENT = 0.08  # 순간 침하 허용 한도 — 이보다 깊으면 길이와 무관하게 CHECK
+MOMENT = 6               # 순간 = 연속 0.25초 (24fps) 이하
+WORSEN_TOL = {"max10": 0, "longest": 0.005, "sweep_worst": 0.02,
+              "float_first": 0.01, "float_last": 0.01, "sink_depth": 0.01}   # 수용 기록 대비 "나빠짐" 여유
 
 ORDER = {"PASS": 0, "EXEMPT": 0, "N/A": 0, "ACCEPTED": 1, "CHECK": 2, "FAIL": 3}
 
@@ -64,6 +80,36 @@ def judge_sweep(left, right, role, name):
     return "FAIL", [f"발 쓸기 {worst:.3f} > {SWEEP_FAIL} — 게임 이동 시 미끄러짐"], worst
 
 
+def judge_ground(ground):
+    """ground: {"first", "last", "sink", "f_sink", "deep_run"} (없으면 None → N/A).
+    deep_run: −GROUND_SINK 아래 연속 프레임의 최장 길이 (없으면 지속으로 본다 — G4 v2 결과)."""
+    if ground is None:
+        return "N/A", []
+    reasons = []
+    for k, label in (("first", "시작"), ("last", "끝")):
+        v = ground[k]
+        if v > GROUND_END:
+            reasons.append(f"{label} 떠 있음 {v:+.3f} (≤ +{GROUND_END})")
+        elif v < -GROUND_SINK:
+            reasons.append(f"{label} 묻힘 {v:+.3f} (≥ −{GROUND_SINK})")
+    note = []
+    sink, run = ground["sink"], ground.get("deep_run")
+    if sink < -GROUND_SINK_MOMENT:
+        reasons.append(f"f{ground.get('f_sink')} 바닥 아래 {sink:+.3f} (≥ −{GROUND_SINK_MOMENT})")
+    elif sink < -GROUND_SINK:
+        if run is None or run > MOMENT:
+            reasons.append(f"지속 침하 — f{ground.get('f_sink')} 바닥 아래 {sink:+.3f}, −{GROUND_SINK} 아래 연속 {run}프레임 (> {MOMENT})")
+        else:
+            note.append(f"순간 침하 허용 — f{ground.get('f_sink')} {sink:+.3f}, 연속 {run}프레임 (≤ {MOMENT}, ≥ −{GROUND_SINK_MOMENT})")
+    return ("CHECK" if reasons else "PASS"), reasons + note
+
+
+def ground_metrics(ground):
+    """수용 기록용 — 모두 클수록 나쁜 값으로."""
+    return {"float_first": round(abs(ground["first"]), 4), "float_last": round(abs(ground["last"]), 4),
+            "sink_depth": round(max(0.0, -ground["sink"]), 4)}
+
+
 def worsened(key, now, recorded):
     if recorded is None or now is None:
         return False
@@ -73,7 +119,7 @@ def worsened(key, now, recorded):
 
 
 def apply_acceptance(part, verdict, reasons, metrics, accepted):
-    """part: "edges" | "sweep". accepted: clip_roles.json 의 그 클립 accepted 목록(없으면 None)."""
+    """part: "edges" | "sweep" | "ground". accepted: clip_roles.json 의 그 클립 accepted 목록(없으면 None)."""
     if verdict not in ("CHECK", "FAIL") or not accepted:
         return verdict, reasons, None
     for a in accepted:
@@ -98,8 +144,9 @@ def resolve(roles, name):
     return name, {}
 
 
-def judge(name, edges, sweep, roles=None):
-    """edges: {"max10", "max05", "longest"}; sweep: {"L", "R"} (없으면 None). 결과 dict."""
+def judge(name, edges, sweep, roles=None, ground=None):
+    """edges: {"max10", "max05", "longest"}; sweep: {"L", "R"} (없으면 None);
+    ground: {"first", "last", "sink", "f_sink"} (없으면 None — 바닥 판정 N/A). 결과 dict."""
     key, entry = resolve(roles, name)
     role = entry.get("role")
     accepted = entry.get("accepted")
@@ -107,9 +154,13 @@ def judge(name, edges, sweep, roles=None):
     ev, er, ea = apply_acceptance("edges", ev, er, {"max10": edges["max10"], "longest": edges["longest"]}, accepted)
     sv, sr, worst = judge_sweep((sweep or {}).get("L"), (sweep or {}).get("R"), role, key)
     sv, sr, sa = apply_acceptance("sweep", sv, sr, {"sweep_worst": worst}, accepted)
-    overall = max((ev, sv), key=lambda v: ORDER[v])
+    gv, gr = judge_ground(ground)
+    if ground is not None:
+        gv, gr, ga = apply_acceptance("ground", gv, gr, ground_metrics(ground), accepted)
+    overall = max((ev, sv, gv), key=lambda v: ORDER[v])
     if overall in ("EXEMPT", "N/A"):
         overall = "PASS"
     return {"clip": key, "role": role, "verdict": overall,
             "edges": {"verdict": ev, "reasons": er, **edges},
-            "sweep": {"verdict": sv, "reasons": sr, "worst": worst, **(sweep or {})}}
+            "sweep": {"verdict": sv, "reasons": sr, "worst": worst, **(sweep or {})},
+            "ground": {"verdict": gv, "reasons": gr, **(ground or {})}}
