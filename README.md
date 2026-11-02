@@ -89,9 +89,10 @@ GPU 작업은 RunPod(RTX 4090, EU-RO-1) + Network Volume(`/workspace`)에서 mic
 
 - 검증 완료: WHAM 동작 복원, TRELLIS 외형 복원, **SMPL 골격 직접 리깅(S4)**, 유니티 에셋 반입.
   영상 한 편이 Unity 에셋까지 관통하는 수동 파이프라인이 완성됐다 (M1, 8/28)
-- 검증 완료: **TRELLIS 로컬 설치**(9/9 TRELLIS.2 전환), **품질 게이트 5종**(9/15 — G0/S2·G2·G2r)
-- 진행 중: Docker 환경 고정, 오케스트레이터 연결
-- 예정: G1m·G3·G4 게이트, E2E 자동 실행, 재시도 경로 검증 (M2)
+- 검증 완료: **TRELLIS 로컬 설치**(9/9 TRELLIS.2 전환), **품질 게이트**(G0/S2·G2·G2r 9/15, S5 트랙 10/12, G4 늘어남·발 쓸기 10/22 + 바닥 10/26), **원커맨드 E2E 오케스트레이터**(10/11)
+- **납품 현황 (2026-11-02)**: 캐릭터 7종 + player 동작, **동작 클립 115편** — walker 26 · stalker 35 · listener 27 · player 14 · lurker 4 · oiler 4 · char_shuffle 1 · dog 4(Mixamo). 10/17 게임팀 Unity 반입 확인, 10/26 피격 · 넘어짐 · 일어나기 12편, 11/02 걷기 · 달리기 13편 추가
+- 진행 중: Docker 이미지화(EH-229) — 환경 아카이브 3종 회수 · 검증, Dockerfile 초안, 빌드 대기
+- 백로그: EH-211 T포즈 rest 통일, gate_s2 보강, G4 · 5-4b 오케스트레이터 통합
 
 ## 검증 결과
 

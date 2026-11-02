@@ -1,6 +1,6 @@
 # 좀비 영상 → 유니티 아바타 파이프라인 — 진행 상황 정리
 
-작성일: 2026-08-11 (최종 갱신: 2026-10-26)
+작성일: 2026-08-11 (최종 갱신: 2026-11-02)
 레포: [Video2UnityAvatar-Pipeline](https://github.com/chaeee01/Video2UnityAvatar-Pipeline) — 초기 이름 `3DGS-Character-Generation-Pipeline`에서 개명. SuGaR(3DGS) 기반 복원을 설계에서 제외하면서 이름이 실제 구성과 어긋나 정리함.
 목표: 좀비 영상 한 편을 입력하면 SAM2로 객체를 분리하고, TRELLIS로 외형을, WHAM으로 동작을 복원한 뒤 유니티 에셋(아바타 + 애니메이션)으로 반입하는 파이프라인 구축.
 
@@ -954,6 +954,18 @@ WHAM betas(체형) + 키프레임 pose(자세) → 그 좀비와 같은 자세·
 
   **납품.** 추가 12편은 바닥 정렬로 굽고 G4 PASS 7 · ACCEPTED 5(listener `fall_front` · `fall_back` · `get_up`, stalker `fall_front` · `get_up` — 무릎 꿇기 · 눕기의 가랑이 · 옷자락 늘어남, "가랑이 막과 같은 유형, 게임 카메라 거리 허용"). `deliverable_20261026.zip` **102편**, MANIFEST 133파일 sha256 전수 일치. 이전 판은 `deliverable_archive/ground_prefix_20261026/` · `docs_pre_extra_motion_20261026/` · `docs_101편_20261026/`. stalker 웨이트 수리(5-4b, 무릎 꿇기 자세)는 백로그.
 
+- **2026-11-02 — 걷기 · 뛰기 신규 13편 납품(115편 체제) · walker get_up 고유판 교체 · 속도 체계 · Docker 준비**:
+
+  게임팀 재작업 시트(walker · listener · stalker × WALK_01~03 · RUN_01, 게임플레이 캡처 기반 묘사, "3/4 뷰 · 이미 걷는 중 시작 · 목표 속도 walk 2.5 / run 4.0 유닛/초")를 Omni Flash 로 만들었다. **참조 방식(`reference_to_video`)은 시트 원문으로도, 동작 명시 문장을 넣어도 10초 내내 서 있었다(2회)**. 검증된 first_frame 문장("The very first frame is already the same wide full-body shot as the reference image")을 한 줄 더한 판만 걸었다 — 정면 · 선 자세에서 시작, 3/4 뷰 · 이미 걷는 중 시작은 미충족(메모에 기록). 12편 전부 S5 트랙 1개 · 240/240. 베이킹은 바닥 정렬 + **서 있는 도입부 컷**(`gait_window.py`: 다리 관절 위상으로 시작점, 마지막 1.5초에서 시작 자세와 가장 가까운 프레임을 끝으로 — 루프 관절차 2.1~5.6°, 원래 끝 3.2~8.1°). G4(move 역할): 늘어남 0 · 바닥 PASS 전부, **발 쓸기는 walk 9편 FAIL(−0.004~−0.079, 기존 walk 와 같은 수준의 제자리 걸음) · run 3편 CHECK(−0.22~−0.29)**. 기존 walk 와 비교(늘어남 · 쓸기 · 영상 나란히)해 **병행 추가**로 확정 — 이름은 연출이 드러나게 `walk_slack` · `walk_bowed` · `walk_slump` · `run_reach`.
+
+  **속도 체계.** 게임팀이 캐릭터 키를 walker 1.85 · listener 2.3 · stalker 2.85 유닛으로 회신(처음 1.6 일괄 회신은 정정됨). G4 쓸기(H/초, H = 머리–발목)를 키 × 리그 실측 비율(0.823 · 0.813 · 0.843)로 유닛 환산해 **클립별 "미끄러짐 없는 권장 이동 속도" = |쓸기| × 머리–발목(유닛)** 을 README 에 명기했다(기존 run 도: stalker `run_fwd` 1.92 · listener `run` 1.39 · walker `run` 0.31 유닛/초). **목표 walk 2.5 / run 4.0 은 도달 불가** — 목표 쓸기 walk −1.04~−1.64 · run −1.66~−2.63 H/s 인데 지금까지 추출한 최대가 −1.11(lurker `run_fwd`)이고 가장 센 납품 run 이 run 목표의 48%. 재생성으로 좁힐 간극이 아니라 **속도 튜닝 권고로 회신**했다(`review_1102/sweep_target_1102.md`).
+
+  **쓸기 시험(stalker walk_01 · run_01 + 10/20 러닝머신 문장).** run 은 −0.261 → **−0.573(G4 PASS)**, walk 는 −0.079 → −0.145(기준 −0.4 미달, 확대 안 함). 대신 run 은 정면 → 옆으로 돌아서고 큰 보폭 · 한 팔만 앞이 되어 **RUN_01 의 "두 손 가슴 높이" 자세를 덮었다** — 쓸기와 자세 묘사의 트레이드오프가 10/17(다리 스윙 재작업) 이후 다시 확인됐다. 빠른 판은 stalker 에만 `run_stride`(권장 1.46 유닛/초, 자세가 사양과 다름을 명기)로 추가.
+
+  **walker `get_up` 교체.** 크레딧 충전 뒤 10/26 순화 프롬프트 그대로 재실행 → 통과. S5 는 누운 정지 구간(f0~41)을 못 잡아 트랙이 f42~239 뿐이었고(마스크는 정상), **f42 자세 42프레임 홀드**를 앞에 붙여(`blend_seam.json` 기록) 바닥 정렬로 굽어 G4 PASS. 10/26 이식판은 `deliverable_archive/walker_getup_transplant_20261102/` 로 은퇴, 메모 문구는 "오른팔도 짚는 구간 있음"(사용자 영상 확인). `deliverable_20261102.zip` **115편**, MANIFEST 146파일 sha256 전수 일치.
+
+  **Docker(EH-229).** Pod 에서 환경 아카이브 3종(sam2v 4.3GB · wham 8.5GB · trellis2 5.1GB)을 맥북으로 회수해 Pod 쪽 sha256 과 대조했다(3.7~7 MB/s, 약 2.5시간). 아카이브 목록 점검에서 **wham 에 SMPL 본체 모델(`repos/WHAM/dataset/body_models/smpl/`) 포함** — 재배포 불가라 빌드 때 제외하고 실행 시 마운트하도록 `docker/Dockerfile.env`(`TAR_EXCLUDES`) · `docker/build_env_images.sh`(sha256 재확인 → linux/amd64 빌드 → ghcr.io 비공개 push) 초안을 `feature/docker-env-images` 에 올렸다. **빌드 · push 는 대기**(맥 Docker Desktop · GHCR 토큰).
+
 ## 9. 다음 단계 (우선순위)
 
 2026-10-21 기준. 이전 목록(8월, SMPL 리깅 1~3단계 · SAM2 이전 · TRELLIS 로컬 설치 · 게이트 · 오케스트레이터)은 모두 끝났다.
@@ -961,7 +973,7 @@ WHAM betas(체형) + 키프레임 pose(자세) → 그 좀비와 같은 자세·
 1. ~~**웨이트 수리**~~ — **완료(10/22)**: listener(가랑이 · 겨드랑이 · 가슴) · walker(가랑이 · 겨드랑이). 남은 소건은 oiler 배–허벅지 막(필요 시 같은 5-4b).
 2. **EH-211 T포즈 rest 통일** — 기존 3캐릭터(walker · stalker · listener). 캐릭터 간 모션 공유(회신 ③ 공통 동작 확산)의 전제.
 3. **gate_s2 보강** — 실루엣-마스크 면적 차 점검, 실루엣과 독립된 좌우 팔 점검.
-4. **Docker 이미지화** (EH-229) — GitHub Actions 경로.
+4. **Docker 이미지화** (EH-229) — ◐ **빌드 대기(11/02)**: tar 3종 회수 · 검증, Dockerfile · 빌드 스크립트 초안(SMPL 제외) 완료. 맥에서 tar 기반 빌드 → GHCR 비공개 push 예정.
 
 **G4 구현 완료(10/22)** — `scripts/gate_g4.py`, RUNBOOK 5.6절. **바닥 판정 · 바닥 정렬 추가(10/26)** — RUNBOOK 5-5 · 5.6절.
 
