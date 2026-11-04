@@ -33,8 +33,11 @@ for e in "${ENVS[@]}"; do
     for x in $EX; do echo "   제외 $x: 아카이브 항목 $(grep -c "^$x" "$L")"; done; fi
   SR=$(split_repo $e); DF=docker/Dockerfile.env; SPLIT_ARGS=""
   [ -n "$SR" ] && { DF=docker/Dockerfile.env-split; SPLIT_ARGS="--build-arg REPO=$SR --build-arg CKPT_A=$(ckpt_a $e) --build-arg CKPT_B=$(ckpt_b $e)"; echo "   분할 빌드 (REPO=$SR, 체크포인트 A=$(ckpt_a $e) B=$(ckpt_b $e))"; }
+  # BUILDX_PUSH=1: 데몬의 docker push 대신 BuildKit 이 빌드하면서 바로 올린다(다른 업로더 · 기존 blob 마운트).
+  # 2026-11-05 wham 에서 docker push 가 큰 blob 커밋마다 400 을 받을 때의 대안 경로.
+  OUT="--load"; [ "${BUILDX_PUSH:-0}" = 1 ] && OUT="--push"
   docker buildx build --platform linux/amd64 -f $DF --build-arg ENV_TAR="$T" --build-arg TAR_EXCLUDES="$EX" $SPLIT_ARGS \
-      --build-context archives="$ARCHIVES" -t "$IMG" --load .
+      --build-context archives="$ARCHIVES" -t "$IMG" $OUT .
   docker image inspect "$IMG" --format '{{.Size}}' | awk '{printf "   이미지 크기 %.1f GB\n", $1/1e9}'
   if [ $PUSH = 1 ]; then
     echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin >/dev/null
