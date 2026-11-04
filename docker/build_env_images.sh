@@ -16,15 +16,15 @@ declare_tar() { case $1 in
 cd "$(dirname "$0")/.."
 ( cd "$ARCHIVES" && grep -E "$(for e in "${ENVS[@]}"; do declare_tar $e; done | paste -sd'|' -)" sha256_pod_1102.txt | shasum -a 256 -c ) || { echo "아카이브 sha256 불일치 — 중단"; exit 1; }
 # 재배포 금지 목록 (push 전 관례적 확인). 아카이브 목록(<아카이브>.filelist.txt, zstd -d | tar -t) 에서 찾아 빌드 때 제외한다.
-#   wham: SMPL 본체 모델 — SMPL 라이선스(재배포 불가). 실행 시 볼륨에서 마운트.
+#   wham: SMPL 본체 모델(body_models/smpl) + SMPL 파생 파일(smplx2smpl.pkl · smpl_mean_params.npz) — 재배포 불가. 실행 시 볼륨에서 마운트.
 #   그 밖의 체크포인트(WHAM · HMR2 · ViTPose · DPVO · YOLOv8 · SAM 2.1)는 연구/Apache/AGPL 등 제각각 — 비공개 레지스트리에만 둔다.
-no_redist() { case $1 in wham) echo "repos/WHAM/dataset/body_models/smpl";; *) echo "";; esac; }
+no_redist() { case $1 in wham) echo "repos/WHAM/dataset/body_models/smpl repos/WHAM/dataset/body_models/smplx2smpl.pkl repos/WHAM/dataset/body_models/smpl_mean_params.npz";; *) echo "";; esac; }
 for e in "${ENVS[@]}"; do
   T=$(declare_tar $e); TAG=$(echo "$T" | sed -E 's/^[a-z0-9]+_env_([0-9]+)_([0-9a-f]+)\.tar\.zst$/\1-\2/')
   IMG="$NS/v2ua-$e:$TAG"; EX=$(no_redist $e)
   echo "== $e ← $T → $IMG  (제외: ${EX:-없음})"
   if [ -n "$EX" ]; then L="$ARCHIVES/${T%.tar.zst}.filelist.txt"; [ -f "$L" ] || { echo "아카이브 목록 $L 이 없다 — zstd -d -c | tar -t 로 먼저 만들 것"; exit 1; }
-    echo "   제외 대상 항목 수: $(grep -c "^$EX" "$L")"; fi
+    for x in $EX; do echo "   제외 $x: 아카이브 항목 $(grep -c "^$x" "$L")"; done; fi
   docker buildx build --platform linux/amd64 -f docker/Dockerfile.env --build-arg ENV_TAR="$T" --build-arg TAR_EXCLUDES="$EX" \
       --build-context archives="$ARCHIVES" -t "$IMG" --load .
   docker image inspect "$IMG" --format '{{.Size}}' | awk '{printf "   이미지 크기 %.1f GB\n", $1/1e9}'
