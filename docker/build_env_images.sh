@@ -21,6 +21,9 @@ cd "$(dirname "$0")/.."
 # 레이어 분할: 단일 /workspace 레이어가 GHCR blob 커밋에서 400 으로 거부된 환경(wham, 12.3GB)은 Dockerfile.env-split 로
 # 환경 · 레포 · 체크포인트 세 레이어로 짓는다 (2026-11-04). sam2v(7.5GB) · trellis2(11GB) 는 단일 레이어로 push 됐다.
 split_repo() { case $1 in wham) echo "WHAM";; *) echo "";; esac; }
+# 체크포인트 분할(큰 파일 한 레이어씩): wham hmr2a.ckpt 2.71GB · vitpose-h 2.55GB, 나머지 1.21GB 는 마지막 레이어
+ckpt_a() { case $1 in wham) echo "hmr2a.ckpt";; *) echo "";; esac; }
+ckpt_b() { case $1 in wham) echo "vitpose-h-multi-coco.pth";; *) echo "";; esac; }
 no_redist() { case $1 in wham) echo "repos/WHAM/dataset/body_models/smpl repos/WHAM/dataset/body_models/smplx2smpl.pkl repos/WHAM/dataset/body_models/smpl_mean_params.npz";; *) echo "";; esac; }
 for e in "${ENVS[@]}"; do
   T=$(declare_tar $e); TAG=$(echo "$T" | sed -E 's/^[a-z0-9]+_env_([0-9]+)_([0-9a-f]+)\.tar\.zst$/\1-\2/')
@@ -29,7 +32,7 @@ for e in "${ENVS[@]}"; do
   if [ -n "$EX" ]; then L="$ARCHIVES/${T%.tar.zst}.filelist.txt"; [ -f "$L" ] || { echo "아카이브 목록 $L 이 없다 — zstd -d -c | tar -t 로 먼저 만들 것"; exit 1; }
     for x in $EX; do echo "   제외 $x: 아카이브 항목 $(grep -c "^$x" "$L")"; done; fi
   SR=$(split_repo $e); DF=docker/Dockerfile.env; SPLIT_ARGS=""
-  [ -n "$SR" ] && { DF=docker/Dockerfile.env-split; SPLIT_ARGS="--build-arg REPO=$SR"; echo "   3레이어 분할 빌드 (REPO=$SR)"; }
+  [ -n "$SR" ] && { DF=docker/Dockerfile.env-split; SPLIT_ARGS="--build-arg REPO=$SR --build-arg CKPT_A=$(ckpt_a $e) --build-arg CKPT_B=$(ckpt_b $e)"; echo "   분할 빌드 (REPO=$SR, 체크포인트 A=$(ckpt_a $e) B=$(ckpt_b $e))"; }
   docker buildx build --platform linux/amd64 -f $DF --build-arg ENV_TAR="$T" --build-arg TAR_EXCLUDES="$EX" $SPLIT_ARGS \
       --build-context archives="$ARCHIVES" -t "$IMG" --load .
   docker image inspect "$IMG" --format '{{.Size}}' | awk '{printf "   이미지 크기 %.1f GB\n", $1/1e9}'
