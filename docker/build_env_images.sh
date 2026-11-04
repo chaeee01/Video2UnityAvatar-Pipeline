@@ -18,6 +18,9 @@ cd "$(dirname "$0")/.."
 # 재배포 금지 목록 (push 전 관례적 확인). 아카이브 목록(<아카이브>.filelist.txt, zstd -d | tar -t) 에서 찾아 빌드 때 제외한다.
 #   wham: SMPL 본체 모델(body_models/smpl) + SMPL 파생 파일(smplx2smpl.pkl · smpl_mean_params.npz) — 재배포 불가. 실행 시 볼륨에서 마운트.
 #   그 밖의 체크포인트(WHAM · HMR2 · ViTPose · DPVO · YOLOv8 · SAM 2.1)는 연구/Apache/AGPL 등 제각각 — 비공개 레지스트리에만 둔다.
+# 레이어 분할: 단일 /workspace 레이어가 GHCR blob 커밋에서 400 으로 거부된 환경(wham, 12.3GB)은 Dockerfile.env-split 로
+# 환경 · 레포 · 체크포인트 세 레이어로 짓는다 (2026-11-04). sam2v(7.5GB) · trellis2(11GB) 는 단일 레이어로 push 됐다.
+split_repo() { case $1 in wham) echo "WHAM";; *) echo "";; esac; }
 no_redist() { case $1 in wham) echo "repos/WHAM/dataset/body_models/smpl repos/WHAM/dataset/body_models/smplx2smpl.pkl repos/WHAM/dataset/body_models/smpl_mean_params.npz";; *) echo "";; esac; }
 for e in "${ENVS[@]}"; do
   T=$(declare_tar $e); TAG=$(echo "$T" | sed -E 's/^[a-z0-9]+_env_([0-9]+)_([0-9a-f]+)\.tar\.zst$/\1-\2/')
@@ -25,7 +28,9 @@ for e in "${ENVS[@]}"; do
   echo "== $e ← $T → $IMG  (제외: ${EX:-없음})"
   if [ -n "$EX" ]; then L="$ARCHIVES/${T%.tar.zst}.filelist.txt"; [ -f "$L" ] || { echo "아카이브 목록 $L 이 없다 — zstd -d -c | tar -t 로 먼저 만들 것"; exit 1; }
     for x in $EX; do echo "   제외 $x: 아카이브 항목 $(grep -c "^$x" "$L")"; done; fi
-  docker buildx build --platform linux/amd64 -f docker/Dockerfile.env --build-arg ENV_TAR="$T" --build-arg TAR_EXCLUDES="$EX" \
+  SR=$(split_repo $e); DF=docker/Dockerfile.env; SPLIT_ARGS=""
+  [ -n "$SR" ] && { DF=docker/Dockerfile.env-split; SPLIT_ARGS="--build-arg REPO=$SR"; echo "   3레이어 분할 빌드 (REPO=$SR)"; }
+  docker buildx build --platform linux/amd64 -f $DF --build-arg ENV_TAR="$T" --build-arg TAR_EXCLUDES="$EX" $SPLIT_ARGS \
       --build-context archives="$ARCHIVES" -t "$IMG" --load .
   docker image inspect "$IMG" --format '{{.Size}}' | awk '{printf "   이미지 크기 %.1f GB\n", $1/1e9}'
   if [ $PUSH = 1 ]; then
