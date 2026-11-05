@@ -3,6 +3,12 @@
 #   docker/build_env_images.sh [--push] [wham sam2v trellis2 ...]
 # 전제: Docker Desktop 실행 중, 아카이브가 $ARCHIVES 에 있고 sha256 이 $ARCHIVES/sha256_pod_1102.txt 와 맞음,
 #       push 하려면 GHCR_USER · GHCR_TOKEN(write:packages) 환경 변수 — 레포 .env 에 두지 않는다(출력에 안 찍음).
+# push 경로 (2026-11-05 실측): 맥 Docker Desktop 의 docker push · buildx --push 는 VM 내부 프록시(192.168.65.1:3128)가 긴 업로드를
+#   끊어 15분 넘는 blob 커밋이 400 으로 실패한다(wham 5회). 큰 이미지는 **호스트 네트워크로 올리는 skopeo** 를 쓴다:
+#     brew install skopeo; echo https://ghcr.io | docker-credential-desktop get | python3 -c 'import json,sys;print(json.load(sys.stdin)["Secret"])' \
+#       | skopeo login ghcr.io --username <user> --password-stdin        # 키체인 자격증명을 그대로 전달(토큰 출력 없음)
+#     skopeo copy --retry-times 5 --dest-precompute-digests docker-daemon:<이미지> docker://<이미지>; skopeo logout ghcr.io
+#   wham 9.78GB(압축) 18분 34초. sam2v · trellis2 는 docker push 로도 됐다(각 13분 · 10분).
 set -euo pipefail
 ARCHIVES=${ARCHIVES:-$HOME/data/_env_archives}
 NS=${GHCR_NS:?GHCR_NS=ghcr.io/<네임스페이스> 가 필요하다}
@@ -18,6 +24,12 @@ cd "$(dirname "$0")/.."
 # 재배포 금지 목록 (push 전 관례적 확인). 아카이브 목록(<아카이브>.filelist.txt, zstd -d | tar -t) 에서 찾아 빌드 때 제외한다.
 #   wham: SMPL 본체 모델(body_models/smpl) + SMPL 파생 파일(smplx2smpl.pkl · smpl_mean_params.npz) — 재배포 불가. 실행 시 볼륨에서 마운트.
 #   그 밖의 체크포인트(WHAM · HMR2 · ViTPose · DPVO · YOLOv8 · SAM 2.1)는 연구/Apache/AGPL 등 제각각 — 비공개 레지스트리에만 둔다.
+# 레이어 분할: 단일 /workspace 레이어가 GHCR blob 커밋에서 400 으로 거부된 환경(wham, 12.3GB)은 Dockerfile.env-split 로
+# 환경 · 레포 · 체크포인트 세 레이어로 짓는다 (2026-11-04). sam2v(7.5GB) · trellis2(11GB) 는 단일 레이어로 push 됐다.
+split_repo() { case $1 in wham) echo "WHAM";; *) echo "";; esac; }
+# 체크포인트 분할(큰 파일 한 레이어씩): wham hmr2a.ckpt 2.71GB · vitpose-h 2.55GB, 나머지 1.21GB 는 마지막 레이어
+ckpt_a() { case $1 in wham) echo "hmr2a.ckpt";; *) echo "";; esac; }
+ckpt_b() { case $1 in wham) echo "vitpose-h-multi-coco.pth";; *) echo "";; esac; }
 no_redist() { case $1 in wham) echo "repos/WHAM/dataset/body_models/smpl repos/WHAM/dataset/body_models/smplx2smpl.pkl repos/WHAM/dataset/body_models/smpl_mean_params.npz";; *) echo "";; esac; }
 for e in "${ENVS[@]}"; do
   T=$(declare_tar $e); TAG=$(echo "$T" | sed -E 's/^[a-z0-9]+_env_([0-9]+)_([0-9a-f]+)\.tar\.zst$/\1-\2/')
@@ -25,8 +37,13 @@ for e in "${ENVS[@]}"; do
   echo "== $e ← $T → $IMG  (제외: ${EX:-없음})"
   if [ -n "$EX" ]; then L="$ARCHIVES/${T%.tar.zst}.filelist.txt"; [ -f "$L" ] || { echo "아카이브 목록 $L 이 없다 — zstd -d -c | tar -t 로 먼저 만들 것"; exit 1; }
     for x in $EX; do echo "   제외 $x: 아카이브 항목 $(grep -c "^$x" "$L")"; done; fi
-  docker buildx build --platform linux/amd64 -f docker/Dockerfile.env --build-arg ENV_TAR="$T" --build-arg TAR_EXCLUDES="$EX" \
-      --build-context archives="$ARCHIVES" -t "$IMG" --load .
+  SR=$(split_repo $e); DF=docker/Dockerfile.env; SPLIT_ARGS=""
+  [ -n "$SR" ] && { DF=docker/Dockerfile.env-split; SPLIT_ARGS="--build-arg REPO=$SR --build-arg CKPT_A=$(ckpt_a $e) --build-arg CKPT_B=$(ckpt_b $e)"; echo "   분할 빌드 (REPO=$SR, 체크포인트 A=$(ckpt_a $e) B=$(ckpt_b $e))"; }
+  # BUILDX_PUSH=1: 데몬의 docker push 대신 BuildKit 이 빌드하면서 바로 올린다(다른 업로더 · 기존 blob 마운트).
+  # 2026-11-05 wham 에서 docker push 가 큰 blob 커밋마다 400 을 받을 때의 대안 경로.
+  OUT="--load"; [ "${BUILDX_PUSH:-0}" = 1 ] && OUT="--push"
+  docker buildx build --platform linux/amd64 -f $DF --build-arg ENV_TAR="$T" --build-arg TAR_EXCLUDES="$EX" $SPLIT_ARGS \
+      --build-context archives="$ARCHIVES" -t "$IMG" $OUT .
   docker image inspect "$IMG" --format '{{.Size}}' | awk '{printf "   이미지 크기 %.1f GB\n", $1/1e9}'
   if [ $PUSH = 1 ]; then
     echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin >/dev/null
