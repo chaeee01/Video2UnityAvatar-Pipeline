@@ -980,6 +980,20 @@ WHAM betas(체형) + 키프레임 pose(자세) → 그 좀비와 같은 자세·
 
   **남은 것**: §14 검증 세션 — 이미지로 새 Pod(볼륨 `/vol`) 배포, 짧은 클립 1편 S2→S5 가 볼륨 환경 결과와 일치하는지, `--check` · `restore_probe` 로 거짓 통과 확인. 비공개 패키지라 RunPod 템플릿에 GHCR read 자격증명이 필요하다.
 
+- **2026-11-05 — 환경 이미지 3종 Pod 검증(§14) · 이미지 갭 3개 수정 · 재빌드 · 재push**:
+
+  이미지로 새 Pod 을 띄워(Network Volume 은 `/vol`, 시작 명령 `bash -c "sleep infinity"` 필요 — 이미지 CMD `bash` 는 즉시 종료) 환경마다 같은 기준으로 봤다: 적재 모듈이 이미지 안에서 오는가(`restore_probe.py`, `/vol` 참조 0), `pip freeze` 가 볼륨 환경과 같은가, 기능이 볼륨 환경 결과와 일치하는가. 이미지에는 sshd 가 없어 프록시 SSH(PTY 전용, scp 불가)만 되므로 결과는 `/vol/logs/day_1105_verify/` 에 남겼다.
+
+  | 이미지 | 정적 점검 | 기능 대조 |
+  |---|---|---|
+  | sam2v | `setup_sam2.sh --check` 8/8, /vol 참조 0 | S2 `walker_walk_02`(192f, 참조 run 과 같은 point 프롬프트): **마스크 192/192 픽셀 완전 일치, IoU 1.000** |
+  | wham | PROBE OK(모듈 파일 2,032), pip freeze 90/90 동일 | S5(볼륨 참조 masked.mp4 입력): **`wham_output.pkl` 완전 일치**(192/192, pose · trans · betas 최대 절대차 0) |
+  | trellis2 | `--check` rc=0, PROBE OK, pip freeze 88/88 동일 | S3 같은 Pod 에서 이미지 env · 볼륨 env 각 1회: **1536_cascade 내보내기 전 정점 5,428,333 일치**(복원 시험 기준 — TRELLIS.2 는 Pod 마다 결과가 달라 옛 산출물과는 견주지 않는다) |
+
+  **이미지 갭 3개**(컨테이너 안 심링크로 우회해 검증, Dockerfile 에 반영): ① 시스템 `python3` 없음 — 오케스트레이터 · 게이트 shebang → apt `python3`; ② 환경 이름 — 파이프라인은 `-n sam2`, 아카이브는 `sam2v` → `ENV_ALIAS` 심링크; ③ wham 의 cuDNN 이 dlopen 하는 `libnvrtc.so` 없음(RunPod CUDA 베이스의 `/usr/local/cuda` 가 주던 이름) → torch 동봉 `libnvrtc-*.so.11.2` 를 `/usr/local/lib/libnvrtc.so` 로 링크(`-builtins` 제외). wham 은 SMPL 계열 3개(`body_models/smpl/` · `smplx2smpl.pkl` · `smpl_mean_params.npz`)를 `/vol` 에서 링크해 쓴다 — 이미지에 넣지 않는 설계 그대로.
+
+  갭 수정판을 다시 지어(17분 + wham 20분) 세 이미지 안에서 python3 · 별칭 · 링크 · SMPL 부재를 확인하고 같은 태그로 다시 push 했다 — 레지스트리(압축) sam2v 5.45 · trellis2 6.21 · wham 9.79 GB, rootfs diff ID 가 로컬과 일치. push 는 trellis2 만 `docker push`(10분 44초)로 됐고 sam2v · wham 은 skopeo(각 11분 06초 · 19분 34초, 단독 실행). 이날 실패 원인은 전부 네트워크였다 — 맥이 휴대폰 핫스팟(172.20.10.x)에서 집 공유기로 바뀌며 진행 중이던 업로드 연결이 끊겼고, Docker Desktop VM 프록시 경로의 docker push 는 매니페스트 단계에서 두 번 멈췄다(규칙: 큰 이미지는 skopeo, 업로드는 한 번에 하나). 이로써 **EH-229 환경 이미지화는 검증까지 끝났다** — 남은 것은 RunPod 템플릿(비공개 패키지 읽기 자격증명, 시작 명령, `/vol` 마운트)과 sshd 포함 여부 결정.
+
 ## 9. 다음 단계 (우선순위)
 
 2026-10-21 기준. 이전 목록(8월, SMPL 리깅 1~3단계 · SAM2 이전 · TRELLIS 로컬 설치 · 게이트 · 오케스트레이터)은 모두 끝났다.
@@ -987,7 +1001,7 @@ WHAM betas(체형) + 키프레임 pose(자세) → 그 좀비와 같은 자세·
 1. ~~**웨이트 수리**~~ — **완료(10/22)**: listener(가랑이 · 겨드랑이 · 가슴) · walker(가랑이 · 겨드랑이). 남은 소건은 oiler 배–허벅지 막(필요 시 같은 5-4b).
 2. **EH-211 T포즈 rest 통일** — 기존 3캐릭터(walker · stalker · listener). 캐릭터 간 모션 공유(회신 ③ 공통 동작 확산)의 전제.
 3. **gate_s2 보강** — 실루엣-마스크 면적 차 점검, 실루엣과 독립된 좌우 팔 점검.
-4. **Docker 이미지화** (EH-229) — ◐ **push 완료(11/05) · 검증 대기**: 3종 이미지 ghcr.io/chaeee01 비공개(sam2v 5.09 · trellis2 6.20 · wham 9.78 GB). 남은 것은 §14 Pod 검증(이미지 배포 → S2→S5 관통 · 볼륨 결과 일치 · 거짓 통과 점검).
+4. ~~**Docker 이미지화** (EH-229)~~ — **완료(11/05)**: 3종 이미지 ghcr.io/chaeee01 비공개, Pod 검증 통과(S2 마스크 · S5 pkl 완전 일치, S3 정점 일치), 갭 3개 수정판 재push. 남은 운영 항목: RunPod 템플릿(GHCR read 자격증명 · 시작 명령 · `/vol`), sshd 포함 여부.
 
 **G4 구현 완료(10/22)** — `scripts/gate_g4.py`, RUNBOOK 5.6절. **바닥 판정 · 바닥 정렬 추가(10/26)** — RUNBOOK 5-5 · 5.6절.
 
