@@ -1,6 +1,6 @@
 # 좀비 영상 → 유니티 아바타 파이프라인 — 진행 상황 정리
 
-작성일: 2026-08-11 (최종 갱신: 2026-11-02)
+작성일: 2026-08-11 (최종 갱신: 2026-11-05)
 레포: [Video2UnityAvatar-Pipeline](https://github.com/chaeee01/Video2UnityAvatar-Pipeline) — 초기 이름 `3DGS-Character-Generation-Pipeline`에서 개명. SuGaR(3DGS) 기반 복원을 설계에서 제외하면서 이름이 실제 구성과 어긋나 정리함.
 목표: 좀비 영상 한 편을 입력하면 SAM2로 객체를 분리하고, TRELLIS로 외형을, WHAM으로 동작을 복원한 뒤 유니티 에셋(아바타 + 애니메이션)으로 반입하는 파이프라인 구축.
 
@@ -966,6 +966,20 @@ WHAM betas(체형) + 키프레임 pose(자세) → 그 좀비와 같은 자세·
 
   **Docker(EH-229).** Pod 에서 환경 아카이브 3종(sam2v 4.3GB · wham 8.5GB · trellis2 5.1GB)을 맥북으로 회수해 Pod 쪽 sha256 과 대조했다(3.7~7 MB/s, 약 2.5시간). 아카이브 목록 점검에서 **wham 에 SMPL 본체 모델(`repos/WHAM/dataset/body_models/smpl/`) 포함** — 재배포 불가라 빌드 때 제외하고 실행 시 마운트하도록 `docker/Dockerfile.env`(`TAR_EXCLUDES`) · `docker/build_env_images.sh`(sha256 재확인 → linux/amd64 빌드 → ghcr.io 비공개 push) 초안을 `feature/docker-env-images` 에 올렸다. **빌드 · push 는 대기**(맥 Docker Desktop · GHCR 토큰).
 
+- **2026-11-04~05 — Docker 환경 이미지 3종 빌드 · GHCR 비공개 push 완료 (EH-229)**:
+
+  볼륨 환경 아카이브(tar.zst, RUNBOOK 8절)를 그대로 `/workspace` 에 푼 이미지를 환경마다 하나씩 맥(arm64 → linux/amd64)에서 지었다(`docker/Dockerfile.env`, `build_env_images.sh`, sha256 재확인 → 빌드 → push). **재배포 금지 확인**: wham 아카이브의 SMPL 본체 모델(`body_models/smpl/`)과 파생 파일(`smplx2smpl.pkl` · `smpl_mean_params.npz`)은 `TAR_EXCLUDES` 로 풀지 않고 레이어마다 부재를 검증, 실행 시 볼륨에서 마운트한다(§14 세션). 그 밖의 체크포인트(WHAM · HMR2 · ViTPose · DPVO · YOLOv8 · SAM 2.1)는 비공개 레지스트리에만 둔다.
+
+  | 이미지 | 태그 | 레지스트리(압축) | push |
+  |---|---|---|---|
+  | `ghcr.io/chaeee01/v2ua-sam2v` | `20260929-2b90b9f` | 5.09 GB | docker push 13분 22초 |
+  | `ghcr.io/chaeee01/v2ua-trellis2` | `20261008-75fbf01` | 6.20 GB | docker push 9분 51초(+매니페스트 재시도 3초) |
+  | `ghcr.io/chaeee01/v2ua-wham` | `20261008-2b54f77` | 9.78 GB | **skopeo** 18분 34초 (docker push 5회 실패) |
+
+  **push 경위 · 진단.** wham 은 docker push 가 단일 12.3GB 레이어(39분) · 3레이어(38분) · 체크포인트 파일별 분할(47분 · 재시도 49분) · buildx --push(118분) 모두 큰 blob 커밋에서 `400 Bad Request` 로 실패했다. buildx 로그에 `write tcp 192.168.65.3→192.168.65.1:3128: use of closed network connection` · `Post …/blobs/uploads/: EOF` — **Docker Desktop VM 의 내부 프록시가 긴 업로드 연결을 끊고, 재개된 세션의 커밋을 레지스트리가 거부**하는 것이었다(15분 안에 끝난 push 는 전부 통과, 레이어 형식 gzip · 크기는 통과한 trellis2 5.98GB 레이어보다 작았다). **호스트 네트워크로 올리는 skopeo**(`skopeo copy docker-daemon:… docker://…`, 키체인 자격증명을 파이프로 전달, 끝나고 logout)로 한 번에 성공. 분할 빌드(`Dockerfile.env-split`: 환경 · 레포 · 체크포인트 큰 파일별 레이어)는 그대로 둔다 — 레이어가 작을수록 재시도 비용이 적다. 이미지는 모델 가중치 캐시(약 20GB)를 담지 않는다.
+
+  **남은 것**: §14 검증 세션 — 이미지로 새 Pod(볼륨 `/vol`) 배포, 짧은 클립 1편 S2→S5 가 볼륨 환경 결과와 일치하는지, `--check` · `restore_probe` 로 거짓 통과 확인. 비공개 패키지라 RunPod 템플릿에 GHCR read 자격증명이 필요하다.
+
 ## 9. 다음 단계 (우선순위)
 
 2026-10-21 기준. 이전 목록(8월, SMPL 리깅 1~3단계 · SAM2 이전 · TRELLIS 로컬 설치 · 게이트 · 오케스트레이터)은 모두 끝났다.
@@ -973,7 +987,7 @@ WHAM betas(체형) + 키프레임 pose(자세) → 그 좀비와 같은 자세·
 1. ~~**웨이트 수리**~~ — **완료(10/22)**: listener(가랑이 · 겨드랑이 · 가슴) · walker(가랑이 · 겨드랑이). 남은 소건은 oiler 배–허벅지 막(필요 시 같은 5-4b).
 2. **EH-211 T포즈 rest 통일** — 기존 3캐릭터(walker · stalker · listener). 캐릭터 간 모션 공유(회신 ③ 공통 동작 확산)의 전제.
 3. **gate_s2 보강** — 실루엣-마스크 면적 차 점검, 실루엣과 독립된 좌우 팔 점검.
-4. **Docker 이미지화** (EH-229) — ◐ **빌드 대기(11/02)**: tar 3종 회수 · 검증, Dockerfile · 빌드 스크립트 초안(SMPL 제외) 완료. 맥에서 tar 기반 빌드 → GHCR 비공개 push 예정.
+4. **Docker 이미지화** (EH-229) — ◐ **push 완료(11/05) · 검증 대기**: 3종 이미지 ghcr.io/chaeee01 비공개(sam2v 5.09 · trellis2 6.20 · wham 9.78 GB). 남은 것은 §14 Pod 검증(이미지 배포 → S2→S5 관통 · 볼륨 결과 일치 · 거짓 통과 점검).
 
 **G4 구현 완료(10/22)** — `scripts/gate_g4.py`, RUNBOOK 5.6절. **바닥 판정 · 바닥 정렬 추가(10/26)** — RUNBOOK 5-5 · 5.6절.
 
