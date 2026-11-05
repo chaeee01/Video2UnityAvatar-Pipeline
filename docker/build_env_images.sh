@@ -30,6 +30,8 @@ split_repo() { case $1 in wham) echo "WHAM";; *) echo "";; esac; }
 # 체크포인트 분할(큰 파일 한 레이어씩): wham hmr2a.ckpt 2.71GB · vitpose-h 2.55GB, 나머지 1.21GB 는 마지막 레이어
 ckpt_a() { case $1 in wham) echo "hmr2a.ckpt";; *) echo "";; esac; }
 ckpt_b() { case $1 in wham) echo "vitpose-h-multi-coco.pth";; *) echo "";; esac; }
+# 환경 이름 별칭: 파이프라인이 부르는 이름 → 아카이브 환경 (sam2v 아카이브는 환경 이름이 sam2v, 오케스트레이터는 sam2)
+env_alias() { case $1 in sam2v) echo "sam2:sam2v";; *) echo "";; esac; }
 no_redist() { case $1 in wham) echo "repos/WHAM/dataset/body_models/smpl repos/WHAM/dataset/body_models/smplx2smpl.pkl repos/WHAM/dataset/body_models/smpl_mean_params.npz";; *) echo "";; esac; }
 for e in "${ENVS[@]}"; do
   T=$(declare_tar $e); TAG=$(echo "$T" | sed -E 's/^[a-z0-9]+_env_([0-9]+)_([0-9a-f]+)\.tar\.zst$/\1-\2/')
@@ -42,7 +44,7 @@ for e in "${ENVS[@]}"; do
   # BUILDX_PUSH=1: 데몬의 docker push 대신 BuildKit 이 빌드하면서 바로 올린다(다른 업로더 · 기존 blob 마운트).
   # 2026-11-05 wham 에서 docker push 가 큰 blob 커밋마다 400 을 받을 때의 대안 경로.
   OUT="--load"; [ "${BUILDX_PUSH:-0}" = 1 ] && OUT="--push"
-  docker buildx build --platform linux/amd64 -f $DF --build-arg ENV_TAR="$T" --build-arg TAR_EXCLUDES="$EX" $SPLIT_ARGS \
+  docker buildx build --platform linux/amd64 -f $DF --build-arg ENV_TAR="$T" --build-arg TAR_EXCLUDES="$EX" --build-arg ENV_ALIAS="$(env_alias $e)" $SPLIT_ARGS \
       --build-context archives="$ARCHIVES" -t "$IMG" $OUT .
   docker image inspect "$IMG" --format '{{.Size}}' | awk '{printf "   이미지 크기 %.1f GB\n", $1/1e9}'
   if [ $PUSH = 1 ]; then
