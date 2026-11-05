@@ -3,6 +3,12 @@
 #   docker/build_env_images.sh [--push] [wham sam2v trellis2 ...]
 # 전제: Docker Desktop 실행 중, 아카이브가 $ARCHIVES 에 있고 sha256 이 $ARCHIVES/sha256_pod_1102.txt 와 맞음,
 #       push 하려면 GHCR_USER · GHCR_TOKEN(write:packages) 환경 변수 — 레포 .env 에 두지 않는다(출력에 안 찍음).
+# push 경로 (2026-11-05 실측): 맥 Docker Desktop 의 docker push · buildx --push 는 VM 내부 프록시(192.168.65.1:3128)가 긴 업로드를
+#   끊어 15분 넘는 blob 커밋이 400 으로 실패한다(wham 5회). 큰 이미지는 **호스트 네트워크로 올리는 skopeo** 를 쓴다:
+#     brew install skopeo; echo https://ghcr.io | docker-credential-desktop get | python3 -c 'import json,sys;print(json.load(sys.stdin)["Secret"])' \
+#       | skopeo login ghcr.io --username <user> --password-stdin        # 키체인 자격증명을 그대로 전달(토큰 출력 없음)
+#     skopeo copy --retry-times 5 --dest-precompute-digests docker-daemon:<이미지> docker://<이미지>; skopeo logout ghcr.io
+#   wham 9.78GB(압축) 18분 34초. sam2v · trellis2 는 docker push 로도 됐다(각 13분 · 10분).
 set -euo pipefail
 ARCHIVES=${ARCHIVES:-$HOME/data/_env_archives}
 NS=${GHCR_NS:?GHCR_NS=ghcr.io/<네임스페이스> 가 필요하다}
