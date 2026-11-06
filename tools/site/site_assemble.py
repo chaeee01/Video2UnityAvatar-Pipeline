@@ -35,7 +35,7 @@ ITEMS = [
     ("s3_mesh_dog", "image", f"{X}/mesh_dog.png", "dog", "S3 외형", "dog 메쉬 (골격 · 동작은 Mixamo)", None, 0),
     ("s4_align_walker", "image", f"{R}/align_check_frame.png", "walker", "S4 리깅", "SMPL 몸을 TRELLIS 메쉬에 정렬한 결과 — 골격이 메쉬 안에 들어오는지 확인", None, 0),
     ("s4_transfer_walker", "image", f"{R}/transfer_constraint_f138.png", "walker", "S4 리깅", "웨이트 전이의 부위 제약 — 팔 · 다리가 서로 붙지 않게", None, 0),
-    ("bake_walker_hit", "video", f"{X}/bake_walker_hit_eq.mp4", "walker", "S7 결합", "원본 영상(왼쪽)과 리그에 구운 동작(오른쪽, 몸 키 · 발 높이를 원본에 맞춰 확대) — 리타게팅 없이 같은 SMPL 골격", None, 0),
+    ("bake_walker_hit", "video", f"{X}/bake_walker_hit_eq.mp4", "walker", "S7 결합", "원본 영상(왼쪽)과 리그에 구운 동작(오른쪽, 고해상도 재렌더에서 원본과 같은 몸 키 · 발 높이 창을 잘라냄) — 리타게팅 없이 같은 SMPL 골격", None, 0),
     ("unity_ingame_1", "video", f"{H}/Downloads/sweetpotato_20261105.mov", "walker", "Unity · 게임", "실제 게임 내 플레이 장면 — 플레이어 시점, 워커가 다가와 피격 · 쓰러짐 (16:34~16:39)", None, 994, 5, 30),
     ("unity_ingame_2", "video", f"{H}/Downloads/sweetpotato_20261105.mov", "walker", "Unity · 게임", "실제 게임 내 플레이 장면 — 쓰러진 워커가 일어나 걷기 (16:22~16:28)", None, 982, 6, 30),
     ("unity_ingame_3", "video", f"{H}/Downloads/sweetpotato_20261105.mov", "listener · walker", "Unity · 게임", "실제 게임 내 플레이 장면 — 리스너와 워커, 가격 · 쓰러짐 (15:57~16:02)", None, 957, 5, 30),
@@ -57,6 +57,8 @@ OPTS = {
     "input_video_walker": {"h": 720, "crf": 26},
     "s2_mask_walker": {"h": 720, "crf": 26},
     "s5_wham_overlay_walker": {"h": 720, "crf": 26},
+    "s3_mesh_walker_turntable": {"h": 720, "crf": 26},
+    "bake_walker_hit": {"h": 720, "crf": 26},
 }
 REPLACES = {"s3_mesh_player_03": "assets/s3_mesh_player.jpg", "s3_mesh_player_04": "assets/s3_mesh_char_shuffle.jpg"}
 
@@ -99,7 +101,7 @@ tot = sum(m["bytes"] for m in man)
 json.dump({"generated": "2026-11-06", "encoding": {"video": "H.264 mp4, height 540, CRF 28, ≤6 s, no audio, faststart", "image": "JPEG q80, long side ≤1200 px", "overrides": "items[].encoding_override"},
            "total_bytes": tot, "items": man}, open(f"{OUT}/manifest.json", "w"), ensure_ascii=False, indent=1)
 L = ["# site/assets — 공개 페이지 소재 매니페스트 (2026-11-06)", "",
-     f"총 {len(man)}개 · {tot/1e6:.2f} MB. 영상 H.264 · 높이 540 · CRF 28 · ≤6초 · 무음, 스틸 JPEG q80 · 긴 변 ≤1200px. 예외: 구조도 폭 1400 · q88, 라인업 긴 변 1600 · q85, 세로 영상 3편 높이 720 · CRF 26.", "",
+     f"총 {len(man)}개 · {tot/1e6:.2f} MB. 영상 H.264 · 높이 540 · CRF 28 · ≤6초 · 무음, 스틸 JPEG q80 · 긴 변 ≤1200px. 예외: 구조도 폭 1400 · q88, 라인업 긴 변 1600 · q85, 세로 영상 3편 · 턴테이블 · bake 높이 720 · CRF 26.", "",
      "구 파일 대체: `s3_mesh_player.jpg` → `s3_mesh_player_03.jpg`(char3), `s3_mesh_char_shuffle.jpg` → `s3_mesh_player_04.jpg`(char4) — 렌더 비교로 같은 캐릭터 확인(메쉬는 다른 판: 구 TRELLIS.2 · 신 char*.glb).", "",
      "| 파일 | 종류 | 크기 | 캐릭터 | 단계 | 캡션 | 전후 쌍 | 원본 |", "|---|---|---|---|---|---|---|---|"]
 for m in man:
