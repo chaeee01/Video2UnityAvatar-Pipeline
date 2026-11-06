@@ -996,7 +996,7 @@ WHAM betas(체형) + 키프레임 pose(자세) → 그 좀비와 같은 자세·
 
 - **2026-11-06 — 공개 페이지(`site/`) 조립 · GitHub Pages 배포 워크플로**:
 
-  레포의 `site/` 를 GitHub Actions 로 Pages 에 올린다(`.github/workflows/pages.yml` — main 의 `site/**` 변경 시 upload-pages-artifact → deploy-pages, 수동 실행 가능). 페이지는 `site/index.html` 한 장 — 파이프라인 한 바퀴 · 납품 캐릭터 8종 · 수치 검사 · 문제 해결 기록 · 한계와 배운 것. 외부 스크립트 · 스타일시트 없음, 로컬 참조 `assets/*` 29개 전부 존재(끊긴 링크 0).
+  <https://chaeee01.github.io/Video2UnityAvatar-Pipeline/> — 레포의 `site/` 를 GitHub Actions 로 Pages 에 올린다(`.github/workflows/pages.yml` — main 의 `site/**` 변경 시 upload-pages-artifact → deploy-pages, 수동 실행 가능). 페이지는 `site/index.html` 한 장 — 파이프라인 한 바퀴 · 납품 캐릭터 8종 · 수치 검사 · 문제 해결 기록 · 한계와 배운 것. 외부 스크립트 · 스타일시트 없음, 로컬 참조 `assets/*` 29개 전부 존재(끊긴 링크 0).
 
   | 묶음 | 점수 | 크기 |
   |---|---|---|
