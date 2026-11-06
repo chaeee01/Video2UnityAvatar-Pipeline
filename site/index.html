@@ -69,6 +69,9 @@ figcaption{padding:10px 14px;font-size:.84rem;color:var(--sub);border-top:1px so
 .media-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;max-width:760px}
 .media-row.narrow{max-width:520px}
 .media-row.grid2{grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
+.media-row.vert{max-width:470px}
+.media-row.vert1{max-width:235px}
+.media-row.eq video,.media-row.eq img{aspect-ratio:16/10;object-fit:contain;background:#101013}
 
 /* lineup */
 .grid7{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
@@ -119,7 +122,7 @@ footer .wrap{border-top:1px solid var(--line);padding-top:32px}
       <a class="btn ghost" href="https://store.steampowered.com/app/5029430/Empty_House/?l=koreana">Empty House — Steam 페이지 →</a>
     </div>
     <div class="stats">
-      <div class="stat"><b>8종</b><small>제작한 캐릭터</small></div>
+      <div class="stat"><b>10종</b><small>제작한 캐릭터</small></div>
       <div class="stat"><b>115편</b><small>납품한 애니메이션 클립</small></div>
       <div class="stat"><b>5단계</b><small>자동 품질 게이트 G0–G4</small></div>
       <div class="stat"><b>0회</b><small>리타게팅 — 골격 통일로 제거</small></div>
@@ -134,7 +137,7 @@ footer .wrap{border-top:1px solid var(--line);padding-top:32px}
     <p class="lead">캐릭터 하나(walker)가 입력에서 게임까지 가는 실제 산출물입니다.
     외형과 동작을 영상에서 따로 복원한 뒤, 하나의 SMPL 골격 위에서 합칩니다.</p>
 
-    <figure style="margin-bottom:48px">
+    <figure style="max-width:560px;margin:0 auto 48px">
       <img src="assets/pipeline_v4.jpg" alt="파이프라인 v4 구조도" loading="lazy">
       <figcaption>파이프라인 v4 — 동작 경로(WHAM)의 체형 파라미터(betas)를 외형 경로의 리깅 단계로 전달해 양쪽 골격을 SMPL 24본으로 통일. 이 연결 하나가 리타게팅 단계를 제거합니다.</figcaption>
     </figure>
@@ -145,7 +148,7 @@ footer .wrap{border-top:1px solid var(--line);padding-top:32px}
         <h3>입력 — 이미지 1장과 생성 영상</h3>
         <p>캐릭터 레퍼런스 이미지를 첫 프레임으로 고정해 영상 생성 모델(Veo/Gemini)로 동작 영상을 만듭니다.
         프롬프트의 문구 하나가 보폭·접지·자세를 바꾸기 때문에, 동작별 프롬프트 레시피를 실측으로 확립했습니다.</p>
-        <div class="media-row">
+        <div class="media-row vert">
           <figure><img src="assets/input_ref_walker.jpg" alt="walker 레퍼런스 이미지" loading="lazy"><figcaption>① 캐릭터 레퍼런스 이미지</figcaption></figure>
           <figure><video src="assets/input_video_walker.mp4" muted loop playsinline preload="metadata"></video><figcaption>② 생성된 걷기 영상 (9:16)</figcaption></figure>
         </div>
@@ -157,7 +160,7 @@ footer .wrap{border-top:1px solid var(--line);padding-top:32px}
       <div>
         <h3>분할 — SAM2</h3>
         <p>배경을 지우고 캐릭터만 남긴 클립을 다음 단계로 넘깁니다. 마스크 품질은 게이트가 자동 검사합니다.</p>
-        <div class="media-row narrow">
+        <div class="media-row vert1">
           <figure><video src="assets/s2_mask_walker.mp4" muted loop playsinline preload="metadata"></video><figcaption>SAM2 마스크 — 인물만 분리된 클립</figcaption></figure>
         </div>
       </div>
@@ -169,7 +172,7 @@ footer .wrap{border-top:1px solid var(--line);padding-top:32px}
         <h3>동작 복원 — WHAM</h3>
         <p>영상에서 프레임별 3D 자세와 위치를 SMPL 파라미터로 추정합니다.
         복원된 3D 몸을 원본 영상 위에 투영하면 추정이 얼마나 맞는지 눈으로 확인할 수 있습니다.</p>
-        <div class="media-row narrow">
+        <div class="media-row vert1">
           <figure><video src="assets/s5_wham_overlay_walker.mp4" muted loop playsinline preload="metadata"></video><figcaption>WHAM이 추정한 3D 몸(SMPL 정점)을 원본에 투영</figcaption></figure>
         </div>
       </div>
@@ -194,7 +197,7 @@ footer .wrap{border-top:1px solid var(--line);padding-top:32px}
         <p>WHAM의 체형으로 만든 SMPL 몸을 TRELLIS 메쉬에 정렬하고, 검증된 SMPL 웨이트를
         3단계(최근접 표면 → 메쉬 연결 전파 → 거리 폴백)로 전이합니다.
         "공간상 가깝다 ≠ 같은 부위다"를 배운 자리 — 손 정점이 허벅지 웨이트를 받는 오배정을 부위 제약으로 막습니다.</p>
-        <div class="media-row">
+        <div class="media-row eq">
           <figure><img src="assets/s4_align_walker.jpg" alt="SMPL-TRELLIS 정렬 확인" loading="lazy"><figcaption>SMPL 몸(골격)을 메쉬 안에 정렬</figcaption></figure>
           <figure><img src="assets/s4_transfer_walker.jpg" alt="웨이트 전이 부위 제약" loading="lazy"><figcaption>웨이트 전이의 부위 제약 — 팔·다리가 붙는 오배정 방지</figcaption></figure>
         </div>
@@ -218,7 +221,7 @@ footer .wrap{border-top:1px solid var(--line);padding-top:32px}
       <div class="badge">OUT</div>
       <div>
         <h3>Unity — 게임 반입</h3>
-        <p>FBX로 내보내 게임팀에 납품합니다. 캐릭터 8종, 클립 115편 — 아래는 이 파이프라인으로 만든
+        <p>FBX로 내보내 게임팀에 납품합니다. 캐릭터 10종, 클립 115편 — 아래는 이 파이프라인으로 만든
         걷기·피격·쓰러짐·일어나기·포효 동작이 실제 게임에서 재생되는 장면입니다.</p>
         <div class="media-row grid2">
           <figure><video src="assets/unity_ingame_1.mp4" muted loop playsinline preload="metadata"></video><figcaption>플레이어 시점 — walker 접근 · 피격 · 쓰러짐</figcaption></figure>
@@ -234,21 +237,23 @@ footer .wrap{border-top:1px solid var(--line);padding-top:32px}
 <section class="sec" id="characters">
   <div class="wrap">
     <div class="kicker">Characters</div>
-    <h2>납품 캐릭터 8종</h2>
-    <p class="lead">전부 이미지 1장에서 출발해 같은 파이프라인으로 만들었습니다.</p>
+    <h2>납품 캐릭터 10종</h2>
+    <p class="lead">좀비 6종과 플레이어 4종 — 전부 이미지 1장에서 출발해 같은 파이프라인으로 만들었습니다.</p>
     <figure style="margin-bottom:12px">
-      <img src="assets/lineup_meshes.jpg" alt="납품 캐릭터 8종 메쉬 라인업" loading="lazy">
-      <figcaption>캐릭터 8종 한눈에 — 모두 레퍼런스 이미지 1장에서 생성한 3D 메쉬</figcaption>
+      <img src="assets/lineup_meshes.jpg" alt="납품 캐릭터 10종 메쉬 라인업" loading="lazy">
+      <figcaption>캐릭터 10종 한눈에 — 좀비 6종(앞) + 플레이어 4종(뒤), 모두 레퍼런스 이미지 1장에서 생성한 3D 메쉬</figcaption>
     </figure>
     <div class="grid7">
-      <figure><img src="assets/s3_mesh_walker.jpg" alt="walker" loading="lazy"><figcaption>walker</figcaption></figure>
-      <figure><img src="assets/s3_mesh_listener.jpg" alt="listener" loading="lazy"><figcaption>listener</figcaption></figure>
-      <figure><img src="assets/s3_mesh_stalker.jpg" alt="stalker" loading="lazy"><figcaption>stalker</figcaption></figure>
-      <figure><img src="assets/s3_mesh_lurker.jpg" alt="lurker" loading="lazy"><figcaption>lurker</figcaption></figure>
-      <figure><img src="assets/s3_mesh_oiler.jpg" alt="oiler" loading="lazy"><figcaption>oiler</figcaption></figure>
-      <figure><img src="assets/s3_mesh_player.jpg" alt="player" loading="lazy"><figcaption>player</figcaption></figure>
-      <figure><img src="assets/s3_mesh_char_shuffle.jpg" alt="char_shuffle" loading="lazy"><figcaption>char_shuffle</figcaption></figure>
-      <figure><img src="assets/s3_mesh_dog.jpg" alt="dog" loading="lazy"><figcaption>dog (Mixamo 리깅)</figcaption></figure>
+      <figure><img src="assets/s3_mesh_walker.jpg" alt="walker" loading="lazy"><figcaption>zombie — walker</figcaption></figure>
+      <figure><img src="assets/s3_mesh_listener.jpg" alt="listener" loading="lazy"><figcaption>zombie — listener</figcaption></figure>
+      <figure><img src="assets/s3_mesh_stalker.jpg" alt="stalker" loading="lazy"><figcaption>zombie — stalker</figcaption></figure>
+      <figure><img src="assets/s3_mesh_lurker.jpg" alt="lurker" loading="lazy"><figcaption>zombie — lurker</figcaption></figure>
+      <figure><img src="assets/s3_mesh_oiler.jpg" alt="oiler" loading="lazy"><figcaption>zombie — oiler</figcaption></figure>
+      <figure><img src="assets/s3_mesh_dog.jpg" alt="dog" loading="lazy"><figcaption>zombie — dog</figcaption></figure>
+      <figure><img src="assets/s3_mesh_player_01.jpg" alt="player 1" loading="lazy"><figcaption>player 01</figcaption></figure>
+      <figure><img src="assets/s3_mesh_player_02.jpg" alt="player 2" loading="lazy"><figcaption>player 02</figcaption></figure>
+      <figure><img src="assets/s3_mesh_player_03.jpg" alt="player 3" loading="lazy"><figcaption>player 03</figcaption></figure>
+      <figure><img src="assets/s3_mesh_player_04.jpg" alt="player 4" loading="lazy"><figcaption>player 04</figcaption></figure>
     </div>
   </div>
 </section>
@@ -286,7 +291,7 @@ footer .wrap{border-top:1px solid var(--line);padding-top:32px}
       <p>게임팀의 "미끄러져 보인다"는 피드백을 <b>"접지 중 발이 몸 아래로 쓸리는 속도"</b>라는 지표로 번역했습니다.
       문제 클립은 무릎만 드는 제자리걸음(쓸기 ≈ 0)이었고, 같은 골격을 쓰는 다른 캐릭터의 달리기 동작을 이식해 해결 —
       이후 이 지표는 G4의 자동 판정 항목이 됐고, 클립마다 "미끄러지지 않는 권장 이동 속도"를 함께 납품합니다.</p>
-      <div class="media-row">
+      <div class="media-row eq">
         <figure><video src="assets/ba_slide_listener.mp4" muted loop playsinline preload="metadata"></video><figcaption>문제판(좌) · 동작 출처(중) · 이식판(우)</figcaption></figure>
         <figure><img src="assets/ba_slide_listener_still.jpg" alt="접지 비교 근접" loading="lazy"><figcaption>디딘 발 위치 근접 비교</figcaption></figure>
       </div>
@@ -298,7 +303,7 @@ footer .wrap{border-top:1px solid var(--line);padding-top:32px}
       <p>늘어난 엣지의 87%가 웨이트 전이가 만드는 <b>"딱 잘린 경계"</b>(한 정점은 왼다리만, 옆 정점은 오른다리만)에서
       나온다는 걸 측정으로 특정하고, 경계 주변 띠만 스무딩하는 후처리를 설계했습니다. 띠 밖 웨이트는 한 정점도 바뀌지 않아
       기존 납품 클립의 회귀가 0건 — 이 수리로 격리돼 있던 클립 18편이 전부 복구됐습니다.</p>
-      <div class="media-row">
+      <div class="media-row eq">
         <figure><video src="assets/ba_weight_listener.mp4" muted loop playsinline preload="metadata"></video><figcaption>원본 · 1차 수리 · 가슴까지 수리</figcaption></figure>
         <figure><video src="assets/ba_weight_walker.mp4" muted loop playsinline preload="metadata"></video><figcaption>walker 겨드랑이 — 수리 전(좌) · 후(우)</figcaption></figure>
       </div>
@@ -333,15 +338,24 @@ footer .wrap{border-top:1px solid var(--line);padding-top:32px}
   <div class="wrap">
     <div class="kicker">Honest notes</div>
     <h2>한계와 배운 것</h2>
+    <h3 style="margin:28px 0 10px">한계</h3>
     <ul class="flat">
-      <li><b>정렬은 전신 강체 1회입니다.</b> 생성 메쉬와 추정 자세가 팔다리 단위로 어긋나면 그 오차가 웨이트 전이로 넘어갑니다.
-      입력 표준화(T포즈 레퍼런스)와 사후 검증(부위 제약·분포 게이트)으로 잡았지만, 근본 해법은 사지별 비강체 정합입니다.</li>
-      <li><b>정합성 개선이 품질 개선은 아니었습니다.</b> UV 이음매 때문에 정점 11.6%가 폴백으로 오분류되는 걸 고치자
-      오히려 변형이 나빠져 기본 off로 남겼습니다 — 측정이 직관을 이긴 사례.</li>
-      <li><b>생성 모델은 방향 지시를 안정적으로 따르지 않습니다.</b> 같은 지시가 캐릭터마다 반대로 나오는 걸 실측했고,
-      프롬프트가 아니라 생성 후 수치 판정으로 거르는 쪽이 신뢰할 수 있었습니다.</li>
-      <li><b>원인 서술을 다섯 번 고쳐 쓴 기록이 있습니다.</b> 틀린 진단을 지우지 않고 정정 이력으로 남기는 것이
-      이 프로젝트의 규율입니다 — 레포의 PROJECT_STATUS.md에 그대로 있습니다.</li>
+      <li><b>자세가 어긋나면 리깅이 흔들립니다.</b> 외형 메쉬와 추정 자세를 몸 전체 기준으로 한 번에 맞추기 때문에,
+      팔다리 단위로 어긋난 차이는 리깅 품질로 넘어옵니다. 입력 표준화(T포즈 레퍼런스)와 자동 검증으로 줄였지만,
+      팔다리 단위의 정밀 정렬은 남은 과제입니다.</li>
+      <li><b>생성 모델은 지시를 다 따르지 않습니다.</b> 같은 방향 지시가 캐릭터마다 반대로 나오기도 합니다.
+      프롬프트만으로 통제하는 대신, 생성 후 수치로 판정해 거르는 구조를 택했습니다.</li>
+      <li><b>세부 묘사는 생성 모델의 상한에 묶입니다.</b> 해상도·면 수·시드를 바꿔도 얼굴 같은 세부는 좋아지지 않았습니다.
+      이 영역은 품질 상향이 아니라 결함 회피(시드 선택)와 사람의 리터치 영역으로 정리했습니다.</li>
+    </ul>
+    <h3 style="margin:28px 0 10px">배운 것</h3>
+    <ul class="flat">
+      <li><b>모호한 피드백은 지표로 번역해야 풀립니다.</b> "미끄러져 보인다"를 측정값으로 바꾸자
+      원인 특정 → 수리 → 재발 방지(자동 게이트)까지 한 길로 이어졌습니다.</li>
+      <li><b>잘 고치는 것보다, 문제가 안 생기는 구조가 쌉니다.</b> 리타게팅을 개선하는 대신 골격을 통일해 제거했고,
+      문제를 일으키는 입력(팔이 몸에 붙은 자세)은 레퍼런스 레시피로 상류에서 막았습니다.</li>
+      <li><b>개선처럼 보이는 변경도 수치로 검증해야 합니다.</b> 데이터 정합성을 고친 수정이 오히려 변형을
+      악화시킨 적이 있습니다. 그 뒤로 모든 변경은 납품 전체 재검사를 통과해야 반영됩니다.</li>
     </ul>
   </div>
 </section>
