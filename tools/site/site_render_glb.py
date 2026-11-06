@@ -17,8 +17,8 @@ bpy.ops.import_scene.gltf(filepath=glb)
 meshes = [o for o in bpy.context.scene.objects if o.type == "MESH"]
 pivot = bpy.data.objects.new("pivot", None)
 bpy.context.scene.collection.objects.link(pivot)
-for o in meshes:
-    if o.parent is None:
+for o in list(bpy.context.scene.objects):
+    if o.parent is None and o is not pivot:          # GLB 가 메쉬를 빈 노드 아래 둔 경우도 최상위 노드째 옮긴다
         o.parent = pivot
 
 dg = bpy.context.evaluated_depsgraph_get()

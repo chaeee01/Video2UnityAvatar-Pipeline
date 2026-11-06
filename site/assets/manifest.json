@@ -2,39 +2,50 @@
  "generated": "2026-11-06",
  "encoding": {
   "video": "H.264 mp4, height 540, CRF 28, ≤6 s, no audio, faststart",
-  "image": "JPEG q80, long side ≤1200 px"
+  "image": "JPEG q80, long side ≤1200 px",
+  "overrides": "items[].encoding_override"
  },
- "total_bytes": 5226770,
+ "total_bytes": 6294292,
  "items": [
   {
    "id": "pipeline_v4",
    "file": "assets/pipeline_v4.jpg",
    "kind": "image",
-   "width": 698,
-   "height": 1200,
-   "bytes": 99489,
-   "sha256_16": "6594b56a658f3dd8",
+   "width": 1400,
+   "height": 2406,
+   "bytes": 327110,
+   "sha256_16": "27e65d64f5711202",
    "source": "~/Desktop/Video2UnityAvatar-Pipeline.wt/docs/assets/pipeline_v4.png",
    "character": "-",
    "stage": "개요",
    "caption": "파이프라인 v4 — 영상 한 편에서 외형(TRELLIS.2)과 동작(WHAM)을 따로 뽑아 SMPL 골격 하나로 합친다",
    "pair": null,
-   "placeholder": false
+   "placeholder": false,
+   "encoding_override": {
+    "width": 1400,
+    "q": 88
+   },
+   "replaces": null
   },
   {
    "id": "lineup_meshes",
    "file": "assets/lineup_meshes.jpg",
    "kind": "image",
-   "width": 1200,
-   "height": 682,
-   "bytes": 99919,
-   "sha256_16": "a64643188cac7821",
-   "source": "~/data/site_raw_1106/lineup.png",
-   "character": "walker · listener · stalker · lurker · oiler · player · char_shuffle · dog",
+   "width": 1600,
+   "height": 640,
+   "bytes": 134057,
+   "sha256_16": "550973e789b1a7e7",
+   "source": "~/data/site_raw_1106/lineup10.png",
+   "character": "walker · listener · stalker · lurker · oiler · dog · player_01~04",
    "stage": "S3 외형",
-   "caption": "납품 캐릭터 8종의 TRELLIS.2 메쉬 (정면, 같은 조명)",
+   "caption": "납품 캐릭터 10종의 TRELLIS 메쉬 — 좀비 6종(위 5 · 아래 첫 칸 dog) 뒤에 플레이어 4종 (정면, 같은 조명)",
    "pair": null,
-   "placeholder": false
+   "placeholder": false,
+   "encoding_override": {
+    "long": 1600,
+    "q": 85
+   },
+   "replaces": null
   },
   {
    "id": "input_ref_walker",
@@ -49,52 +60,69 @@
    "stage": "입력",
    "caption": "입력 ① 캐릭터 참조 이미지 (영상 생성의 시작 프레임)",
    "pair": null,
-   "placeholder": false
+   "placeholder": false,
+   "encoding_override": null,
+   "replaces": null
   },
   {
    "id": "input_video_walker",
    "file": "assets/input_video_walker.mp4",
    "kind": "video",
-   "width": 304,
-   "height": 540,
-   "bytes": 127279,
-   "sha256_16": "3400f8209a4a0bac",
+   "width": 406,
+   "height": 720,
+   "bytes": 278130,
+   "sha256_16": "6092e076989e42d3",
    "source": "~/data/00_raw/walker_walk_02__fast-ff.mp4",
    "character": "walker",
    "stage": "입력",
    "caption": "입력 ② 생성 영상 — 걷기 (9:16, 24fps)",
    "pair": null,
-   "placeholder": false
+   "placeholder": false,
+   "encoding_override": {
+    "h": 720,
+    "crf": 26
+   },
+   "replaces": null
   },
   {
    "id": "s2_mask_walker",
    "file": "assets/s2_mask_walker.mp4",
    "kind": "video",
-   "width": 304,
-   "height": 540,
-   "bytes": 125215,
-   "sha256_16": "3006013768b465f9",
+   "width": 406,
+   "height": 720,
+   "bytes": 275197,
+   "sha256_16": "d119454acac8a558",
    "source": "~/data/02_sam2/walker_walk_02/walker_walk_02_masked.mp4",
    "character": "walker",
    "stage": "S2 분할",
    "caption": "SAM2 마스크 — 배경을 지우고 몸만 남긴 클립을 다음 단계로 넘긴다",
    "pair": null,
-   "placeholder": false
+   "placeholder": false,
+   "encoding_override": {
+    "h": 720,
+    "crf": 26
+   },
+   "replaces": null
   },
   {
    "id": "s5_wham_overlay_walker",
    "file": "assets/s5_wham_overlay_walker.mp4",
    "kind": "video",
-   "width": 304,
-   "height": 540,
-   "bytes": 175964,
-   "sha256_16": "855bd119c328e73b",
+   "width": 406,
+   "height": 720,
+   "bytes": 446296,
+   "sha256_16": "7c19f6ba33292dbf",
    "source": "~/data/site_raw_1106/walker_wham_mesh_overlay.mp4",
    "character": "walker",
    "stage": "S5 동작",
    "caption": "WHAM 이 추정한 3D 몸(SMPL 정점)을 원본 영상에 투영 — 프레임마다 자세 · 위치를 복원",
    "pair": null,
-   "placeholder": false
+   "placeholder": false,
+   "encoding_override": {
+    "h": 720,
+    "crf": 26
+   },
+   "replaces": null
   },
   {
    "id": "s3_mesh_walker_turntable",
@@ -109,7 +137,9 @@
    "stage": "S3 외형",
    "caption": "TRELLIS.2 메쉬 턴테이블 — 키프레임 한 장에서 만든 PBR 메쉬",
    "pair": null,
-   "placeholder": false
+   "placeholder": false,
+   "encoding_override": null,
+   "replaces": null
   },
   {
    "id": "s3_mesh_walker",
@@ -124,7 +154,9 @@
    "stage": "S3 외형",
    "caption": "walker 메쉬",
    "pair": null,
-   "placeholder": false
+   "placeholder": false,
+   "encoding_override": null,
+   "replaces": null
   },
   {
    "id": "s3_mesh_listener",
@@ -139,7 +171,9 @@
    "stage": "S3 외형",
    "caption": "listener 메쉬",
    "pair": null,
-   "placeholder": false
+   "placeholder": false,
+   "encoding_override": null,
+   "replaces": null
   },
   {
    "id": "s3_mesh_stalker",
@@ -154,7 +188,9 @@
    "stage": "S3 외형",
    "caption": "stalker 메쉬",
    "pair": null,
-   "placeholder": false
+   "placeholder": false,
+   "encoding_override": null,
+   "replaces": null
   },
   {
    "id": "s3_mesh_lurker",
@@ -169,7 +205,9 @@
    "stage": "S3 외형",
    "caption": "lurker 메쉬",
    "pair": null,
-   "placeholder": false
+   "placeholder": false,
+   "encoding_override": null,
+   "replaces": null
   },
   {
    "id": "s3_mesh_oiler",
@@ -184,37 +222,77 @@
    "stage": "S3 외형",
    "caption": "oiler 메쉬",
    "pair": null,
-   "placeholder": false
+   "placeholder": false,
+   "encoding_override": null,
+   "replaces": null
   },
   {
-   "id": "s3_mesh_player",
-   "file": "assets/s3_mesh_player.jpg",
+   "id": "s3_mesh_player_01",
+   "file": "assets/s3_mesh_player_01.jpg",
    "kind": "image",
    "width": 1200,
    "height": 1200,
-   "bytes": 88004,
-   "sha256_16": "5a64dd641e382666",
-   "source": "~/data/site_raw_1106/mesh_player.png",
-   "character": "player",
+   "bytes": 79080,
+   "sha256_16": "f839f814a469d801",
+   "source": "~/data/site_raw_1106/mesh_player_01.png",
+   "character": "player_01",
    "stage": "S3 외형",
-   "caption": "player 대역 메쉬 (외형 납품 아님 — 동작 리타게팅용)",
+   "caption": "플레이어 캐릭터 1 메쉬 (char1.glb)",
    "pair": null,
-   "placeholder": false
+   "placeholder": false,
+   "encoding_override": null,
+   "replaces": null
   },
   {
-   "id": "s3_mesh_char_shuffle",
-   "file": "assets/s3_mesh_char_shuffle.jpg",
+   "id": "s3_mesh_player_02",
+   "file": "assets/s3_mesh_player_02.jpg",
    "kind": "image",
    "width": 1200,
    "height": 1200,
-   "bytes": 87485,
-   "sha256_16": "963dc397bde96f55",
-   "source": "~/data/site_raw_1106/mesh_char_shuffle.png",
-   "character": "char_shuffle",
+   "bytes": 86105,
+   "sha256_16": "5ccb0ff1263db53a",
+   "source": "~/data/site_raw_1106/mesh_player_02.png",
+   "character": "player_02",
    "stage": "S3 외형",
-   "caption": "char_shuffle 메쉬",
+   "caption": "플레이어 캐릭터 2 메쉬 (char2.glb)",
    "pair": null,
-   "placeholder": false
+   "placeholder": false,
+   "encoding_override": null,
+   "replaces": null
+  },
+  {
+   "id": "s3_mesh_player_03",
+   "file": "assets/s3_mesh_player_03.jpg",
+   "kind": "image",
+   "width": 1200,
+   "height": 1200,
+   "bytes": 80773,
+   "sha256_16": "f988f5a810445b15",
+   "source": "~/data/site_raw_1106/mesh_player_03.png",
+   "character": "player_03",
+   "stage": "S3 외형",
+   "caption": "플레이어 캐릭터 3 메쉬 (char3.glb) — 구 s3_mesh_player(player_apose)와 같은 캐릭터",
+   "pair": null,
+   "placeholder": false,
+   "encoding_override": null,
+   "replaces": "assets/s3_mesh_player.jpg"
+  },
+  {
+   "id": "s3_mesh_player_04",
+   "file": "assets/s3_mesh_player_04.jpg",
+   "kind": "image",
+   "width": 1200,
+   "height": 1200,
+   "bytes": 84202,
+   "sha256_16": "722313db68e04cf4",
+   "source": "~/data/site_raw_1106/mesh_player_04.png",
+   "character": "player_04",
+   "stage": "S3 외형",
+   "caption": "플레이어 캐릭터 4 메쉬 (char4.glb) — 구 s3_mesh_char_shuffle 과 같은 캐릭터",
+   "pair": null,
+   "placeholder": false,
+   "encoding_override": null,
+   "replaces": "assets/s3_mesh_char_shuffle.jpg"
   },
   {
    "id": "s3_mesh_dog",
@@ -229,7 +307,9 @@
    "stage": "S3 외형",
    "caption": "dog 메쉬 (골격 · 동작은 Mixamo)",
    "pair": null,
-   "placeholder": false
+   "placeholder": false,
+   "encoding_override": null,
+   "replaces": null
   },
   {
    "id": "s4_align_walker",
@@ -244,7 +324,9 @@
    "stage": "S4 리깅",
    "caption": "SMPL 몸을 TRELLIS 메쉬에 정렬한 결과 — 골격이 메쉬 안에 들어오는지 확인",
    "pair": null,
-   "placeholder": false
+   "placeholder": false,
+   "encoding_override": null,
+   "replaces": null
   },
   {
    "id": "s4_transfer_walker",
@@ -259,7 +341,9 @@
    "stage": "S4 리깅",
    "caption": "웨이트 전이의 부위 제약 — 팔 · 다리가 서로 붙지 않게",
    "pair": null,
-   "placeholder": false
+   "placeholder": false,
+   "encoding_override": null,
+   "replaces": null
   },
   {
    "id": "bake_walker_hit",
@@ -267,14 +351,16 @@
    "kind": "video",
    "width": 608,
    "height": 540,
-   "bytes": 128187,
-   "sha256_16": "23bf913d3ea64cbb",
-   "source": "~/Desktop/3D_avatar_work/experiments/e2e_check/review_1026/08_final/videos/walker__walker_hit_01.mp4",
+   "bytes": 160430,
+   "sha256_16": "2197a6c79d52bb2c",
+   "source": "~/data/site_raw_1106/bake_walker_hit_eq.mp4",
    "character": "walker",
    "stage": "S7 결합",
-   "caption": "원본 영상(왼쪽)과 리그에 구운 동작(오른쪽) — 리타게팅 없이 같은 SMPL 골격",
+   "caption": "원본 영상(왼쪽)과 리그에 구운 동작(오른쪽, 몸 키 · 발 높이를 원본에 맞춰 확대) — 리타게팅 없이 같은 SMPL 골격",
    "pair": null,
-   "placeholder": false
+   "placeholder": false,
+   "encoding_override": null,
+   "replaces": null
   },
   {
    "id": "unity_ingame_1",
@@ -289,7 +375,9 @@
    "stage": "Unity · 게임",
    "caption": "실제 게임 내 플레이 장면 — 플레이어 시점, 워커가 다가와 피격 · 쓰러짐 (16:34~16:39)",
    "pair": null,
-   "placeholder": false
+   "placeholder": false,
+   "encoding_override": null,
+   "replaces": null
   },
   {
    "id": "unity_ingame_2",
@@ -304,7 +392,9 @@
    "stage": "Unity · 게임",
    "caption": "실제 게임 내 플레이 장면 — 쓰러진 워커가 일어나 걷기 (16:22~16:28)",
    "pair": null,
-   "placeholder": false
+   "placeholder": false,
+   "encoding_override": null,
+   "replaces": null
   },
   {
    "id": "unity_ingame_3",
@@ -319,7 +409,9 @@
    "stage": "Unity · 게임",
    "caption": "실제 게임 내 플레이 장면 — 리스너와 워커, 가격 · 쓰러짐 (15:57~16:02)",
    "pair": null,
-   "placeholder": false
+   "placeholder": false,
+   "encoding_override": null,
+   "replaces": null
   },
   {
    "id": "unity_ingame_4",
@@ -334,7 +426,9 @@
    "stage": "Unity · 게임",
    "caption": "실제 게임 내 플레이 장면 — 스토커 접근 · 피격 · 쓰러짐 (21:32.5~21:38.5, 21:30~21:40 중 하이라이트)",
    "pair": null,
-   "placeholder": false
+   "placeholder": false,
+   "encoding_override": null,
+   "replaces": null
   },
   {
    "id": "ba_weight_listener",
@@ -352,7 +446,9 @@
     "group": "weight_smoothing",
     "role": "both — 가운데 before · 오른쪽 after (왼쪽은 원본 영상)"
    },
-   "placeholder": false
+   "placeholder": false,
+   "encoding_override": null,
+   "replaces": null
   },
   {
    "id": "ba_weight_listener_still",
@@ -370,7 +466,9 @@
     "group": "weight_smoothing",
     "role": "both — 왼쪽 before · 오른쪽 after"
    },
-   "placeholder": false
+   "placeholder": false,
+   "encoding_override": null,
+   "replaces": null
   },
   {
    "id": "ba_weight_walker",
@@ -388,7 +486,9 @@
     "group": "weight_smoothing",
     "role": "both — 왼쪽 before · 오른쪽 after"
    },
-   "placeholder": false
+   "placeholder": false,
+   "encoding_override": null,
+   "replaces": null
   },
   {
    "id": "ba_slide_listener",
@@ -406,25 +506,29 @@
     "group": "foot_slide",
     "role": "both — 왼쪽 before · 오른쪽 after (가운데는 동작 출처)"
    },
-   "placeholder": false
+   "placeholder": false,
+   "encoding_override": null,
+   "replaces": null
   },
   {
    "id": "ba_slide_listener_still",
    "file": "assets/ba_slide_listener_still.jpg",
    "kind": "image",
    "width": 1200,
-   "height": 300,
-   "bytes": 44316,
-   "sha256_16": "c1145bf782d0929e",
-   "source": "~/Desktop/3D_avatar_work/experiments/e2e_check/review_1019/01_listener_run_slide/closeup_04b_f34_vs_transplant_f60_f50.png",
+   "height": 500,
+   "bytes": 92000,
+   "sha256_16": "d0da52a12b1fdf72",
+   "source": "~/data/site_raw_1106/slide_still_row.png",
    "character": "listener",
    "stage": "문제 해결 · 미끄러짐",
-   "caption": "디딘 발 위치 비교 클로즈업",
+   "caption": "디딘 발 위치 비교 클로즈업 (4장, 패널 좌우 여백을 잘라 한 줄)",
    "pair": {
     "group": "foot_slide",
     "role": "both — 왼쪽 before · 오른쪽 after"
    },
-   "placeholder": false
+   "placeholder": false,
+   "encoding_override": null,
+   "replaces": null
   },
   {
    "id": "ba_floor_walker",
@@ -442,7 +546,9 @@
     "group": "floor_align",
     "role": "both — 왼쪽 before · 오른쪽 after"
    },
-   "placeholder": false
+   "placeholder": false,
+   "encoding_override": null,
+   "replaces": null
   },
   {
    "id": "ba_floor_stalker",
@@ -460,7 +566,9 @@
     "group": "floor_align",
     "role": "both — 왼쪽 before · 오른쪽 after"
    },
-   "placeholder": false
+   "placeholder": false,
+   "encoding_override": null,
+   "replaces": null
   },
   {
    "id": "ba_gait_stalker",
@@ -478,7 +586,9 @@
     "group": "gait_prompt",
     "role": "both — 각 쌍의 왼쪽 before · 오른쪽 after"
    },
-   "placeholder": false
+   "placeholder": false,
+   "encoding_override": null,
+   "replaces": null
   }
  ]
 }
