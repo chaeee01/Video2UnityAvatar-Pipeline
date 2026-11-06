@@ -196,7 +196,9 @@ G1m(동작 클립 평가) · G3(재투영 PCK) · G4(통합 평가)는 **W5 로 
       정합(B안)은 보류. 맥북 구간만의 변경이라 기존 Pod 산출물로 재검증한다
 - [x] **2트랙 배치 → 수동 운용으로 대체 (10/13~10/17)** — `make_rest_pose.py` + `apply_wham_pose.py --ref-pose`
       + `tools/review/bake_character.sh` 로 캐릭터 리그에 굽는 방식으로 71편을 납품했다. 오케스트레이터
-      `--track motion` · 배치 래퍼는 구현하지 않았다(백로그). 아래는 10/12 에 적은 과제 설명이다
+      `--track motion` · 배치 래퍼는 구현하지 않았다(백로그). **→ 완료(11/06)**: 오케스트레이터 동작 트랙
+      `--motion --character`(G0 · S2 · S5 → BAKE · G4 · CLIPFBX) — 11/02 listener 4편 재굽기가 납품본과 전 프레임
+      정점 일치 · G4 동일. 아래는 10/12 에 적은 과제 설명이다
 - [x] ~~**2트랙 배치**~~ — 외형 트랙(캐릭터당 대표 1편 풀 파이프라인) + 모션 트랙(`S2 → S5` 만
       돌려 기존 리그에 5-5). 대상 walker · listener · stalker 3캐릭터 39클립. 래퍼(큐·실패
       격리·정지 사유 수집·사후 일괄 검수)는 이 위에 올린다. Unity 납품은 캐릭터 FBX 1개 +
@@ -245,7 +247,7 @@ G1m(동작 클립 평가) · G3(재투영 PCK) · G4(통합 평가)는 **W5 로 
 | **G4** | ☑ **구현 (10/22)** | `scripts/gate_g4.py` — 늘어남(0.10 초과 · 최장) + 발 쓸기(move 클립). 5-5 뒤 클립마다, PASS/CHECK/FAIL + 수용 기록. 납품 86편 역검증 PASS 78 · ACCEPTED 8. 오케스트레이터 통합은 백로그 |
 | S2 좌표 재시도 | ☑ 완료 | 9/30 실전 발동(FAIL×3 → 인계 → PASS) |
 | G2 seed 재시도 | ◐ 수동 대체 | 분기는 실전 미발동. seed 변경은 `run_trellis2.py --seed` 로 수동 수행 |
-| 2트랙 배치 | ◐ 수동 대체 | `make_rest_pose` · `apply_wham_pose` · `bake_character.sh` 로 71편 납품. `--track motion` · 래퍼 미구현 |
+| 2트랙 배치 | ☑ 완료(11/06) | 오케스트레이터 동작 트랙 `--motion`(BAKE · G4 · CLIPFBX). 이전: `bake_character.sh` 수동 운용으로 71편 납품 |
 | 환경 재현 | ☑ 완료 | 3단 중 1·2단 — 4종 복원 시험 통과. 3단(Docker)은 M2 이후 |
 | README 자동화 사용법 | ☑ 완료(11/06) | README "실행 방법" · RUNBOOK 1.5절 |
 
@@ -303,7 +305,7 @@ G1m(동작 클립 평가) · G3(재투영 PCK) · G4(통합 평가)는 **W5 로 
 4. ☑ **Docker 이미지화** (EH-229) — **완료(11/05)**: 이미지 3종으로 띄운 Pod 에서 S2 마스크 · S5 pkl 완전 일치, S3 정점 일치(같은 Pod 이미지 env vs 볼륨 env). 이미지 갭 3개(python3 · 환경 별칭 · libnvrtc)는 Dockerfile 에 반영해 재push. 이전 기록: 환경 이미지 3종 `ghcr.io/chaeee01/v2ua-{sam2v,trellis2,wham}` 비공개(5.09 · 6.20 · 9.78 GB, SMPL 계열 제외). docker push 는 Docker Desktop VM 프록시가 긴 업로드를 끊어 wham 에서 5회 실패 → skopeo(호스트 네트워크)로 성공. 남은 것: 새 Pod 에 이미지 배포해 S2→S5 관통 · 볼륨 결과 일치 · 거짓 통과 점검(큐 §14)
 
 **G4 구현 완료(10/22, `gate_g4.py`).** 그 밖의 백로그: G4 · 5-4b 오케스트레이터 통합 · G3 축소판(WHAM 2D 키포인트 확인 선행) ·
-~~README 자동화 사용법~~(11/06 완료) · G2 seed 재시도 실전 검증 · 2트랙 배치 래퍼 · **5-4b 오케스트레이터 통합**(캐릭터별 본 쌍 · 겹 수 설정 파일 설계 선행).
+~~README 자동화 사용법~~(11/06 완료) · G2 seed 재시도 실전 검증 · ~~2트랙 배치 래퍼~~(11/06 완료 — 동작 트랙) · ~~5-4b 오케스트레이터 통합~~(11/06 완료 — character.json v2).
 **종결 (10/17)**: TRELLIS 세부 보존 연구(생성 모델 특성) · `crawl_loop`(stalker 납품) · 4족 추적.
 
 <details><summary>W6 · W7 원래 계획 (9/28-10/12) — M2 연장으로 미실행, 위 실적으로 대체</summary>

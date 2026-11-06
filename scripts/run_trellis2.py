@@ -39,7 +39,8 @@ import sys
 import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-VOL = "/workspace"
+# 환경 루트(레포 · 모델 캐시). 미설정이면 현행과 같이 /workspace — 루트 분리 2026-11-06
+VOL = os.environ.get("PIPELINE_ENV_ROOT", "/workspace")
 
 
 def parse_args():

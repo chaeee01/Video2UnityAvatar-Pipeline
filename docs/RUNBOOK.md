@@ -93,7 +93,8 @@ Pod 은 두 가지로 띄운다. **기본은 1-A 이미지 Pod** — 환경 3종
      for f in smpl smplx2smpl.pkl smpl_mean_params.npz; do ln -s /vol/repos/WHAM/dataset/body_models/$f $B/$f; done
      ```
    - **HF 모델 캐시 (trellis2, 약 27GB)** — `ln -s /vol/.cache /workspace/.cache` (재다운로드 없음).
-   - **입출력 데이터** — `PIPELINE_VOL=/vol` 로 실행해 `/vol/data` · `/vol/logs` 를 쓴다.
+   - **입출력 데이터** — `PIPELINE_VOL=/vol PIPELINE_ENV_ROOT=/workspace` 로 실행해 `/vol/data` · `/vol/logs` 를 쓰고
+     환경 · 레포는 이미지 것을 쓴다(1.5절 "루트").
 
    체크포인트는 여기 들지 않는다 — **wham 체크포인트(hmr2a · vitpose 등)는 이미지 안에 있고**, sam2 도
    11/05 검증에서 `/vol` 참조 0 으로 돌았다.
@@ -106,8 +107,9 @@ Pod 은 두 가지로 띄운다. **기본은 1-A 이미지 Pod** — 환경 3종
   main 최신 확인은 1-B 확인 포인트와 같다.
 - `setup_<env>.sh --check` 와 `scripts/restore_probe.py` — 적재 모듈이 이미지 안에서 오는지(`/vol` 참조 0).
 - wham: `ls -la /workspace/repos/WHAM/dataset/body_models` 에 SMPL 링크 3개가 보이는지.
-- 이미지 하나에 환경 하나다. S2 → S5 → S3 를 한 Pod 에서 이어 돌릴 수 없으므로 단계마다 해당 이미지 Pod 를
-  띄우고 단계 스크립트(2~4절)를 직접 부른다. 원커맨드 Pod 구간은 1-B 에서 돈다(1.5절 한계 참조).
+- 이미지 하나에 환경 하나다. 오케스트레이터는 다음 단계의 환경이 이 이미지에 없으면 멈추고 어느 이미지에서
+  이어받을지 알린다(2026-11-06~, 1.5절 "루트") — 다만 이미지 Pod 원커맨드는 **실검증 전**이라, 검증 전까지는 단계마다
+  해당 이미지 Pod 에서 단계 스크립트(2~4절)를 직접 부르는 것이 확인된 방법이다.
 
 ### 1-B. 볼륨 Pod (보조 — 아카이브 · 디버깅 · 원커맨드 Pod 구간)
 
@@ -208,17 +210,83 @@ python3 scripts/orchestrate.py --name <샘플> --resume
 | `--keyframe <png>` | S3 키프레임 직접 지정 — G1a 를 건너뛴다(파일명에 `_f<번호>` 필요) |
 | `--force-keyframe` | G1a 가 "다리 벌린 프레임 없음 + 다리 움직임" 으로 인계할 때 강행 |
 | `--runs-dir` | run 폴더 위치 (기본 `$PIPELINE_VOL/data/runs`, `PIPELINE_VOL` 기본 `/workspace`) |
+| `--motion` | 동작 트랙 — 클립을 캐릭터의 채택 리그에 굽는다 (아래 "동작 트랙") |
+| `--character <캐릭터>` | 동작 트랙에 필수. 외형 트랙에서는 5-4b 설정을 직접 지정할 때 (기본: `rig_build.source_sample` 로 찾는다) |
 
 종료 코드: **0 성공 / 1 실패 / 2 사람 개입 필요**. 마커가 가리키는 다음 단계가 이 기계에서 돌 수 없으면
 그 자리에서 멈춘다(실행 환경을 추정하지 않는다). 맥북에서 돌릴 때는 회수한 run 폴더를 `--runs-dir`
 (또는 `PIPELINE_VOL`)로 가리킨다.
 
+### 5-4b 자동 적용 (외형 트랙, 2026-11-06~)
+
+`06_rig/<캐릭터>/character.json`(v2)의 `rig_build.source_sample` 이 이 샘플이고 `rig_build.seam_smooth` 가 있으면
+5-4 바로 뒤에 **5-4b** 가 끼어든다 — `scripts/seam_smooth_chain.py` 가 적힌 순서대로 `smooth_seams.py` 를 한 번씩
+부른다(앞 단계 출력이 다음 입력, 5-4b 절과 같은 일). 5-4 의 `transferred.blend` 는 덮지 않고
+`transferred_5-4b.blend`(+ 단계별 `transferred_5-4b_<i>_<label>.blend` · `_smooth_params.json` · `_chain.json`)에 쓰며,
+5-5 는 스무딩한 리그에 굽는다. 설정이 없는 샘플은 지금까지와 똑같다.
+
+```jsonc
+"rig_build": {"source_sample": "listener_apose_06", "transfer": {},
+  "seam_smooth": [{"label": "crotch", "pairs": ["L_Hip:R_Hip"], "rings": 10, "iters": 40, "lam": 0.5}, …]},
+"bake": {"fallback_height": null}
+```
+
+값은 채택 리그를 만든 실제 실행 기록(`transferred_smooth_params_<label>.json`)에서 옮긴다
+(`tools/review/migrate_character_v2.py`, 2026-11-06 listener · walker 전환 — v1 은 `character_prev_v1_<날짜>.json`).
+2026-11-06 실측: listener 를 원커맨드로 다시 만든 5-4 · 5-4b 웨이트가 채택 리그와 **정점별 차 0**(747,813 × 24).
+
+### 동작 트랙 (`--motion`, 2026-11-06~)
+
+클립 영상 하나를 캐릭터의 채택 리그(`character.json` 의 `rig_dir`)에 굽는다. `tools/review/bake_character.sh` 한 편과
+같은 순서다.
+
+```bash
+# Pod: G0 → S2 → S5 (외형 트랙과 같은 단계)
+python scripts/orchestrate.py --motion --character listener --video /workspace/data/00_raw/<클립>.mp4 --name <클립>
+# 맥북 (02_sam2/<클립> · 04_wham/<클립>_masked 회수 후): BAKE → G4 → CLIPFBX
+python3 scripts/orchestrate.py --motion --character listener --name <클립> --resume
+```
+
+- **역할표에 클립 항목이 먼저 있어야 한다** — `clip_roles.json` 의 `source`(= `--name`) · `role` · **`bake.ground_align`**
+  (true/false). `ground_align` 이 없으면 BAKE 앞에서 멈춘다(조용한 기본값 없음).
+- **BAKE**(`scripts/bake_clip.py`): 모션 폴더 `06_rig/<리그>/motions/<클립>/` 에 `blend_seam.json` · `track_select.json`
+  이 있으면 고정 npz 를 그대로 쓰고, 없으면 WHAM pkl 에서 변환한다. 신장비는 T포즈 메쉬(없으면 `bake.fallback_height`).
+  이미 `animated.blend` 가 있으면 `.prev_<일시>` 로 옮긴 뒤 굽는다.
+- **G4**: 판정이 PASS · ACCEPTED · EXEMPT · N/A 면 다음 단계로. **CHECK · FAIL 이면 클립 FBX 를 내보내지 않고 종료 코드 2.**
+  사람이 보고 받아들이면 수용 기록을 남기고 이어받는다 — G4 만 다시 판정한다:
+
+  ```bash
+  python3 tools/review/accept_clip.py --roles ~/data/06_rig/<캐릭터>/clip_roles.json --clip <클립> \
+      --gate edges|sweep|ground --g4 <판정 json> --reason "<사유>"
+  python3 scripts/orchestrate.py --motion --character <캐릭터> --name <클립> --resume
+  ```
+
+  오케스트레이터는 수용 기록을 쓰지 않는다. 시도마다 판정 JSON 을 `run/gates/g4_<클립>_try<n>.json` 으로 남긴다.
+- **CLIPFBX**: `07_unity/<캐릭터>/<캐릭터>@<납품 이름>.fbx` (`--armature-only --take-name <납품 이름>`, 6절).
+  같은 이름이 있으면 `.prev_<일시>` 로 옮긴다.
+- 2026-11-06 실측: 11/02 listener 4편을 다시 구운 결과가 납품본과 **전 프레임 정점 위치 일치**, G4 수치 · 판정 동일.
+
+### 루트 — `PIPELINE_VOL` 과 `PIPELINE_ENV_ROOT`
+
+| 변수 | 뜻 | 기본값 |
+|---|---|---|
+| `PIPELINE_VOL` | 데이터 루트 — `data/` · `logs/` | `/workspace` |
+| `PIPELINE_ENV_ROOT` | 환경 루트 — `micromamba` · `repos/`(WHAM · sam2 · TRELLIS.2) · `.cache` | 오케스트레이터는 `PIPELINE_VOL`, `run_wham.sh` · `run_trellis2.py` · `run_sam2.py` · `generate_smpl_mesh.py` 는 `/workspace` (모두 현행 그대로) |
+
+- **볼륨 Pod(1-B)**: 둘 다 설정하지 않는다.
+- **이미지 Pod(1-A)**: `PIPELINE_VOL=/vol PIPELINE_ENV_ROOT=/workspace`. 다음 단계의 환경이 이 이미지에 없으면
+  (`$PIPELINE_ENV_ROOT/micromamba/envs/<env>` 부재) 그 자리에서 종료 코드 2 로 멈추고 어느 이미지에서 이어받을지 알린다 —
+  run 폴더가 `/vol` 에 있으므로 다른 이미지 Pod 에서 `--resume` 하면 이어진다.
+
 **한계 (2026-11-06 기준)**
-- Pod 구간은 환경 3종을 `$PIPELINE_VOL/micromamba` 의 `micromamba run -n <env>` 로 바꿔 가며 쓴다. 그래서
-  환경이 모두 볼륨에 있는 **1-B 에서만 원커맨드로 검증됐다**. 이미지 Pod(1-A)은 환경이 이미지
-  `/workspace/micromamba` 에 하나씩, 데이터는 `/vol` 에 있어 이 경로 묶음과 맞지 않는다 — 이미지 Pod 에서는
-  단계 스크립트를 직접 부른다.
-- 스크립트 독스트링 기준 v1 골격이다 — 게이트 분기 · 재시도(설계 3-4절)는 다음 단계.
+- 이미지 Pod 에서의 원커맨드 실행은 **코드만 있고 실검증 전**이다(통합 이미지 빌드 사이클에서 검증). 지금까지 원커맨드
+  Pod 구간이 검증된 곳은 1-B 볼륨 Pod 뿐이다.
+- 스크립트 독스트링 기준 v1 골격이다 — 외형 트랙의 게이트 분기 · 재시도(설계 3-4절)는 다음 단계.
+- 동작 트랙은 고정 npz 를 만드는 단계(트랙 선택 · 이음 · `gait_window`)를 포함하지 않는다 — 있으면 쓰기만 한다.
+  11/02 걷기 · 달리기의 고정 npz 를 만든 `gait_window.py` 는 레포에 없다(맥에서도 찾지 못함 — 결손). 출처는 각 모션 폴더의
+  `track_select.json` · `gait_window.json` 에 남아 있다.
+- G4 실행 중 numpy `divide by zero / overflow / invalid value encountered in matmul` 경고가 찍힌다. 판정 수치가 기존
+  산출물과 같으므로 기존 동작으로 기록만 해 둔다(원인 미조사).
 
 ## 2. SAM2 — 객체 분리 (S2)
 

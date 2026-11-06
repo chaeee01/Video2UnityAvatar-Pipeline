@@ -1012,6 +1012,24 @@ WHAM betas(체형) + 키프레임 pose(자세) → 그 좀비와 같은 자세·
 
   `input_ref_walker.jpg` 가 사용자 브라우저에서 깨진 이미지로 보인 사례(11/06) — 게시 URL 을 직접 받으면 HTTP 200 · `image/jpeg` · 88,032 B, 로컬 파일과 바이트 일치(669×1200 baseline JPEG). 파일 · 서버 문제는 없어 **캐시 추정**(Pages `max-age=600`, 배포 교체 중 받은 응답이 남은 경우).
 
+- **2026-11-06 — 오케스트레이터: 5-4b · G4 통합(동작 트랙) + 환경/데이터 루트 분리**:
+
+  **설정.** `06_rig/<캐릭터>/character.json` 을 v2 로 넓혔다 — `rig_build`(source_sample · 5-4 추가 인자 · `seam_smooth` 단계 목록)와 `bake`(`fallback_height`). 클립별 역할 · 수용 기록 · 굽기 옵션(`bake.ground_align`)은 `clip_roles.json` 에 그대로 둔다. listener · walker 를 `tools/review/migrate_character_v2.py` 로 전환했다 — 값은 채택 리그의 실제 실행 기록(`transferred_smooth_params_<label>.json`)과 WFIX.md 순서에서 그대로(listener 가랑이 10/40 → 겨드랑이 20/160 → 가슴 10/40, walker 가랑이 → 겨드랑이, lam 0.5, walker `fallback_height` 1.7881), v1 은 `character_prev_v1_20261106.json` 으로 보존(sha256 = 전환 전 원본).
+
+  **오케스트레이터.** 외형 트랙은 설정 있는 샘플만 5-4 뒤 **5-4b**(`seam_smooth_chain.py`), 5-5 는 스무딩 리그에 굽는다 — 설정이 없으면 단계 · 명령이 이전과 같다. **동작 트랙** `--motion --character`: Pod G0 · S2 · S5 → 맥 BAKE(`bake_clip.py` = `bake_character.sh` 한 편) → **G4** → CLIPFBX. G4 가 CHECK/FAIL 이면 완료로 두지 않고 FBX 보류 · 종료 코드 2, 수용은 사람 명령(`tools/review/accept_clip.py`) 뒤 `--resume`(G4 만 재판정). 역할표에 `bake.ground_align` 이 없으면 멈춘다. **루트 분리** `PIPELINE_ENV_ROOT`(기본값 = 각 스크립트 현행) — 환경이 없는 이미지에서는 단계 앞에서 멈춘다. 5-4b · 클립 FBX · 굽기 재실행은 앞 산출물을 `.prev_<일시>` 로 옮긴다. 사용법 RUNBOOK 1.5절.
+
+  | 검증 (임시 데이터 루트, `~/data` 는 읽기만) | 결과 |
+  |---|---|
+  | 외형 트랙 — listener 맥 구간 5-2 → 5-4b 원커맨드 | 5-4 · 5-4b 웨이트 **정점별 차 0** (747,813 정점 × 24 본, 채택 리그 `listener_apose_06_wfixc` 와), 단계별 띠 · 바뀐 정점 · seed 수 동일 |
+  | 동작 트랙 — 11/02 listener 4편 | **전 프레임 정점 위치 해시 일치**(217 · 183 · 200 · 181 프레임), **G4 수치 · 판정 동일**(FAIL ×3 · CHECK ×1), 4편 모두 종료 코드 2 · FBX 보류 |
+  | 루트 분리 | 변수 미설정 dry-run 바이트 동일. 데이터 루트를 설정하면 5-1 `--out` · `run_wham.sh` 출력이 그 루트를 따른다(이전엔 늘 `/workspace/data` — 오케스트레이터의 산출물 확인 위치와 어긋나던 것) |
+  | 기존 산출물 | `~/data` 41,707 파일 sha256 전후 대조 — 바뀐 것은 승인된 `character.json` 2개, 새 파일은 v1 보존본 2개 |
+  | 시험 | `tests/test_orch_character.py` 49 항목 + 기존 19개 통과 |
+
+  **데이터 기록(승인).** ① 수용 기록 소급 12편 — 11/02 걷기 9편(발 쓸기 FAIL) + `run_reach` 3편(CHECK), gate `sweep`, 사유 "권장 이동 속도 명기로 납품(11/02), 게임팀 속도 튜닝 전제", date 2026-11-02, 수치는 당시 G4 의 `sweep_worst`. 재판정 12/12 ACCEPTED. ② `bake.ground_align` 일괄 — 채택 리그 모션 폴더의 `ground_align.json` 유무로 true 24 · false 73. **13편은 비워 뒀다**: 역할표 `source` 가 실제 납품판과 다르다 — 10/26 바닥 정렬 교체 12편(listener `run` · `roar_arms`, lurker `idle` · `attack` · `run_fwd`, oiler `roar` · `run_fwd`, player `disguise_04` · `disguise_07` · `run`, stalker `crawl_to_run` · `fall_start` — 납품은 `*_ga` 폴더)과 walker `get_up`(11/02 고유판 `walker_get_up_c2`). 규칙대로 쓰면 납품판과 반대 값이 되므로 source 정정과 함께 따로 정한다. 역할표 백업 `clip_roles.json.bak_20261106_185728`.
+
+  **남은 것 · 결손.** 이미지 Pod 원커맨드는 코드만 있고 실검증 전(통합 이미지 빌드 사이클). `gait_window.py`(11/02 고정 npz 를 만든 스크립트)는 레포 · 맥 어디에도 없다 — 결손으로 기록, 출처는 모션 폴더의 `track_select.json` · `gait_window.json`. G4 실행 중 numpy matmul 경고(divide by zero · overflow · invalid)는 판정 수치가 기존과 같아 기존 동작으로 기록만.
+
 ## 9. 다음 단계 (우선순위)
 
 2026-10-21 기준. 이전 목록(8월, SMPL 리깅 1~3단계 · SAM2 이전 · TRELLIS 로컬 설치 · 게이트 · 오케스트레이터)은 모두 끝났다.
@@ -1023,4 +1041,4 @@ WHAM betas(체형) + 키프레임 pose(자세) → 그 좀비와 같은 자세·
 
 **G4 구현 완료(10/22)** — `scripts/gate_g4.py`, RUNBOOK 5.6절. **바닥 판정 · 바닥 정렬 추가(10/26)** — RUNBOOK 5-5 · 5.6절.
 
-백로그: G3 축소판(WHAM 2D 키포인트 확인 선행), README 자동화 사용법, G2 seed 재시도 실전 검증, 2트랙 배치 래퍼, **5-4b · G4 오케스트레이터 통합**(캐릭터별 본 쌍 · 겹 수 · 클립 역할 설정 파일 설계 선행).
+백로그: G3 축소판(WHAM 2D 키포인트 확인 선행), ~~README 자동화 사용법~~(11/06 완료), G2 seed 재시도 실전 검증, ~~2트랙 배치 래퍼~~ · ~~**5-4b · G4 오케스트레이터 통합**~~(11/06 완료 — 동작 트랙 · character.json v2), 역할표 source 정정 13편(10/26 바닥 교체 12 + walker get_up).
