@@ -3,7 +3,10 @@
 #
 #   bash scripts/run_wham.sh <영상경로> [--out <출력폴더>]
 #
-# 기본 출력은 규약 경로 /workspace/data/04_wham (docs/CONVENTIONS.md 1절).
+# 기본 출력은 규약 경로 <데이터 루트>/data/04_wham (docs/CONVENTIONS.md 1절).
+# 루트 (2026-11-06): 데이터 = PIPELINE_VOL(기본 /workspace) — data/04_wham · logs/,
+#                    환경 = PIPELINE_ENV_ROOT(기본 /workspace) — micromamba · repos/WHAM.
+# 둘 다 미설정이면 현행과 같다(모두 /workspace). 이미지 Pod: PIPELINE_VOL=/vol PIPELINE_ENV_ROOT=/workspace.
 # 산출물은 그 아래 <영상명>/ 에 떨어진다 (WHAM demo.py 동작).
 # pipefail 없이는 `python ... | tee` 의 종료 코드가 tee(0)의 것이 되어
 # demo.py 가 죽어도 스크립트가 계속 진행한다 (2026-09-04 리허설에서 실패를
@@ -12,25 +15,26 @@ set -eo pipefail
 VIDEO="${1:?입력 영상 경로를 지정하세요}"
 SCRIPTS="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 shift
-VOL=/workspace
-OUT=$VOL/data/04_wham
+DATA=${PIPELINE_VOL:-/workspace}
+ENVR=${PIPELINE_ENV_ROOT:-/workspace}
+OUT=$DATA/data/04_wham
 while [ $# -gt 0 ]; do
     case "$1" in
         --out) OUT="${2:?--out 뒤에 출력 폴더가 필요합니다}"; shift 2 ;;
         *) echo "알 수 없는 인자: $1"; exit 1 ;;
     esac
 done
-export MAMBA_ROOT_PREFIX=$VOL/micromamba
-eval "$($VOL/micromamba/bin/micromamba shell hook -s bash)"
+export MAMBA_ROOT_PREFIX=$ENVR/micromamba
+eval "$($ENVR/micromamba/bin/micromamba shell hook -s bash)"
 micromamba activate wham
-cd $VOL/repos/WHAM
+cd $ENVR/repos/WHAM
 mkdir -p "$OUT"
 # --visualize 는 pytorch3d 를 요구하는데, conda-forge 의 py39+cu118 pytorch3d 빌드는
 # torch 2.1.2 이상만 있어 torchvision 0.15.1(torch 2.0.0 고정)과 공존할 수 없다.
 # 재투영 육안 검증은 scripts/overlay_vis.py 로 대행한다 (cv2 기반, pytorch3d 불필요).
 python demo.py --video "$VIDEO" --output_pth "$OUT" \
     --save_pkl --estimate_local_only \
-    2>&1 | tee $VOL/logs/wham_$(date +%Y%m%d_%H%M%S).log
+    2>&1 | tee $DATA/logs/wham_$(date +%Y%m%d_%H%M%S).log
 # 현재 샘플 폴더만 검사한다. $OUT 전체를 나열하면 이전 샘플 산출물까지 섞여
 # 실패한 실행이 성공처럼 보인다.
 NAME=$(basename "${VIDEO%.*}")

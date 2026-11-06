@@ -33,7 +33,8 @@ import trimesh
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from wham_track import pick_track  # noqa: E402
 
-SMPL_DIR = "/workspace/repos/WHAM/dataset/body_models/smpl"
+# 환경 루트(PIPELINE_ENV_ROOT, 기본 /workspace) 아래 — 이미지 Pod 에서는 볼륨에서 링크한 SMPL (RUNBOOK 1-A)
+SMPL_DIR = os.environ.get("PIPELINE_ENV_ROOT", "/workspace") + "/repos/WHAM/dataset/body_models/smpl"
 
 
 def load_faces(smpl_dir: str) -> np.ndarray:

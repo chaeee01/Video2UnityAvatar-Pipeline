@@ -15,6 +15,19 @@
   --force-keyframe  G1a 가 "다리 벌린 프레임 없음 + 다리 움직임" 으로 인계할 때 강행한다
   --point x,y    S2 시작 좌표 (기본: 프레임 중앙)
 
+  # 동작 트랙 (2026-11-06~) — 클립 영상 → 캐릭터의 채택 리그에 굽기 → G4 → 클립 FBX
+  python orchestrate.py --motion --character listener --video <클립>.mp4 --name <클립>    # Pod: G0 → S2 → S5
+  python orchestrate.py --motion --character listener --name <클립> --resume             # 맥: BAKE → G4 → CLIPFBX
+  G4 가 CHECK/FAIL 이면 클립 FBX 를 내보내지 않고 종료 코드 2 로 멈춘다. 사람이 보고 받아들이면
+  tools/review/accept_clip.py 로 수용 기록을 남긴 뒤 --resume (G4 만 다시 판정한다).
+
+  외형 트랙의 5-4b(경계 스무딩)는 06_rig/<캐릭터>/character.json 의 rig_build.source_sample 이 이 샘플이고
+  rig_build.seam_smooth 가 있을 때만 돈다 (--character 로 직접 지정 가능). 설정이 없으면 지금과 똑같다.
+
+  루트: 데이터는 PIPELINE_VOL(기본 /workspace) 의 data/ · logs/, 환경(micromamba)은 PIPELINE_ENV_ROOT
+  (기본 = PIPELINE_VOL). 볼륨 Pod 는 둘 다 설정하지 않는다. 이미지 Pod 는 PIPELINE_VOL=/vol PIPELINE_ENV_ROOT=/workspace.
+  다음 단계의 환경이 이 기계에 없으면(이미지 하나에 환경 하나) 그 자리에서 멈추고 알린다.
+
 종료 코드: 0 성공 / 1 실패 / 2 사람 개입 필요
 
 구간이 둘인 이유는 GPU 작업(Pod)과 Blender 작업(맥북)이 갈리기 때문이다. 같은 스크립트를
@@ -33,7 +46,12 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import character_config  # noqa: E402
+
 VOL = Path(os.environ.get("PIPELINE_VOL", "/workspace"))
+# 환경 루트(micromamba) — 이미지 Pod 에서는 데이터 루트(/vol)와 갈린다. 미설정이면 현행과 같이 VOL.
+ENV_ROOT = Path(os.environ.get("PIPELINE_ENV_ROOT", str(VOL)))
 POD, MAC = "pod", "mac"
 
 EXIT_OK, EXIT_FAIL, EXIT_HUMAN = 0, 1, 2
@@ -77,7 +95,30 @@ STAGES = [
     dict(key="FBX",  section=MAC, env=None,       gate=None,
          desc="Unity 반입용 FBX export"),
 ]
-STAGE_BY_KEY = {s["key"]: s for s in STAGES}
+# 5-4b 는 캐릭터 설정(rig_build.seam_smooth)이 있는 샘플에서만 5-4 뒤에 끼운다 — stages_for().
+STAGE_54B = dict(key="5-4b", section=MAC, env=None, gate=None,
+                 desc="경계 스무딩 (character.json rig_build.seam_smooth 순서대로)")
+# 동작 트랙: Pod 구간은 외형 트랙의 G0 · S2 · S5 를 그대로 쓰고, 맥 구간은 채택 리그에 굽는다.
+MOTION_MAC = [
+    dict(key="BAKE", section=MAC, env=None, gate=None,
+         desc="동작 굽기 (채택 리그 — bake_character.sh 한 편과 같은 순서)"),
+    dict(key="G4", section=MAC, env=None, gate=None,
+         desc="클립 품질 게이트 (늘어남 · 발 쓸기 · 바닥 — 역할표 · 수용 기록)"),
+    dict(key="CLIPFBX", section=MAC, env=None, gate=None,
+         desc="클립 FBX export (골격 + 동작)"),
+]
+STAGE_BY_KEY = {s["key"]: s for s in STAGES + [STAGE_54B] + MOTION_MAC}
+G4_OK = ("PASS", "ACCEPTED", "EXEMPT", "N/A")
+
+
+def stages_for(c):
+    """이 실행의 단계 목록. 설정이 없는 외형 트랙은 STAGES 그대로다."""
+    if c.get("track") == "motion":
+        return [STAGE_BY_KEY[k] for k in ("G0", "S2", "S5")] + MOTION_MAC
+    if c.get("seam_passes"):
+        i = [s["key"] for s in STAGES].index("5-4") + 1
+        return STAGES[:i] + [STAGE_54B] + STAGES[i:]
+    return list(STAGES)
 
 # G1a 는 2026-10-08 부터 단계다 (설계 10절 개정). S2 가 마스크만으로 1차 후보를 내고,
 # S5 뒤의 G1a(select_keyframes.py)가 WHAM pose 로 다시 매긴다. 별도 gate_g1a.py 는
@@ -89,10 +130,23 @@ def data(*parts):
     return VOL.joinpath("data", *parts)
 
 
-def stage_outputs(key, name):
+def motion_dir(c):
+    return data(c["rig_dir"], "motions", c["name"])
+
+
+def stage_outputs(key, name, c=None):
     """단계별 필수 산출물. 마커 검증(설계 5절 규칙 4)에 쓴다."""
     sam2 = data("02_sam2", name)
     rig = data("06_rig", name)
+    if key == "5-4b":
+        return [rig / "transferred_5-4b.blend", rig / "transferred_5-4b_chain.json"]
+    if key == "BAKE":
+        return [motion_dir(c) / "animated.blend"]
+    if key == "G4":
+        # gate_g4.py 는 역할표가 있으면 납품 이름(clip_roles 의 키)으로 판정 파일을 쓴다
+        return [motion_dir(c) / "g4" / f"g4_{c['clip_key']}.json"]
+    if key == "CLIPFBX":
+        return [data("07_unity", c["character"], f"{c['character']}@{c['clip_key']}.fbx")]
     return {
         "G0":  [],
         "S2":  [sam2 / "masks", sam2 / f"{name}_masked.mp4", sam2 / "keyframes"],
@@ -208,7 +262,7 @@ def build_cmd(env, argv):
         if argv and argv[0] in ("python", "python3"):
             return [sys.executable] + argv[1:]
         return argv
-    mm = str(VOL / "micromamba" / "bin" / "micromamba")
+    mm = str(ENV_ROOT / "micromamba" / "bin" / "micromamba")
     return [mm, "run", "-n", env] + argv
 
 
@@ -269,9 +323,14 @@ def stage_command(key, c):
             cmd.append("--allow-closed-legs")
         return cmd
     if key == "5-1":
-        return ["python", str(S / "generate_smpl_mesh.py"),
-                "--pkl", str(wham_pkl(n)),
-                "--frame", str(c["frame"]), "--name", n]
+        cmd = ["python", str(S / "generate_smpl_mesh.py"),
+               "--pkl", str(wham_pkl(n)),
+               "--frame", str(c["frame"]), "--name", n]
+        # 스크립트 기본 출력은 /workspace/data/05_smpl_mesh 다. 데이터 루트가 다를 때만 넘긴다
+        # (미설정이면 명령이 현행과 바이트까지 같다 — 루트 분리, 2026-11-06).
+        if data("05_smpl_mesh") != Path("/workspace/data/05_smpl_mesh"):
+            cmd += ["--out", str(data("05_smpl_mesh"))]
+        return cmd
     if key == "5-2":
         return blender("align_smpl_to_trellis.py",
                        "--trellis", str(data("03_trellis2", n, f"{n}.glb")),
@@ -286,9 +345,26 @@ def stage_command(key, c):
         return blender("transfer_weights.py",
                        "--blend", str(rig / "rigged.blend"),
                        "--out", str(rig / "transferred.blend"))
+    if key == "5-4b":
+        return ["python3", str(S / "seam_smooth_chain.py"), "--config", str(c["config_path"]),
+                "--blend", str(rig / "transferred.blend"),
+                "--out", str(rig / "transferred_5-4b.blend")]
+    if key == "BAKE":
+        return ["python3", str(S / "bake_clip.py"), "--data", str(data()),
+                "--character", c["character"], "--clip", n]
+    if key == "G4":
+        m = motion_dir(c)
+        return blender("gate_g4.py", "--blend", str(m / "animated.blend"), "--clip", n,
+                       "--roles", str(c["roles_path"]), "--out", str(m / "g4"))
+    if key == "CLIPFBX":
+        return blender("export_unity_fbx.py", "--blend", str(motion_dir(c) / "animated.blend"),
+                       "--out", str(stage_outputs("CLIPFBX", n, c)[0]),
+                       "--armature-only", "--take-name", c["clip_key"])
     if key == "5-5":
+        # 5-4b 가 돈 샘플은 스무딩한 리그에 굽는다
         return blender("apply_wham_pose.py",
-                       "--blend", str(rig / "transferred.blend"),
+                       "--blend", str(rig / ("transferred_5-4b.blend" if c.get("seam_passes")
+                                             else "transferred.blend")),
                        "--npz", str(rig / "wham_pose.npz"),
                        "--out", str(rig / "animated.blend"),
                        "--frame", str(c["frame"]))
@@ -434,7 +510,7 @@ def has_output(p) -> bool:
     return any(p.iterdir()) if p.is_dir() else True
 
 
-def resume_point(run: Run, name, section_filter=None):
+def resume_point(run: Run, name, section_filter=None, stages=None, c=None):
     """어디서부터 시작할지 정한다. (시작 단계, 건너뛴 목록, 문제) 를 돌려준다.
 
     설계 5절 규칙 4 — 마커는 있는데 산출물이 없으면 **정지한다.** 조용히 다시
@@ -442,12 +518,12 @@ def resume_point(run: Run, name, section_filter=None):
     산출물 삭제일 수도 있다).
     """
     skipped = []
-    for s in STAGES:
+    for s in (stages if stages is not None else STAGES):
         if section_filter and s["section"] != section_filter:
             continue
         if not run.is_done(s["key"]):
             return s, skipped, None
-        missing = [p for p in stage_outputs(s["key"], name) if not has_output(p)]
+        missing = [p for p in stage_outputs(s["key"], name, c) if not has_output(p)]
         if missing:
             return None, skipped, {
                 "stage": s["key"],
@@ -478,7 +554,38 @@ def parse_args():
                     help="이 단계까지만 돌고 멈춘다 (단계별 확인용, 예: 5-2)")
     ap.add_argument("--dry-run", action="store_true",
                     help="실행할 명령과 분기만 출력한다")
+    ap.add_argument("--motion", action="store_true",
+                    help="동작 트랙 — 클립을 --character 의 채택 리그에 굽는다 (G0 · S2 · S5 → BAKE · G4 · CLIPFBX)")
+    ap.add_argument("--character", help="캐릭터 (06_rig/<캐릭터>/character.json). 동작 트랙에 필수, "
+                                        "외형 트랙은 rig_build.source_sample 로 찾는다")
     return ap.parse_args()
+
+
+def track_context(a):
+    """트랙 · 캐릭터 설정에서 나오는 실행 맥락. 설정이 없는 외형 트랙은 빈 dict (현행과 같다)."""
+    cc = character_config
+    if a.motion:
+        if not a.character:
+            raise cc.ConfigError("--motion 에는 --character 가 필요하다")
+        cfg, cpath = cc.load(data(), a.character)
+        roles, rpath = cc.load_roles(data(), a.character)
+        key, entry = cc.resolve_clip(roles, a.name)
+        if key is None:
+            raise cc.ConfigError(f"역할표에 클립이 없다: {a.name} ({rpath}) — 항목(source · role · "
+                                 "bake.ground_align)을 먼저 적는다")
+        return dict(track="motion", character=a.character, config_path=cpath, roles_path=rpath,
+                    rig_dir=cfg["rig_dir"], clip_key=key)
+    if a.character:
+        cfg, cpath = cc.load(data(), a.character)
+        src = (cfg.get("rig_build") or {}).get("source_sample")
+        if src != a.name:
+            raise cc.ConfigError(f"{cpath} 의 rig_build.source_sample({src}) 이 이 샘플({a.name})이 아니다")
+    else:
+        cfg, cpath = cc.find_by_source_sample(data(), a.name)
+    passes = cc.seam_passes(cfg)
+    if not passes:
+        return {}
+    return dict(character=cfg["character"], config_path=cpath, seam_passes=passes)
 
 
 def main():
@@ -507,8 +614,19 @@ def main():
     print(f"run: {run.root}")
     print(f"샘플: {a.name}   모드: {'dry-run' if a.dry_run else '실행'}")
 
+    try:
+        track = track_context(a)
+    except character_config.ConfigError as e:
+        print(f"[오류] 캐릭터 설정: {e}")
+        return EXIT_FAIL
+    stages = stages_for(track)
+    if track.get("track") == "motion":
+        print(f"트랙: 동작 — 캐릭터 {track['character']} (리그 {track['rig_dir']}), 납품 이름 {track['clip_key']}")
+    elif track.get("seam_passes"):
+        print(f"5-4b: {track['config_path']} — " + " → ".join(p["label"] for p in track["seam_passes"]))
+
     # --- 어디서부터? ---
-    start, skipped, problem = resume_point(run, a.name, a.section)
+    start, skipped, problem = resume_point(run, a.name, a.section, stages, track)
     if skipped:
         print(f"건너뜀 (완료됨): {', '.join(skipped)}")
     if problem:
@@ -525,7 +643,7 @@ def main():
     # --- 구간 확인 ---
     # 실행 환경을 추정하지 않는다. 다음 단계가 이 기계에서 돌 수 없으면 멈추고 알린다.
     print(f"\n다음 단계: [{start['key']}] {start['desc']}  (구간 {start['section']})")
-    remaining = [s for s in STAGES if not run.is_done(s["key"])]
+    remaining = [s for s in stages if not run.is_done(s["key"])]
     sections = list(dict.fromkeys(s["section"] for s in remaining))  # 파이프라인 순서 유지
     if len(sections) > 1:
         print(f"남은 구간: {' → '.join(sections)} — 구간이 바뀌는 지점에서 회수가 필요하다")
@@ -534,7 +652,7 @@ def main():
     print("\n" + "=" * 62)
     ctx = dict(name=a.name, video=a.video or run.meta().get("video"),
                user_point=a.point, keyframe=a.keyframe, seed=0,
-               force_keyframe=a.force_keyframe)
+               force_keyframe=a.force_keyframe, **track)
     ctx.update({k: v for k, v in run.meta().items()
                 if k in ("frames", "width", "height", "frame", "keyframe")})
     if a.keyframe:
@@ -554,7 +672,14 @@ def main():
             # 구간 경계. 다음 단계는 다른 기계에서 돈다 — 여기서 끊고 인계한다.
             print("=" * 62)
             print(f"\n[인계] {here} 구간 완료. 다음 [{s['key']}] 은 {s['section']} 구간이다.")
-            if here == POD:
+            if here == POD and ctx.get("track") == "motion":
+                print("\n  아래를 맥북으로 회수한 뒤 이어받는다:")
+                print(f"    {run.root}")
+                for d, sub in (("02_sam2", a.name), ("04_wham", f"{a.name}_masked")):
+                    print(f"    {data(d, sub)}")
+                print(f"\n    python scripts/orchestrate.py --motion --character {ctx['character']} "
+                      f"--name {a.name} --resume")
+            elif here == POD:
                 print("\n  아래를 맥북으로 회수한 뒤 이어받는다:")
                 print(f"    {run.root}")
                 # 04_wham 만 폴더 이름이 다르다 — WHAM 이 입력 클립 이름(<샘플>_masked)으로 쓴다.
@@ -588,6 +713,16 @@ def run_stage(s, c, run: Run, dry) -> int:
     """단계 하나를 게이트·재시도까지 처리한다. 종료 코드를 돌려준다."""
     key = s["key"]
     print(f"\n[{key}] {s['desc']}")
+
+    # ---- 환경이 이 기계에 있는가 (이미지 Pod 는 이미지 하나에 환경 하나) ----
+    envs = ENV_ROOT / "micromamba" / "envs"
+    if s["env"] and not dry and envs.is_dir() and not (envs / s["env"]).exists():
+        print(f"\n[정지] {key} 는 {s['env']} 환경에서 돈다 — 이 기계({envs})에 없다")
+        print(f"  {s['env']} 환경이 있는 Pod(이미지 Pod 라면 {s['env']} 이미지)에서 이어받는다:")
+        print(f"    python scripts/orchestrate.py --name {c['name']} --resume"
+              + (f" --motion --character {c['character']}" if c.get("track") == "motion" else ""))
+        run.add_attempt({"stage": key, "verdict": "HUMAN(환경 없음)", "env": s["env"], "env_root": str(ENV_ROOT)})
+        return EXIT_HUMAN
 
     # ---- G0: 자체 게이트. FAIL 이면 즉시 종료 (설계 3절) ----
     if key == "G0":
@@ -649,7 +784,7 @@ def run_stage(s, c, run: Run, dry) -> int:
             print(f"    시도 {n}/{max_tries}: {note}")
 
         if not dry:
-            for o in stage_outputs(key, c["name"]):
+            for o in stage_outputs(key, c["name"], c):
                 Path(o).parent.mkdir(parents=True, exist_ok=True)
         pre = pre_command(key, c)
         if pre:
@@ -658,6 +793,13 @@ def run_stage(s, c, run: Run, dry) -> int:
                 print(f"    실패: 선행 명령이 종료 코드 {prc} — {run.logs / f'{key}_pre.log'}")
                 run.add_attempt({"stage": key, "n": n, "verdict": "PRE_ERROR", "rc": prc})
                 return EXIT_FAIL
+        if key in ("5-4b", "CLIPFBX") and not dry:
+            # 다시 돌 때 앞 산출물을 덮지 않는다 — 옮겨 둔다 (납품 FBX · 스무딩 리그 보존)
+            for o in stage_outputs(key, c["name"], c):
+                if Path(o).exists():
+                    keep = Path(o).with_name(f"{Path(o).name}.prev_{datetime.now():%Y%m%d_%H%M%S}")
+                    Path(o).rename(keep)
+                    print(f"    기존 산출물 보존 → {keep.name}")
         cmd = build_cmd(s["env"], stage_command(key, c))
         t0 = datetime.now()
         rc = run_cmd(cmd, run.logs / f"{key}_{tag}.log", dry)
@@ -688,7 +830,7 @@ def run_stage(s, c, run: Run, dry) -> int:
         # 내므로 rc 만으로는 실패를 잡지 못한다 (2026-09-30 시험 c 에서 5-5·FBX 가
         # 그렇게 "통과" 했다). 선언한 산출물이 실제로 생겼는지가 완료 판정이다.
         if not dry:
-            miss = [o for o in stage_outputs(key, c["name"]) if not has_output(o)]
+            miss = [o for o in stage_outputs(key, c["name"], c) if not has_output(o)]
             if miss:
                 print(f"    실패: 단계는 끝났는데 산출물이 없다 (종료 코드 {rc})")
                 for m in miss:
@@ -699,12 +841,16 @@ def run_stage(s, c, run: Run, dry) -> int:
                                  "elapsed_s": round(elapsed, 1)})
                 return EXIT_FAIL
 
+        # ---- G4: 단계 자신이 판정이다. CHECK/FAIL 은 완료로 두지 않고 사람에게 넘긴다 ----
+        if key == "G4":
+            return g4_verdict(c, run, tag, elapsed, dry)
+
         # ---- 게이트 ----
         gc = gate_command(key, c, run, tag)
         if gc is None:
             run.add_attempt({"stage": key, "n": n, "verdict": "OK(게이트 없음)",
                              "params": gate_params(key, c), "elapsed_s": round(elapsed, 1)})
-            run.mark_done(key, stage_outputs(key, c["name"]), elapsed)
+            run.mark_done(key, stage_outputs(key, c["name"], c), elapsed)
             return EXIT_OK
 
         grc = run_cmd(build_cmd(s["env"], gc), run.logs / f"{key}_{tag}_gate.log", dry)
@@ -729,7 +875,7 @@ def run_stage(s, c, run: Run, dry) -> int:
                          "elapsed_s": round(elapsed, 1),
                          "at": datetime.now().isoformat(timespec="seconds")})
         if verdict == "PASS" or dry:
-            run.mark_done(key, stage_outputs(key, c["name"]), elapsed)
+            run.mark_done(key, stage_outputs(key, c["name"], c), elapsed)
             return EXIT_OK
 
         # ---- G2r: 재시도하지 않는다 (이상 탐지 지표) ----
@@ -745,6 +891,44 @@ def run_stage(s, c, run: Run, dry) -> int:
 
     # ---- 상한 도달 → 사람 개입 ----
     return exhausted(key, c, run)
+
+
+def g4_verdict(c, run: "Run", tag, elapsed, dry):
+    """G4 판정 읽기. PASS · ACCEPTED · EXEMPT · N/A → 완료. CHECK · FAIL → 완료로 두지 않고 종료 코드 2.
+
+    판정 JSON 은 시도마다 run/gates/ 에 복사해 둔다 — 수용 뒤 재판정이 앞 판정을 덮지 않게 (9/10 교훈).
+    수용 기록은 여기서 쓰지 않는다. 사람이 accept_clip.py 로 남긴다.
+    """
+    gj = stage_outputs("G4", c["name"], c)[0]
+    if dry:
+        print("    G4: (dry)")
+        run.mark_done("G4", [], 0)
+        return EXIT_OK
+    d = json.loads(gj.read_text())
+    kept = run.gates / f"g4_{c['name']}_{tag}.json"
+    kept.write_text(gj.read_text())
+    v = d.get("verdict", "?")
+    parts = {p: (d.get(p) or {}).get("verdict") for p in ("edges", "sweep", "ground")}
+    reasons = [r for p in ("edges", "sweep", "ground") for r in (d.get(p) or {}).get("reasons", [])]
+    print(f"    G4: {v}  (늘어남 {parts['edges']} · 발 쓸기 {parts['sweep']} · 바닥 {parts['ground']})")
+    for r in reasons:
+        print(f"      - {r}")
+    run.add_attempt({"stage": "G4", "verdict": v, "parts": parts, "reasons": reasons,
+                     "gate_json": str(kept), "elapsed_s": round(elapsed, 1),
+                     "at": datetime.now().isoformat(timespec="seconds")})
+    if v in G4_OK:
+        run.mark_done("G4", [gj], elapsed)
+        return EXIT_OK
+    bad = [p for p, pv in parts.items() if pv in ("CHECK", "FAIL")]
+    print(f"\n[정지] G4 {v} — 클립 FBX 를 내보내지 않는다. 사람이 본다.")
+    print(f"  판정: {kept}")
+    print(f"  애니메이션: {motion_dir(c) / 'animated.blend'}")
+    print("  받아들이면 수용 기록을 남기고 이어받는다 (G4 만 다시 판정한다):")
+    for p in bad:
+        print(f"    python3 tools/review/accept_clip.py --roles {c['roles_path']} --clip {c['name']} "
+              f"--gate {p} --g4 {gj} --reason \"<사유>\"")
+    print(f"    python scripts/orchestrate.py --motion --character {c['character']} --name {c['name']} --resume")
+    return EXIT_HUMAN
 
 
 def prior_tries(run: "Run", key):

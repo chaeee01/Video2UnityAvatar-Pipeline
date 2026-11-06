@@ -59,7 +59,7 @@ def parse_args():
     ap.add_argument("--point", default=None,
                     help="첫 프레임의 대상 좌표 'x,y'. 여러 점은 ';' 로 잇는다 "
                          "(예: 540,250;380,520). --prompt point 와 함께 쓴다")
-    ap.add_argument("--sam2-root", default="/workspace/repos/sam2",
+    ap.add_argument("--sam2-root", default=os.environ.get("PIPELINE_ENV_ROOT", "/workspace") + "/repos/sam2",
                     help="SAM2 소스 루트 (pip install -e . 한 경로)")
     ap.add_argument("--checkpoint", default=None,
                     help="가중치. 기본값: <sam2-root>/checkpoints/sam2.1_hiera_large.pt")
