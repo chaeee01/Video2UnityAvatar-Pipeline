@@ -5,7 +5,7 @@
   "image": "JPEG q80, long side ≤1200 px",
   "overrides": "items[].encoding_override"
  },
- "total_bytes": 6294292,
+ "total_bytes": 6569523,
  "items": [
   {
    "id": "pipeline_v4",
@@ -128,17 +128,20 @@
    "id": "s3_mesh_walker_turntable",
    "file": "assets/s3_mesh_walker_turntable.mp4",
    "kind": "video",
-   "width": 540,
-   "height": 540,
-   "bytes": 114833,
-   "sha256_16": "cfdab8fbcf0cc1f4",
+   "width": 720,
+   "height": 720,
+   "bytes": 206930,
+   "sha256_16": "e2d50c3a7156eb27",
    "source": "~/data/site_raw_1106/turn_walker/f_%04d.png",
    "character": "walker",
    "stage": "S3 외형",
    "caption": "TRELLIS.2 메쉬 턴테이블 — 키프레임 한 장에서 만든 PBR 메쉬",
    "pair": null,
    "placeholder": false,
-   "encoding_override": null,
+   "encoding_override": {
+    "h": 720,
+    "crf": 26
+   },
    "replaces": null
   },
   {
@@ -349,17 +352,20 @@
    "id": "bake_walker_hit",
    "file": "assets/bake_walker_hit.mp4",
    "kind": "video",
-   "width": 608,
-   "height": 540,
-   "bytes": 160430,
-   "sha256_16": "2197a6c79d52bb2c",
+   "width": 810,
+   "height": 720,
+   "bytes": 343564,
+   "sha256_16": "ca11e35bcd9456a0",
    "source": "~/data/site_raw_1106/bake_walker_hit_eq.mp4",
    "character": "walker",
    "stage": "S7 결합",
-   "caption": "원본 영상(왼쪽)과 리그에 구운 동작(오른쪽, 몸 키 · 발 높이를 원본에 맞춰 확대) — 리타게팅 없이 같은 SMPL 골격",
+   "caption": "원본 영상(왼쪽)과 리그에 구운 동작(오른쪽, 고해상도 재렌더에서 원본과 같은 몸 키 · 발 높이 창을 잘라냄) — 리타게팅 없이 같은 SMPL 골격",
    "pair": null,
    "placeholder": false,
-   "encoding_override": null,
+   "encoding_override": {
+    "h": 720,
+    "crf": 26
+   },
    "replaces": null
   },
   {

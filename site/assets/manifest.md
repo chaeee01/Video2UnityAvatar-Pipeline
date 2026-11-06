@@ -1,6 +1,6 @@
 # site/assets — 공개 페이지 소재 매니페스트 (2026-11-06)
 
-총 32개 · 6.29 MB. 영상 H.264 · 높이 540 · CRF 28 · ≤6초 · 무음, 스틸 JPEG q80 · 긴 변 ≤1200px. 예외: 구조도 폭 1400 · q88, 라인업 긴 변 1600 · q85, 세로 영상 3편 높이 720 · CRF 26.
+총 32개 · 6.57 MB. 영상 H.264 · 높이 540 · CRF 28 · ≤6초 · 무음, 스틸 JPEG q80 · 긴 변 ≤1200px. 예외: 구조도 폭 1400 · q88, 라인업 긴 변 1600 · q85, 세로 영상 3편 · 턴테이블 · bake 높이 720 · CRF 26.
 
 구 파일 대체: `s3_mesh_player.jpg` → `s3_mesh_player_03.jpg`(char3), `s3_mesh_char_shuffle.jpg` → `s3_mesh_player_04.jpg`(char4) — 렌더 비교로 같은 캐릭터 확인(메쉬는 다른 판: 구 TRELLIS.2 · 신 char*.glb).
 
@@ -12,7 +12,7 @@
 | `assets/input_video_walker.mp4` | video 406×720 | 0.28 MB | walker | 입력 | 입력 ② 생성 영상 — 걷기 (9:16, 24fps) | - | `~/data/00_raw/walker_walk_02__fast-ff.mp4` |
 | `assets/s2_mask_walker.mp4` | video 406×720 | 0.28 MB | walker | S2 분할 | SAM2 마스크 — 배경을 지우고 몸만 남긴 클립을 다음 단계로 넘긴다 | - | `~/data/02_sam2/walker_walk_02/walker_walk_02_masked.mp4` |
 | `assets/s5_wham_overlay_walker.mp4` | video 406×720 | 0.45 MB | walker | S5 동작 | WHAM 이 추정한 3D 몸(SMPL 정점)을 원본 영상에 투영 — 프레임마다 자세 · 위치를 복원 | - | `~/data/site_raw_1106/walker_wham_mesh_overlay.mp4` |
-| `assets/s3_mesh_walker_turntable.mp4` | video 540×540 | 0.11 MB | walker | S3 외형 | TRELLIS.2 메쉬 턴테이블 — 키프레임 한 장에서 만든 PBR 메쉬 | - | `~/data/site_raw_1106/turn_walker/f_%04d.png` |
+| `assets/s3_mesh_walker_turntable.mp4` | video 720×720 | 0.21 MB | walker | S3 외형 | TRELLIS.2 메쉬 턴테이블 — 키프레임 한 장에서 만든 PBR 메쉬 | - | `~/data/site_raw_1106/turn_walker/f_%04d.png` |
 | `assets/s3_mesh_walker.jpg` | image 1200×1200 | 0.09 MB | walker | S3 외형 | walker 메쉬 | - | `~/data/site_raw_1106/mesh_walker.png` |
 | `assets/s3_mesh_listener.jpg` | image 1200×1200 | 0.10 MB | listener | S3 외형 | listener 메쉬 | - | `~/data/site_raw_1106/mesh_listener.png` |
 | `assets/s3_mesh_stalker.jpg` | image 1200×1200 | 0.08 MB | stalker | S3 외형 | stalker 메쉬 | - | `~/data/site_raw_1106/mesh_stalker.png` |
@@ -25,7 +25,7 @@
 | `assets/s3_mesh_dog.jpg` | image 1200×1200 | 0.09 MB | dog | S3 외형 | dog 메쉬 (골격 · 동작은 Mixamo) | - | `~/data/site_raw_1106/mesh_dog.png` |
 | `assets/s4_align_walker.jpg` | image 1200×821 | 0.13 MB | walker | S4 리깅 | SMPL 몸을 TRELLIS 메쉬에 정렬한 결과 — 골격이 메쉬 안에 들어오는지 확인 | - | `~/Desktop/Video2UnityAvatar-Pipeline.wt/docs/assets/align_check_frame.png` |
 | `assets/s4_transfer_walker.jpg` | image 1200×720 | 0.15 MB | walker | S4 리깅 | 웨이트 전이의 부위 제약 — 팔 · 다리가 서로 붙지 않게 | - | `~/Desktop/Video2UnityAvatar-Pipeline.wt/docs/assets/transfer_constraint_f138.png` |
-| `assets/bake_walker_hit.mp4` | video 608×540 | 0.16 MB | walker | S7 결합 | 원본 영상(왼쪽)과 리그에 구운 동작(오른쪽, 몸 키 · 발 높이를 원본에 맞춰 확대) — 리타게팅 없이 같은 SMPL 골격 | - | `~/data/site_raw_1106/bake_walker_hit_eq.mp4` |
+| `assets/bake_walker_hit.mp4` | video 810×720 | 0.34 MB | walker | S7 결합 | 원본 영상(왼쪽)과 리그에 구운 동작(오른쪽, 고해상도 재렌더에서 원본과 같은 몸 키 · 발 높이 창을 잘라냄) — 리타게팅 없이 같은 SMPL 골격 | - | `~/data/site_raw_1106/bake_walker_hit_eq.mp4` |
 | `assets/unity_ingame_1.mp4` | video 860×540 | 0.47 MB | walker | Unity · 게임 | 실제 게임 내 플레이 장면 — 플레이어 시점, 워커가 다가와 피격 · 쓰러짐 (16:34~16:39) | - | `~/Downloads/sweetpotato_20261105.mov` |
 | `assets/unity_ingame_2.mp4` | video 860×540 | 0.47 MB | walker | Unity · 게임 | 실제 게임 내 플레이 장면 — 쓰러진 워커가 일어나 걷기 (16:22~16:28) | - | `~/Downloads/sweetpotato_20261105.mov` |
 | `assets/unity_ingame_3.mp4` | video 860×540 | 0.51 MB | listener · walker | Unity · 게임 | 실제 게임 내 플레이 장면 — 리스너와 워커, 가격 · 쓰러짐 (15:57~16:02) | - | `~/Downloads/sweetpotato_20261105.mov` |

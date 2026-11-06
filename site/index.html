@@ -70,7 +70,9 @@ figcaption{padding:10px 14px;font-size:.84rem;color:var(--sub);border-top:1px so
 .media-row.narrow{max-width:520px}
 .media-row.grid2{grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
 .media-row.vert{max-width:470px}
+.media-row.vert video,.media-row.vert img{aspect-ratio:9/16;object-fit:cover}
 .media-row.vert1{max-width:235px}
+.media-row.sq1{max-width:300px}
 .media-row.eq video,.media-row.eq img{aspect-ratio:16/10;object-fit:contain;background:#101013}
 
 /* lineup */
@@ -116,6 +118,7 @@ footer .wrap{border-top:1px solid var(--line);padding-top:32px}
       <span>AI·SW Maestro</span><span>2026.07 – 2026.11</span>
       <span>좀비 서바이벌 게임 (Empty House, Steam 출시, 3인 팀)</span>
       <span>파이프라인 기획·설계·구축 1인</span><span>Python · PyTorch · Blender · Unity</span>
+      <span>SAM2 · WHAM · TRELLIS.2 · SMPL · Veo / Gemini Omni</span>
     </div>
     <div class="btns">
       <a class="btn" href="https://github.com/chaeee01/Video2UnityAvatar-Pipeline">GitHub 레포 보기 →</a>
@@ -184,7 +187,7 @@ footer .wrap{border-top:1px solid var(--line);padding-top:32px}
         <h3>외형 복원 — TRELLIS.2</h3>
         <p>영상에서 자세가 좋은 키프레임 한 장을 자동 선별해 텍스처가 입혀진 3D 메쉬를 생성합니다.
         키프레임 선별 기준(팔이 몸에서 떨어진 자세 등)도 실패 사례에서 역산해 규칙으로 만들었습니다.</p>
-        <div class="media-row narrow">
+        <div class="media-row sq1">
           <figure><video src="assets/s3_mesh_walker_turntable.mp4" muted loop playsinline preload="metadata"></video><figcaption>TRELLIS.2 메쉬 턴테이블 — 키프레임 1장에서 생성</figcaption></figure>
         </div>
       </div>
@@ -227,7 +230,7 @@ footer .wrap{border-top:1px solid var(--line);padding-top:32px}
           <figure><video src="assets/unity_ingame_1.mp4" muted loop playsinline preload="metadata"></video><figcaption>플레이어 시점 — walker 접근 · 피격 · 쓰러짐</figcaption></figure>
           <figure><video src="assets/unity_ingame_2.mp4" muted loop playsinline preload="metadata"></video><figcaption>walker — 쓰러진 뒤 다시 일어나 걷기 (get_up)</figcaption></figure>
           <figure><video src="assets/unity_ingame_3.mp4" muted loop playsinline preload="metadata"></video><figcaption>listener · walker 동시 등장 — 피격 · 쓰러짐</figcaption></figure>
-          <figure><video src="assets/unity_ingame_4.mp4" muted loop playsinline preload="metadata"></video><figcaption>stalker — 발견 · 접근 · 포효 · 쓰러짐</figcaption></figure>
+          <figure><video src="assets/unity_ingame_4.mp4" muted loop playsinline preload="metadata"></video><figcaption>stalker — 발견 · 포효 · 접근 · 피격 · 쓰러짐</figcaption></figure>
         </div>
       </div>
     </div>
@@ -315,7 +318,7 @@ footer .wrap{border-top:1px solid var(--line);padding-top:32px}
       <p>베이킹이 "서서 시작한다"고 가정하고 있었고, 눕는 동작이 처음 생기자 숨은 버그가 드러났습니다.
       몸의 최저점이 바닥에 닿도록 루트 높이를 정렬하는 단계를 추가하고, 같은 검사를 G4에 넣어
       이미 납품된 클립까지 전수 재검사 — 숨어 있던 결함 2건을 추가로 찾아 교체했습니다.</p>
-      <div class="media-row">
+      <div class="media-row eq">
         <figure><video src="assets/ba_floor_stalker.mp4" muted loop playsinline preload="metadata"></video><figcaption>엎드린 몸이 공중에 뜸 — 수리 전(좌) · 후(우)</figcaption></figure>
         <figure><video src="assets/ba_floor_walker.mp4" muted loop playsinline preload="metadata"></video><figcaption>숙일 때 바닥 아래로 묻힘 — 수리 전(좌) · 후(우)</figcaption></figure>
       </div>
@@ -356,6 +359,16 @@ footer .wrap{border-top:1px solid var(--line);padding-top:32px}
       문제를 일으키는 입력(팔이 몸에 붙은 자세)은 레퍼런스 레시피로 상류에서 막았습니다.</li>
       <li><b>개선처럼 보이는 변경도 수치로 검증해야 합니다.</b> 데이터 정합성을 고친 수정이 오히려 변형을
       악화시킨 적이 있습니다. 그 뒤로 모든 변경은 납품 전체 재검사를 통과해야 반영됩니다.</li>
+    </ul>
+    <h3 style="margin:28px 0 10px">향후 발전시킬 점</h3>
+    <ul class="flat">
+      <li><b>손가락과 표정 — SMPL-X 업그레이드.</b> 지금 골격(SMPL 24관절)은 손이 한 덩어리라
+      손가락이 움직이지 않습니다. 손가락 관절과 표정까지 포함하는 확장 모델 SMPL-X로 옮기면
+      잡기·할퀴기 같은 동작의 표현력이 생깁니다. 동작 추정 모델도 SMPL-X를 출력하는 계열로
+      교체해야 하는 연쇄 작업입니다.</li>
+      <li><b>네발 동물 — SMAL 골격 추가.</b> dog는 동작 추정 모델(WHAM)이 네발 자세를 추적하지
+      못해 외부 도구(Mixamo)로 우회했습니다. 4족 동물용 표준 모델 SMAL과 그 추정 모델을 도입해,
+      동물 캐릭터도 같은 파이프라인 안에서 처리하는 것이 다음 단계입니다.</li>
     </ul>
   </div>
 </section>
