@@ -1,15 +1,17 @@
-# RUNBOOK — 영상 1편 → Unity 에셋 (수동 파이프라인)
+# RUNBOOK — 영상 1편 → Unity 에셋
 
 좀비 영상 한 편을 넣어 Unity에서 재생되는 애니메이션 에셋을 얻기까지의 실행 절차서.
-자동화(M2) 전까지 사람이 직접 밟는 순서를 그대로 적었다. 설계 배경은
-[PROJECT_STATUS.md](PROJECT_STATUS.md), 일정은 [ROADMAP.md](ROADMAP.md) 참조.
+2~7절은 단계를 사람이 직접 밟는 순서이고, 같은 순서를 `scripts/orchestrate.py` 가 자동 실행 ·
+자동 판정한다(2026-10-11~, [1.5절](#15-원커맨드-실행--orchestratepy)). 단계별 절은 오케스트레이터가
+멈췄을 때 어디서 무엇을 확인할지의 근거이기도 하다. 설계 배경은 [PROJECT_STATUS.md](PROJECT_STATUS.md),
+일정은 [ROADMAP.md](ROADMAP.md) 참조.
 
 **소요 시간 기준** — 69프레임 테스트 영상 기준이며, 실전 영상은 길이에 비례해 늘어난다:
 Pod 준비 약 5분 · SAM2 약 2분(모델 로딩 포함) · TRELLIS Space 2-10분(대기열에 따라 변동) ·
 WHAM 수 분 · 리깅 4단계 약 10분 · Unity 약 15분.
 
 **전제**: 맥북(Blender 4.5 LTS, Unity), RunPod 계정, Network Volume `pipeline-vol`(250GB,
-EU-RO-1), SMPL/SMPLify 계정 인증 완료.
+EU-RO-1), SMPL/SMPLify 계정 인증 완료. 이미지 Pod(1-A)을 쓰려면 GHCR 비공개 패키지 읽기 권한도 필요하다.
 
 ---
 
@@ -62,6 +64,53 @@ EU-RO-1), SMPL/SMPLify 계정 인증 완료.
 
 ## 1. Pod 준비
 
+Pod 은 두 가지로 띄운다. **기본은 1-A 이미지 Pod** — 환경 3종(sam2 · trellis2 · wham)을 볼륨 아카이브
+그대로 이미지로 굳혀 GHCR 에 올렸다(2026-11-05 Pod 검증: S2 마스크 · S5 pkl 완전 일치, S3 정점 일치).
+**1-B 볼륨 Pod** 는 볼륨에 직접 설치된 환경을 쓰는 원래 방식으로, 환경 아카이브(8절) · 디버깅 ·
+원커맨드 Pod 구간(1.5절)에 쓴다. 어느 쪽이든 GPU 는 **RTX 4090**, 리전은 볼륨과 같은 **EU-RO-1** 이다.
+
+### 1-A. 이미지 Pod (기본)
+
+1. **템플릿** (RunPod → Templates, 환경마다 1개):
+
+   | 환경 | 이미지 |
+   |---|---|
+   | sam2 | `ghcr.io/chaeee01/v2ua-sam2v:20260929-2b90b9f` |
+   | trellis2 | `ghcr.io/chaeee01/v2ua-trellis2:20261008-75fbf01` |
+   | wham | `ghcr.io/chaeee01/v2ua-wham:20261008-2b54f77` |
+
+   - **Container Registry Credentials**: GHCR 사용자 + **`read:packages` 권한만 가진 PAT**.
+     비공개 패키지라 없으면 이미지를 받지 못한다.
+   - **Start Command**: **`bash -c "sleep infinity"`**. 이미지 CMD `bash` 는 곧바로 끝나 Pod 이 죽는다
+     (2026-11-05 1차 Pod 실패).
+   - **Volume Mount Path**: **`/vol`**. 이미지의 `/workspace`(환경 · 레포 · 체크포인트)와 겹치지 않게 한다.
+2. **배포**: Storage → `pipeline-vol` → 해당 템플릿으로 Deploy.
+3. **볼륨에서 이어 붙일 것** — 이미지에 넣을 수 없거나 넣지 않은 것은 이 셋뿐이다:
+   - **SMPL 계열 3개 (wham)** — 라이선스상 재배포 불가라 이미지에서 뺐다. 볼륨에서 이미지 경로로 링크한다:
+
+     ```bash
+     B=/workspace/repos/WHAM/dataset/body_models
+     for f in smpl smplx2smpl.pkl smpl_mean_params.npz; do ln -s /vol/repos/WHAM/dataset/body_models/$f $B/$f; done
+     ```
+   - **HF 모델 캐시 (trellis2, 약 27GB)** — `ln -s /vol/.cache /workspace/.cache` (재다운로드 없음).
+   - **입출력 데이터** — `PIPELINE_VOL=/vol` 로 실행해 `/vol/data` · `/vol/logs` 를 쓴다.
+
+   체크포인트는 여기 들지 않는다 — **wham 체크포인트(hmr2a · vitpose 등)는 이미지 안에 있고**, sam2 도
+   11/05 검증에서 `/vol` 참조 0 으로 돌았다.
+4. **접속**: 이미지에 sshd 가 없어 **프록시 SSH(PTY 전용, scp 불가)** 만 된다. 결과 파일은 `/vol/logs/` 등
+   볼륨에 남기고, 회수는 볼륨 Pod(1-B) 또는 다음 접속에서 한다.
+5. 환경 이름은 파이프라인과 같다 — `micromamba run -n sam2` (sam2v 이미지는 `sam2 → sam2v` 별칭이 들어 있다).
+
+#### 확인 포인트 (1-A)
+- 파이프라인 레포는 볼륨의 `/vol/repos/Video2UnityAvatar-Pipeline` 에서 부른다(11/05 검증도 이 경로).
+  main 최신 확인은 1-B 확인 포인트와 같다.
+- `setup_<env>.sh --check` 와 `scripts/restore_probe.py` — 적재 모듈이 이미지 안에서 오는지(`/vol` 참조 0).
+- wham: `ls -la /workspace/repos/WHAM/dataset/body_models` 에 SMPL 링크 3개가 보이는지.
+- 이미지 하나에 환경 하나다. S2 → S5 → S3 를 한 Pod 에서 이어 돌릴 수 없으므로 단계마다 해당 이미지 Pod 를
+  띄우고 단계 스크립트(2~4절)를 직접 부른다. 원커맨드 Pod 구간은 1-B 에서 돈다(1.5절 한계 참조).
+
+### 1-B. 볼륨 Pod (보조 — 아카이브 · 디버깅 · 원커맨드 Pod 구간)
+
 1. RunPod → **Storage** → `pipeline-vol` → **Deploy**. 볼륨에서 배포해야 `/workspace`가 붙는다.
    (Pods 메뉴에서 새로 만들면 볼륨이 연결되지 않는다.)
 2. GPU 선택: **RTX 4090** ($0.69/hr) 기본. 리전은 볼륨과 같은 **EU-RO-1** 고정 — 다른 리전은
@@ -81,7 +130,7 @@ micromamba activate wham      # 4·5단계 (python 3.9, torch 2.0.0+cu118)
 레포 의존성이 충돌(torch 1.11-2.5, CUDA 11.3-12.4)해서 단일 환경으로 합칠 수 없다.
 환경 분리는 우회가 아니라 확정된 원칙이다.
 
-### 확인 포인트
+#### 확인 포인트 (1-B)
 - **레포를 main 최신으로 맞춘다.** Pod 은 지난 세션의 브랜치에 그대로 남아 있고, 원격에서
   지운 브랜치도 유령으로 살아 있다. 2026-09-10 에 구버전 레포로 배치를 돌려 `params.json` 의
   정점·면 수가 `to_glb` 이전 값으로 기록됐고, 9/15 에도 삭제된 `feature/trellis2` 에 체크아웃된
@@ -112,7 +161,9 @@ micromamba activate wham      # 4·5단계 (python 3.9, torch 2.0.0+cu118)
   148GB 근처에서 쓰기가 막혔다. 그 뒤 250GB 로 증설했다.) **수 GB 이상을 쓰는 작업
   (아카이브, 새 환경, 모델 내려받기)은 쓰기 전에 이 합계와 쓸 양을 더해 본다.**
 
-### 흔한 실패
+### 흔한 실패 (공통)
+- **이미지 Pod 가 바로 죽음 (1-A)** — 템플릿에 Start Command `bash -c "sleep infinity"` 가 없다.
+- **이미지를 못 받음 (1-A)** — 템플릿에 GHCR 자격증명(`read:packages` PAT)이 없거나 만료됐다.
 - **포트 혼동** — Jupyter 포트(8888)는 **브라우저 프록시 전용**이다. `ssh`·`scp`는 RunPod 콘솔의
   **"SSH over exposed TCP"** 에 표시된 포트를 써야 한다. 8888로 `scp`하면 `Connection refused`가 난다.
   포트와 IP는 Pod을 재배포할 때마다 바뀌므로 접속 전 콘솔에서 다시 확인한다.
@@ -134,6 +185,40 @@ micromamba activate wham      # 4·5단계 (python 3.9, torch 2.0.0+cu118)
   을 붙이거나 `python -u` 로 돌린다 (2026-09-30 E2E 에서 겪음).
 
 ---
+
+## 1.5. 원커맨드 실행 — orchestrate.py
+
+2~5절을 한 명령으로 잇는다. 설계는 [ORCHESTRATOR_DESIGN.md](ORCHESTRATOR_DESIGN.md), 사용법은 스크립트 독스트링이 원본이다.
+GPU 작업(Pod)과 Blender 작업(맥북)이 갈리므로 **같은 스크립트를 양쪽에서 돌리고 완료 마커로 이어받는다**.
+
+```bash
+# Pod 구간 (1-B 볼륨 Pod)
+python scripts/orchestrate.py --video /workspace/data/00_raw/<샘플>.mp4 --name <샘플>
+# 맥북 구간 (run 폴더 · 산출물 회수 후 — 7절)
+python3 scripts/orchestrate.py --name <샘플> --resume
+```
+
+| 옵션 | 뜻 |
+|---|---|
+| `--dry-run` | 실행할 명령과 분기만 출력한다 (아무것도 실행하지 않는다) |
+| `--until <단계>` | 그 단계까지만 돌고 멈춘다 (예: `5-2`) |
+| `--section pod\|mac` | 그 구간만 돈다 (기본: 마커가 가리키는 다음 단계부터) |
+| `--resume` / `--run <폴더>` | 최신 run 또는 지정 run 을 이어받는다 |
+| `--point x,y` | S2 시작 좌표 (기본: 프레임 중앙) |
+| `--keyframe <png>` | S3 키프레임 직접 지정 — G1a 를 건너뛴다(파일명에 `_f<번호>` 필요) |
+| `--force-keyframe` | G1a 가 "다리 벌린 프레임 없음 + 다리 움직임" 으로 인계할 때 강행 |
+| `--runs-dir` | run 폴더 위치 (기본 `$PIPELINE_VOL/data/runs`, `PIPELINE_VOL` 기본 `/workspace`) |
+
+종료 코드: **0 성공 / 1 실패 / 2 사람 개입 필요**. 마커가 가리키는 다음 단계가 이 기계에서 돌 수 없으면
+그 자리에서 멈춘다(실행 환경을 추정하지 않는다). 맥북에서 돌릴 때는 회수한 run 폴더를 `--runs-dir`
+(또는 `PIPELINE_VOL`)로 가리킨다.
+
+**한계 (2026-11-06 기준)**
+- Pod 구간은 환경 3종을 `$PIPELINE_VOL/micromamba` 의 `micromamba run -n <env>` 로 바꿔 가며 쓴다. 그래서
+  환경이 모두 볼륨에 있는 **1-B 에서만 원커맨드로 검증됐다**. 이미지 Pod(1-A)은 환경이 이미지
+  `/workspace/micromamba` 에 하나씩, 데이터는 `/vol` 에 있어 이 경로 묶음과 맞지 않는다 — 이미지 Pod 에서는
+  단계 스크립트를 직접 부른다.
+- 스크립트 독스트링 기준 v1 골격이다 — 게이트 분기 · 재시도(설계 3-4절)는 다음 단계.
 
 ## 2. SAM2 — 객체 분리 (S2)
 
