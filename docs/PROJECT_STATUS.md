@@ -1030,6 +1030,27 @@ WHAM betas(체형) + 키프레임 pose(자세) → 그 좀비와 같은 자세·
 
   **남은 것 · 결손.** 이미지 Pod 원커맨드는 코드만 있고 실검증 전(통합 이미지 빌드 사이클). `gait_window.py`(11/02 고정 npz 를 만든 스크립트)는 레포 · 맥 어디에도 없다 — 결손으로 기록, 출처는 모션 폴더의 `track_select.json` · `gait_window.json`. G4 실행 중 numpy matmul 경고(divide by zero · overflow · invalid)는 판정 수치가 기존과 같아 기존 동작으로 기록만.
 
+- **2026-11-06 — 역할표 source 정정 15편 · ground_align 오기 2편 바로잡음**:
+
+  앞 항목에서 "source 가 납품판과 다르다" 고 비워 둔 13편을 근거로 정정했다. 그 과정에서 **앞 항목의 일괄 기록이 2편을 틀리게 적은 것**을 찾았다 — MANIFEST 의 10/26 바닥 정렬판 교체는 **14편**인데 교체 목록을 `07_unity/ground_fix_1026`(12개 FBX)으로만 잡아, 다른 경로로 납품된 stalker `crawl_loop` · walker `idle_lurch` 가 빠졌고 둘 다 `ground_align: false` 로 기록됐다(납품판은 바닥 정렬판). 그래서 정정 대상은 **15편**(10/26 교체 14 + walker `get_up` 11/02 교체)이다.
+
+  **근거 3단.** ① 납품 MANIFEST 의 교체 기록(12행 "바닥 정렬판 교체 — 14편", 57행 walker `get_up` "11/02 walker 고유판으로 교체 — `walker_get_up_c2`"). ② 교체 때의 G4 판정(`review_1026/09_ga_replace/g4_after` · `11_ga12/g4_after`, `review_1102/08_getup/g4`)이 연 `animated.blend` 경로 — 15편 모두 아래 폴더를 가리키고, 바닥 수치가 MANIFEST 의 교체 후 값과 같다. ③ 그 폴더에서 클립 FBX 를 다시 내보내 납품 FBX(`deliverable_20261012/<캐릭터>/<캐릭터>@<클립>.fbx`)와 Blender 에서 대조 — **15편 모두 본 24 · 프레임 범위 · 테이크 이름 동일, 전 프레임 본 머리 위치 최대 차 0.0**. 대조군(옛 source 폴더 재내보내기)은 0.039~0.175 차이 — MANIFEST 의 교체 전 바닥 오차 크기와 맞다(walker `get_up` 의 옛 source 인 이식판은 1.02).
+
+  | 캐릭터 · 클립 | 옛 source | 납품판 폴더 (정정 source) | 옛 source 와 납품 FBX 차 |
+  |---|---|---|---|
+  | stalker `crawl_loop` | common_fall_to_crawl_crawl | common_fall_to_crawl_crawl_ga | 0.175 |
+  | stalker `crawl_to_run` | common_crawl_to_run | common_crawl_to_run_ga | 0.043 |
+  | stalker `fall_start` | common_fall_to_crawl_stand | common_fall_to_crawl_stand_ga | 0.047 |
+  | walker `idle_lurch` | walker_idle_03 | walker_idle_03_ga | 0.122 |
+  | walker `get_up` | stalker_get_up_c (이식판) | walker_get_up_c2 | 1.021 |
+  | listener `roar_arms` | listener_roar | listener_roar_ga | (채택 리그에 옛 폴더 없음) |
+  | listener `run` | listener_x_stalker_run_fwd | listener_x_stalker_run_fwd_ga | (채택 리그에 옛 폴더 없음) |
+  | lurker `attack` · `idle` · `run_fwd` | lurker_* | lurker_*_ga | 0.042 · 0.046 · 0.052 |
+  | oiler `roar` · `run_fwd` | oiler_roar · oiler_run_fwd_v2 | oiler_roar_ga · oiler_run_fwd_v2_ga | 0.044 · 0.051 |
+  | player `disguise_04` · `disguise_07` · `run` | player_disguise_04 · _07 · player_run_v2 | 각 `_ga` | 0.052 · 0.039 · 0.071 |
+
+  역할표(백업 `clip_roles.json.bak_20261106_205836`)에서 15편의 `source` 를 납품판 폴더로 고치고 옛 값은 `source_prev` 로 남겼다. `bake.ground_align` 은 그 폴더의 `ground_align.json` 으로 — 15편 모두 true. 전체 기록은 **true 39 · false 71**, 미기록 1(char_shuffle `shuffle` — `character.json` 이 없어 일괄 대상 밖, 동작 트랙도 `character.json` 이 있어야 돈다). 수용 기록 · 역할은 그대로다.
+
 ## 9. 다음 단계 (우선순위)
 
 2026-10-21 기준. 이전 목록(8월, SMPL 리깅 1~3단계 · SAM2 이전 · TRELLIS 로컬 설치 · 게이트 · 오케스트레이터)은 모두 끝났다.
@@ -1041,4 +1062,4 @@ WHAM betas(체형) + 키프레임 pose(자세) → 그 좀비와 같은 자세·
 
 **G4 구현 완료(10/22)** — `scripts/gate_g4.py`, RUNBOOK 5.6절. **바닥 판정 · 바닥 정렬 추가(10/26)** — RUNBOOK 5-5 · 5.6절.
 
-백로그: G3 축소판(WHAM 2D 키포인트 확인 선행), ~~README 자동화 사용법~~(11/06 완료), G2 seed 재시도 실전 검증, ~~2트랙 배치 래퍼~~ · ~~**5-4b · G4 오케스트레이터 통합**~~(11/06 완료 — 동작 트랙 · character.json v2), 역할표 source 정정 13편(10/26 바닥 교체 12 + walker get_up).
+백로그: G3 축소판(WHAM 2D 키포인트 확인 선행), ~~README 자동화 사용법~~(11/06 완료), G2 seed 재시도 실전 검증, ~~2트랙 배치 래퍼~~ · ~~**5-4b · G4 오케스트레이터 통합**~~(11/06 완료 — 동작 트랙 · character.json v2), ~~역할표 source 정정 13편~~(11/06 완료 — 실제 15편, 10/26 바닥 교체 14 + walker get_up).
