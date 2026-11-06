@@ -25,7 +25,8 @@
     "width": 1400,
     "q": 88
    },
-   "replaces": null
+   "replaces": null,
+   "used_on_page": true
   },
   {
    "id": "lineup_meshes",
@@ -45,7 +46,8 @@
     "long": 1600,
     "q": 85
    },
-   "replaces": null
+   "replaces": null,
+   "used_on_page": false
   },
   {
    "id": "input_ref_walker",
@@ -62,7 +64,8 @@
    "pair": null,
    "placeholder": false,
    "encoding_override": null,
-   "replaces": null
+   "replaces": null,
+   "used_on_page": true
   },
   {
    "id": "input_video_walker",
@@ -82,7 +85,8 @@
     "h": 720,
     "crf": 26
    },
-   "replaces": null
+   "replaces": null,
+   "used_on_page": true
   },
   {
    "id": "s2_mask_walker",
@@ -102,7 +106,8 @@
     "h": 720,
     "crf": 26
    },
-   "replaces": null
+   "replaces": null,
+   "used_on_page": true
   },
   {
    "id": "s5_wham_overlay_walker",
@@ -122,7 +127,8 @@
     "h": 720,
     "crf": 26
    },
-   "replaces": null
+   "replaces": null,
+   "used_on_page": true
   },
   {
    "id": "s3_mesh_walker_turntable",
@@ -142,7 +148,8 @@
     "h": 720,
     "crf": 26
    },
-   "replaces": null
+   "replaces": null,
+   "used_on_page": true
   },
   {
    "id": "s3_mesh_walker",
@@ -159,7 +166,8 @@
    "pair": null,
    "placeholder": false,
    "encoding_override": null,
-   "replaces": null
+   "replaces": null,
+   "used_on_page": true
   },
   {
    "id": "s3_mesh_listener",
@@ -176,7 +184,8 @@
    "pair": null,
    "placeholder": false,
    "encoding_override": null,
-   "replaces": null
+   "replaces": null,
+   "used_on_page": true
   },
   {
    "id": "s3_mesh_stalker",
@@ -193,7 +202,8 @@
    "pair": null,
    "placeholder": false,
    "encoding_override": null,
-   "replaces": null
+   "replaces": null,
+   "used_on_page": true
   },
   {
    "id": "s3_mesh_lurker",
@@ -210,7 +220,8 @@
    "pair": null,
    "placeholder": false,
    "encoding_override": null,
-   "replaces": null
+   "replaces": null,
+   "used_on_page": true
   },
   {
    "id": "s3_mesh_oiler",
@@ -227,7 +238,8 @@
    "pair": null,
    "placeholder": false,
    "encoding_override": null,
-   "replaces": null
+   "replaces": null,
+   "used_on_page": true
   },
   {
    "id": "s3_mesh_player_01",
@@ -244,7 +256,8 @@
    "pair": null,
    "placeholder": false,
    "encoding_override": null,
-   "replaces": null
+   "replaces": null,
+   "used_on_page": true
   },
   {
    "id": "s3_mesh_player_02",
@@ -261,7 +274,8 @@
    "pair": null,
    "placeholder": false,
    "encoding_override": null,
-   "replaces": null
+   "replaces": null,
+   "used_on_page": true
   },
   {
    "id": "s3_mesh_player_03",
@@ -278,7 +292,8 @@
    "pair": null,
    "placeholder": false,
    "encoding_override": null,
-   "replaces": "assets/s3_mesh_player.jpg"
+   "replaces": "assets/s3_mesh_player.jpg",
+   "used_on_page": true
   },
   {
    "id": "s3_mesh_player_04",
@@ -295,7 +310,8 @@
    "pair": null,
    "placeholder": false,
    "encoding_override": null,
-   "replaces": "assets/s3_mesh_char_shuffle.jpg"
+   "replaces": "assets/s3_mesh_char_shuffle.jpg",
+   "used_on_page": true
   },
   {
    "id": "s3_mesh_dog",
@@ -312,7 +328,8 @@
    "pair": null,
    "placeholder": false,
    "encoding_override": null,
-   "replaces": null
+   "replaces": null,
+   "used_on_page": true
   },
   {
    "id": "s4_align_walker",
@@ -329,7 +346,8 @@
    "pair": null,
    "placeholder": false,
    "encoding_override": null,
-   "replaces": null
+   "replaces": null,
+   "used_on_page": true
   },
   {
    "id": "s4_transfer_walker",
@@ -346,7 +364,8 @@
    "pair": null,
    "placeholder": false,
    "encoding_override": null,
-   "replaces": null
+   "replaces": null,
+   "used_on_page": true
   },
   {
    "id": "bake_walker_hit",
@@ -366,7 +385,8 @@
     "h": 720,
     "crf": 26
    },
-   "replaces": null
+   "replaces": null,
+   "used_on_page": true
   },
   {
    "id": "unity_ingame_1",
@@ -383,7 +403,8 @@
    "pair": null,
    "placeholder": false,
    "encoding_override": null,
-   "replaces": null
+   "replaces": null,
+   "used_on_page": true
   },
   {
    "id": "unity_ingame_2",
@@ -400,7 +421,8 @@
    "pair": null,
    "placeholder": false,
    "encoding_override": null,
-   "replaces": null
+   "replaces": null,
+   "used_on_page": true
   },
   {
    "id": "unity_ingame_3",
@@ -417,7 +439,8 @@
    "pair": null,
    "placeholder": false,
    "encoding_override": null,
-   "replaces": null
+   "replaces": null,
+   "used_on_page": true
   },
   {
    "id": "unity_ingame_4",
@@ -434,7 +457,8 @@
    "pair": null,
    "placeholder": false,
    "encoding_override": null,
-   "replaces": null
+   "replaces": null,
+   "used_on_page": true
   },
   {
    "id": "ba_weight_listener",
@@ -454,7 +478,8 @@
    },
    "placeholder": false,
    "encoding_override": null,
-   "replaces": null
+   "replaces": null,
+   "used_on_page": true
   },
   {
    "id": "ba_weight_listener_still",
@@ -474,7 +499,8 @@
    },
    "placeholder": false,
    "encoding_override": null,
-   "replaces": null
+   "replaces": null,
+   "used_on_page": false
   },
   {
    "id": "ba_weight_walker",
@@ -494,7 +520,8 @@
    },
    "placeholder": false,
    "encoding_override": null,
-   "replaces": null
+   "replaces": null,
+   "used_on_page": true
   },
   {
    "id": "ba_slide_listener",
@@ -514,7 +541,8 @@
    },
    "placeholder": false,
    "encoding_override": null,
-   "replaces": null
+   "replaces": null,
+   "used_on_page": true
   },
   {
    "id": "ba_slide_listener_still",
@@ -534,7 +562,8 @@
    },
    "placeholder": false,
    "encoding_override": null,
-   "replaces": null
+   "replaces": null,
+   "used_on_page": true
   },
   {
    "id": "ba_floor_walker",
@@ -554,7 +583,8 @@
    },
    "placeholder": false,
    "encoding_override": null,
-   "replaces": null
+   "replaces": null,
+   "used_on_page": true
   },
   {
    "id": "ba_floor_stalker",
@@ -574,7 +604,8 @@
    },
    "placeholder": false,
    "encoding_override": null,
-   "replaces": null
+   "replaces": null,
+   "used_on_page": true
   },
   {
    "id": "ba_gait_stalker",
@@ -594,7 +625,8 @@
    },
    "placeholder": false,
    "encoding_override": null,
-   "replaces": null
+   "replaces": null,
+   "used_on_page": true
   }
  ]
 }
