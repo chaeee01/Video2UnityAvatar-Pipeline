@@ -5,7 +5,7 @@
   "image": "JPEG q80, long side ≤1200 px",
   "overrides": "items[].encoding_override"
  },
- "total_bytes": 6569523,
+ "total_bytes": 6546333,
  "items": [
   {
    "id": "pipeline_v4",
@@ -128,14 +128,14 @@
    "id": "s3_mesh_walker_turntable",
    "file": "assets/s3_mesh_walker_turntable.mp4",
    "kind": "video",
-   "width": 720,
+   "width": 406,
    "height": 720,
-   "bytes": 206930,
-   "sha256_16": "e2d50c3a7156eb27",
-   "source": "~/data/site_raw_1106/turn_walker/f_%04d.png",
+   "bytes": 183740,
+   "sha256_16": "58cc8fd50d9d563e",
+   "source": "~/data/site_raw_1106/turn_walker_v/f_%04d.png",
    "character": "walker",
    "stage": "S3 외형",
-   "caption": "TRELLIS.2 메쉬 턴테이블 — 키프레임 한 장에서 만든 PBR 메쉬",
+   "caption": "TRELLIS.2 메쉬 턴테이블 — 키프레임 한 장에서 만든 PBR 메쉬 (세로 9:16, 회전 전체에서 전신이 보이게 카메라 맞춤)",
    "pair": null,
    "placeholder": false,
    "encoding_override": {
