@@ -1,6 +1,6 @@
 # site/assets — 공개 페이지 소재 매니페스트 (2026-11-06)
 
-총 32개 · 6.57 MB. 영상 H.264 · 높이 540 · CRF 28 · ≤6초 · 무음, 스틸 JPEG q80 · 긴 변 ≤1200px. 예외: 구조도 폭 1400 · q88, 라인업 긴 변 1600 · q85, 세로 영상 3편 · 턴테이블 · bake 높이 720 · CRF 26.
+총 32개 · 6.55 MB. 영상 H.264 · 높이 540 · CRF 28 · ≤6초 · 무음, 스틸 JPEG q80 · 긴 변 ≤1200px. 예외: 구조도 폭 1400 · q88, 라인업 긴 변 1600 · q85, 세로 영상 3편 · 턴테이블 · bake 높이 720 · CRF 26.
 
 구 파일 대체: `s3_mesh_player.jpg` → `s3_mesh_player_03.jpg`(char3), `s3_mesh_char_shuffle.jpg` → `s3_mesh_player_04.jpg`(char4) — 렌더 비교로 같은 캐릭터 확인(메쉬는 다른 판: 구 TRELLIS.2 · 신 char*.glb).
 
@@ -12,7 +12,7 @@
 | `assets/input_video_walker.mp4` | video 406×720 | 0.28 MB | walker | 입력 | 입력 ② 생성 영상 — 걷기 (9:16, 24fps) | - | `~/data/00_raw/walker_walk_02__fast-ff.mp4` |
 | `assets/s2_mask_walker.mp4` | video 406×720 | 0.28 MB | walker | S2 분할 | SAM2 마스크 — 배경을 지우고 몸만 남긴 클립을 다음 단계로 넘긴다 | - | `~/data/02_sam2/walker_walk_02/walker_walk_02_masked.mp4` |
 | `assets/s5_wham_overlay_walker.mp4` | video 406×720 | 0.45 MB | walker | S5 동작 | WHAM 이 추정한 3D 몸(SMPL 정점)을 원본 영상에 투영 — 프레임마다 자세 · 위치를 복원 | - | `~/data/site_raw_1106/walker_wham_mesh_overlay.mp4` |
-| `assets/s3_mesh_walker_turntable.mp4` | video 720×720 | 0.21 MB | walker | S3 외형 | TRELLIS.2 메쉬 턴테이블 — 키프레임 한 장에서 만든 PBR 메쉬 | - | `~/data/site_raw_1106/turn_walker/f_%04d.png` |
+| `assets/s3_mesh_walker_turntable.mp4` | video 406×720 | 0.18 MB | walker | S3 외형 | TRELLIS.2 메쉬 턴테이블 — 키프레임 한 장에서 만든 PBR 메쉬 (세로 9:16, 회전 전체에서 전신이 보이게 카메라 맞춤) | - | `~/data/site_raw_1106/turn_walker_v/f_%04d.png` |
 | `assets/s3_mesh_walker.jpg` | image 1200×1200 | 0.09 MB | walker | S3 외형 | walker 메쉬 | - | `~/data/site_raw_1106/mesh_walker.png` |
 | `assets/s3_mesh_listener.jpg` | image 1200×1200 | 0.10 MB | listener | S3 외형 | listener 메쉬 | - | `~/data/site_raw_1106/mesh_listener.png` |
 | `assets/s3_mesh_stalker.jpg` | image 1200×1200 | 0.08 MB | stalker | S3 외형 | stalker 메쉬 | - | `~/data/site_raw_1106/mesh_stalker.png` |

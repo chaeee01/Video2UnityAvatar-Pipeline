@@ -22,7 +22,7 @@ ITEMS = [
     ("input_video_walker", "video", f"{D}/00_raw/walker_walk_02__fast-ff.mp4", "walker", "입력", "입력 ② 생성 영상 — 걷기 (9:16, 24fps)", None, 0),
     ("s2_mask_walker", "video", f"{D}/02_sam2/walker_walk_02/walker_walk_02_masked.mp4", "walker", "S2 분할", "SAM2 마스크 — 배경을 지우고 몸만 남긴 클립을 다음 단계로 넘긴다", None, 0),
     ("s5_wham_overlay_walker", "video", f"{X}/walker_wham_mesh_overlay.mp4", "walker", "S5 동작", "WHAM 이 추정한 3D 몸(SMPL 정점)을 원본 영상에 투영 — 프레임마다 자세 · 위치를 복원", None, 0),
-    ("s3_mesh_walker_turntable", "video", f"{X}/turn_walker/f_%04d.png", "walker", "S3 외형", "TRELLIS.2 메쉬 턴테이블 — 키프레임 한 장에서 만든 PBR 메쉬", None, 0),
+    ("s3_mesh_walker_turntable", "video", f"{X}/turn_walker_v/f_%04d.png", "walker", "S3 외형", "TRELLIS.2 메쉬 턴테이블 — 키프레임 한 장에서 만든 PBR 메쉬 (세로 9:16, 회전 전체에서 전신이 보이게 카메라 맞춤)", None, 0),
     ("s3_mesh_walker", "image", f"{X}/mesh_walker.png", "walker", "S3 외형", "walker 메쉬", None, 0),
     ("s3_mesh_listener", "image", f"{X}/mesh_listener.png", "listener", "S3 외형", "listener 메쉬", None, 0),
     ("s3_mesh_stalker", "image", f"{X}/mesh_stalker.png", "stalker", "S3 외형", "stalker 메쉬", None, 0),
