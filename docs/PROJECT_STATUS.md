@@ -994,6 +994,22 @@ WHAM betas(체형) + 키프레임 pose(자세) → 그 좀비와 같은 자세·
 
   갭 수정판을 다시 지어(17분 + wham 20분) 세 이미지 안에서 python3 · 별칭 · 링크 · SMPL 부재를 확인하고 같은 태그로 다시 push 했다 — 레지스트리(압축) sam2v 5.45 · trellis2 6.21 · wham 9.79 GB, rootfs diff ID 가 로컬과 일치. push 는 trellis2 만 `docker push`(10분 44초)로 됐고 sam2v · wham 은 skopeo(각 11분 06초 · 19분 34초, 단독 실행). 이날 실패 원인은 전부 네트워크였다 — 맥이 휴대폰 핫스팟(172.20.10.x)에서 집 공유기로 바뀌며 진행 중이던 업로드 연결이 끊겼고, Docker Desktop VM 프록시 경로의 docker push 는 매니페스트 단계에서 두 번 멈췄다(규칙: 큰 이미지는 skopeo, 업로드는 한 번에 하나). 이로써 **EH-229 환경 이미지화는 검증까지 끝났다** — 남은 것은 RunPod 템플릿(비공개 패키지 읽기 자격증명, 시작 명령, `/vol` 마운트)과 sshd 포함 여부 결정.
 
+- **2026-11-06 — 공개 페이지(`site/`) 조립 · GitHub Pages 배포 워크플로**:
+
+  레포의 `site/` 를 GitHub Actions 로 Pages 에 올린다(`.github/workflows/pages.yml` — main 의 `site/**` 변경 시 upload-pages-artifact → deploy-pages, 수동 실행 가능). 페이지는 `site/index.html` 한 장 — 파이프라인 한 바퀴 · 납품 캐릭터 8종 · 수치 검사 · 문제 해결 기록 · 한계와 배운 것. 외부 스크립트 · 스타일시트 없음, 로컬 참조 `assets/*` 29개 전부 존재(끊긴 링크 0).
+
+  | 묶음 | 점수 | 크기 |
+  |---|---|---|
+  | 개요 · 입력 · S2 · S5 · S4 · S7 | 8 | 0.94 MB |
+  | S3 외형(메쉬 스틸 8 · 라인업 · 턴테이블) | 10 | 0.93 MB |
+  | Unity 게임 내 플레이(실제 게임 화면 4클립) | 4 | 2.00 MB |
+  | 문제 해결 전후(웨이트 · 미끄러짐 · 바닥 · 보행) | 8 | 1.28 MB |
+  | **합계** | **30 (영상 15 · 스틸 15)** | **5.23 MB** (페이지 · 매니페스트 포함 배포 5.27 MB) |
+
+  인코딩은 영상 H.264 · 높이 540 · CRF 28 · ≤6초 · 무음 · faststart, 스틸 JPEG q80 · 긴 변 ≤1200px. 생성 · 조립은 `tools/site/`(`site_render_glb.py` 메쉬 렌더, `site_mesh_overlay.py` WHAM 정점 투영 — 맥에 SMPL 모델이 없어 골격 대신 정점, `site_assemble.py` 인코딩 · 매니페스트). 소재 목록과 원본 경로는 `site/assets/manifest.md`.
+
+  Unity 클립은 게임팀 녹화(`sweetpotato_20261105.mov`, 3024×1898 · 120fps)에서 잘랐다 — 16:34~16:39 walker 접근 · 피격 · 쓰러짐, 16:22~16:28 쓰러진 walker 가 일어나 걷기, 15:57~16:02 listener · walker 가격 · 쓰러짐, 21:32.5~21:38.5 stalker 접근 · 피격 · 쓰러짐(21:30~21:40 중 동작 전체가 보이는 6초). 공개는 팀 OK · 사용권 확인 후. 레포 전역 `*.mp4` 제외는 유지하고 `site/assets/*.mp4` 만 예외로 뒀다. `ba_weight_listener_still.jpg` 는 매니페스트에 있으나 페이지에서 쓰지 않는다.
+
 ## 9. 다음 단계 (우선순위)
 
 2026-10-21 기준. 이전 목록(8월, SMPL 리깅 1~3단계 · SAM2 이전 · TRELLIS 로컬 설치 · 게이트 · 오케스트레이터)은 모두 끝났다.
