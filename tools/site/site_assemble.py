@@ -73,6 +73,10 @@ def probe(path):
     return int(w), int(h)
 
 os.makedirs(OUT, exist_ok=True)
+# 페이지가 실제로 쓰는 소재 — 안 쓰는 항목은 지우지 않고 매니페스트에 미사용으로 표기한다
+import re
+PAGE = os.path.join(REPO, "site", "index.html")
+USED = set(re.findall(r'(?:src|href|poster)="(assets/[^"]+)"', open(PAGE, encoding="utf-8").read())) if os.path.exists(PAGE) else None
 man = []
 for it in ITEMS:
     iid, kind, src, char, stage, cap, pair, ss = it[:8]
@@ -94,18 +98,19 @@ for it in ITEMS:
                 "bytes": os.path.getsize(dst), "sha256_16": hashlib.sha256(open(dst, "rb").read()).hexdigest()[:16],
                 "source": srcp, "character": char, "stage": stage, "caption": cap,
                 "pair": {"group": pair[0], "role": pair[1]} if pair else None,
-                "placeholder": False, "encoding_override": o or None, "replaces": REPLACES.get(iid)})
+                "placeholder": False, "encoding_override": o or None, "replaces": REPLACES.get(iid),
+                "used_on_page": None if USED is None else f"assets/{os.path.basename(dst)}" in USED})
     print(f"{iid:28s} {kind:5s} {w}x{h} {os.path.getsize(dst)/1e6:.2f} MB")
 
 tot = sum(m["bytes"] for m in man)
 json.dump({"generated": "2026-11-06", "encoding": {"video": "H.264 mp4, height 540, CRF 28, ≤6 s, no audio, faststart", "image": "JPEG q80, long side ≤1200 px", "overrides": "items[].encoding_override"},
            "total_bytes": tot, "items": man}, open(f"{OUT}/manifest.json", "w"), ensure_ascii=False, indent=1)
 L = ["# site/assets — 공개 페이지 소재 매니페스트 (2026-11-06)", "",
-     f"총 {len(man)}개 · {tot/1e6:.2f} MB. 영상 H.264 · 높이 540 · CRF 28 · ≤6초 · 무음, 스틸 JPEG q80 · 긴 변 ≤1200px. 예외: 구조도 폭 1400 · q88, 라인업 긴 변 1600 · q85, 세로 영상 3편 · 턴테이블 · bake 높이 720 · CRF 26.", "",
+     f"총 {len(man)}개 · {tot/1e6:.2f} MB. 영상 H.264 · 높이 540 · CRF 28 · ≤6초 · 무음, 스틸 JPEG q80 · 긴 변 ≤1200px. **[미사용]** = 현재 `site/index.html` 이 참조하지 않는 소재(지우지 않고 보관). 예외: 구조도 폭 1400 · q88, 라인업 긴 변 1600 · q85, 세로 영상 3편 · 턴테이블 · bake 높이 720 · CRF 26.", "",
      "구 파일 대체: `s3_mesh_player.jpg` → `s3_mesh_player_03.jpg`(char3), `s3_mesh_char_shuffle.jpg` → `s3_mesh_player_04.jpg`(char4) — 렌더 비교로 같은 캐릭터 확인(메쉬는 다른 판: 구 TRELLIS.2 · 신 char*.glb).", "",
      "| 파일 | 종류 | 크기 | 캐릭터 | 단계 | 캡션 | 전후 쌍 | 원본 |", "|---|---|---|---|---|---|---|---|"]
 for m in man:
     pr = f"{m['pair']['group']} · {m['pair']['role']}" if m["pair"] else "-"
-    L.append(f"| `{m['file']}`{' **[자리]**' if m['placeholder'] else ''} | {m['kind']} {m['width']}×{m['height']} | {m['bytes']/1e6:.2f} MB | {m['character']} | {m['stage']} | {m['caption'].replace('|', chr(92) + '|')} | {pr} | `{m['source']}` |")
+    L.append(f"| `{m['file']}`{' **[자리]**' if m['placeholder'] else ''}{' **[미사용]**' if m['used_on_page'] is False else ''} | {m['kind']} {m['width']}×{m['height']} | {m['bytes']/1e6:.2f} MB | {m['character']} | {m['stage']} | {m['caption'].replace('|', chr(92) + '|')} | {pr} | `{m['source']}` |")
 open(f"{OUT}/manifest.md", "w").write("\n".join(L) + "\n")
 print(f"TOTAL {len(man)} items {tot/1e6:.2f} MB")
