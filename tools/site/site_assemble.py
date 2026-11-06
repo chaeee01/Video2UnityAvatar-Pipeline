@@ -23,6 +23,7 @@ ITEMS = [
     ("s2_mask_walker", "video", f"{D}/02_sam2/walker_walk_02/walker_walk_02_masked.mp4", "walker", "S2 분할", "SAM2 마스크 — 배경을 지우고 몸만 남긴 클립을 다음 단계로 넘긴다", None, 0),
     ("s5_wham_overlay_walker", "video", f"{X}/walker_wham_mesh_overlay.mp4", "walker", "S5 동작", "WHAM 이 추정한 3D 몸(SMPL 정점)을 원본 영상에 투영 — 프레임마다 자세 · 위치를 복원", None, 0),
     ("s3_mesh_walker_turntable", "video", f"{X}/turn_walker/f_%04d.png", "walker", "S3 외형", "TRELLIS.2 메쉬 턴테이블 — 키프레임 한 장에서 만든 PBR 메쉬", None, 0),
+    ("s3_mesh_walker", "image", f"{X}/mesh_walker.png", "walker", "S3 외형", "walker 메쉬", None, 0),
     ("s3_mesh_listener", "image", f"{X}/mesh_listener.png", "listener", "S3 외형", "listener 메쉬", None, 0),
     ("s3_mesh_stalker", "image", f"{X}/mesh_stalker.png", "stalker", "S3 외형", "stalker 메쉬", None, 0),
     ("s3_mesh_lurker", "image", f"{X}/mesh_lurker.png", "lurker", "S3 외형", "lurker 메쉬", None, 0),
@@ -33,7 +34,10 @@ ITEMS = [
     ("s4_align_walker", "image", f"{R}/align_check_frame.png", "walker", "S4 리깅", "SMPL 몸을 TRELLIS 메쉬에 정렬한 결과 — 골격이 메쉬 안에 들어오는지 확인", None, 0),
     ("s4_transfer_walker", "image", f"{R}/transfer_constraint_f138.png", "walker", "S4 리깅", "웨이트 전이의 부위 제약 — 팔 · 다리가 서로 붙지 않게", None, 0),
     ("bake_walker_hit", "video", f"{E}/review_1026/08_final/videos/walker__walker_hit_01.mp4", "walker", "S7 결합", "원본 영상(왼쪽)과 리그에 구운 동작(오른쪽) — 리타게팅 없이 같은 SMPL 골격", None, 0),
-    ("unity_placeholder", "video", f"{R}/unity_wham_demo.gif", "zombie1 (대체 후보)", "Unity", "[자리] 납품 캐릭터 Unity 캡처는 게임팀 요청 중 — 지금은 초기 샘플 zombie1 데모가 대체 후보", None, 0),
+    ("unity_ingame_1", "video", f"{H}/Downloads/sweetpotato_20261105.mov", "walker", "Unity · 게임", "실제 게임 내 플레이 장면 — 플레이어 시점, 워커가 다가와 피격 · 쓰러짐 (16:34~16:39)", None, 994, 5, 30),
+    ("unity_ingame_2", "video", f"{H}/Downloads/sweetpotato_20261105.mov", "walker", "Unity · 게임", "실제 게임 내 플레이 장면 — 쓰러진 워커가 일어나 걷기 (16:22~16:28)", None, 982, 6, 30),
+    ("unity_ingame_3", "video", f"{H}/Downloads/sweetpotato_20261105.mov", "listener · walker", "Unity · 게임", "실제 게임 내 플레이 장면 — 리스너와 워커, 가격 · 쓰러짐 (15:57~16:02)", None, 957, 5, 30),
+    ("unity_ingame_4", "video", f"{H}/Downloads/sweetpotato_20261105.mov", "stalker", "Unity · 게임", "실제 게임 내 플레이 장면 — 스토커 접근 · 피격 · 쓰러짐 (21:32.5~21:38.5, 21:30~21:40 중 하이라이트)", None, 1292.5, 6, 30),
     ("ba_weight_listener", "video", f"{E}/review_1021/05_collar/collar_attack_original_wfix_c10.mp4", "listener", "문제 해결 · 웨이트", "가랑이 · 겨드랑이 · 쇄골 경계 스무딩 — 원본 | 1차 수리 | 쇄골 추가 수리", ("weight_smoothing", "both — 가운데 before · 오른쪽 after (왼쪽은 원본 영상)"), 0),
     ("ba_weight_listener_still", "image", f"{E}/review_1021/05_collar/collar_attack_f163_f96_wfix_vs_c10.png", "listener", "문제 해결 · 웨이트", "늘어난 막이 사라진 프레임 비교 (f163 · f96)", ("weight_smoothing", "both — 왼쪽 before · 오른쪽 after"), 0),
     ("ba_weight_walker", "video", f"{E}/review_1021/07_walker/walker_attack_cur_vs_arm20.mp4", "walker", "문제 해결 · 웨이트", "walker 겨드랑이 스무딩 — 팔을 들 때 옆구리 막", ("weight_smoothing", "both — 왼쪽 before · 오른쪽 after"), 0),
@@ -56,11 +60,15 @@ def probe(path):
 
 os.makedirs(OUT, exist_ok=True)
 man = []
-for iid, kind, src, char, stage, cap, pair, ss in ITEMS:
+for it in ITEMS:
+    iid, kind, src, char, stage, cap, pair, ss = it[:8]
+    dur = it[8] if len(it) > 8 else 6
+    fps = it[9] if len(it) > 9 else None
     if kind == "video":
         dst = f"{OUT}/{iid}.mp4"
         inp = ["-framerate", "24", "-i", src] if "%04d" in src else ["-ss", str(ss), "-i", src]
-        sh(["ffmpeg", "-y", "-loglevel", "error", *inp, "-t", "6", "-vf", "scale=-2:540,format=yuv420p", "-c:v", "libx264", "-crf", "28", "-preset", "slow", "-an", "-movflags", "+faststart", dst])
+        vf = (f"fps={fps}," if fps else "") + "scale=-2:540,format=yuv420p"
+        sh(["ffmpeg", "-y", "-loglevel", "error", *inp, "-t", str(dur), "-vf", vf, "-c:v", "libx264", "-crf", "28", "-preset", "slow", "-an", "-movflags", "+faststart", dst])
     else:
         dst = f"{OUT}/{iid}.jpg"
         sh(["sips", "-s", "format", "jpeg", "-s", "formatOptions", "80", "-Z", "1200", src, "--out", dst])
@@ -70,7 +78,7 @@ for iid, kind, src, char, stage, cap, pair, ss in ITEMS:
                 "bytes": os.path.getsize(dst), "sha256_16": hashlib.sha256(open(dst, "rb").read()).hexdigest()[:16],
                 "source": srcp, "character": char, "stage": stage, "caption": cap,
                 "pair": {"group": pair[0], "role": pair[1]} if pair else None,
-                "placeholder": iid == "unity_placeholder"})
+                "placeholder": False})
     print(f"{iid:28s} {kind:5s} {w}x{h} {os.path.getsize(dst)/1e6:.2f} MB")
 
 tot = sum(m["bytes"] for m in man)
