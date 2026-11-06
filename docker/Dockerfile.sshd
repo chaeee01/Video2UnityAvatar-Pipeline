@@ -1,0 +1,17 @@
+# 환경 이미지 v2 — v1 이미지(Dockerfile.env · Dockerfile.env-split) 위에 sshd + 시작 스크립트만 얹는다 (2026-11-06).
+# v1 의 레이어(아카이브 · python3 · ENV_ALIAS · libnvrtc 링크 · SMPL 제외)는 그대로 물려받는다 — 다시 짓지 않는다.
+#
+#   docker build --platform linux/amd64 -f docker/Dockerfile.sshd \
+#       --build-arg BASE=ghcr.io/<ns>/v2ua-wham:20261008-2b54f77 -t ghcr.io/<ns>/v2ua-wham:v2-<날짜>-<커밋> .
+#
+# 시작: PUBLIC_KEY 환경 변수가 있으면 sshd(키 인증만, 루트 비밀번호 로그인 없음), 없으면 대기 — docker/start.sh.
+# 호스트 키는 굽지 않는다(패키지가 만든 것을 지우고 첫 시작 때 생성).
+ARG BASE
+FROM ${BASE}
+RUN apt-get update && apt-get install -y --no-install-recommends openssh-server \
+    && rm -rf /var/lib/apt/lists/* && rm -f /etc/ssh/ssh_host_* \
+    && test -x /usr/sbin/sshd
+COPY docker/start.sh /start.sh
+EXPOSE 22
+LABEL v2ua.image_version="v2" v2ua.base="${BASE}"
+CMD ["/start.sh"]
