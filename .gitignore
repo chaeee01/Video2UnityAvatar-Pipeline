@@ -14,3 +14,6 @@ __pycache__/
 .env
 .env.*
 !.env.example
+
+# 공개 페이지 웹 인코딩 영상(≤0.6MB, tools/site/site_assemble.py 산출)만 예외 — 원본 영상은 계속 제외
+!site/assets/*.mp4
