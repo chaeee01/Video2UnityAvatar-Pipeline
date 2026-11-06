@@ -81,6 +81,6 @@ L = ["# site/assets — 공개 페이지 소재 매니페스트 (2026-11-06)", "
      "| 파일 | 종류 | 크기 | 캐릭터 | 단계 | 캡션 | 전후 쌍 | 원본 |", "|---|---|---|---|---|---|---|---|"]
 for m in man:
     pr = f"{m['pair']['group']} · {m['pair']['role']}" if m["pair"] else "-"
-    L.append(f"| `{m['file']}`{' **[자리]**' if m['placeholder'] else ''} | {m['kind']} {m['width']}×{m['height']} | {m['bytes']/1e6:.2f} MB | {m['character']} | {m['stage']} | {m['caption']} | {pr} | `{m['source']}` |")
+    L.append(f"| `{m['file']}`{' **[자리]**' if m['placeholder'] else ''} | {m['kind']} {m['width']}×{m['height']} | {m['bytes']/1e6:.2f} MB | {m['character']} | {m['stage']} | {m['caption'].replace('|', chr(92) + '|')} | {pr} | `{m['source']}` |")
 open(f"{OUT}/manifest.md", "w").write("\n".join(L) + "\n")
 print(f"TOTAL {len(man)} items {tot/1e6:.2f} MB")
