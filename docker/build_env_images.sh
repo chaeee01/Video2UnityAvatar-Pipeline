@@ -24,6 +24,9 @@ cd "$(dirname "$0")/.."
 # 재배포 금지 목록 (push 전 관례적 확인). 아카이브 목록(<아카이브>.filelist.txt, zstd -d | tar -t) 에서 찾아 빌드 때 제외한다.
 #   wham: SMPL 본체 모델(body_models/smpl) + SMPL 파생 파일(smplx2smpl.pkl · smpl_mean_params.npz) — 재배포 불가. 실행 시 볼륨에서 마운트.
 #   그 밖의 체크포인트(WHAM · HMR2 · ViTPose · DPVO · YOLOv8 · SAM 2.1)는 연구/Apache/AGPL 등 제각각 — 비공개 레지스트리에만 둔다.
+#   유지 결정 (2026-11-07): repos/WHAM/third-party/ViTPose/tests/data/smpl/smpl_mean_params.npz(1,310 B)는 이름이 위 SMPL 파생 파일과
+#   같지만 ViTPose(mmpose) 공개 레포가 자체 배포하는 시험 데이터라 제외하지 않는다 — 비공개 레지스트리 전제. **이미지를 공개로
+#   전환할 때 재검토 항목.** (v2ua-all 라벨 v2ua.note_vitpose_testdata 에도 기록)
 # 레이어 분할: 단일 /workspace 레이어가 GHCR blob 커밋에서 400 으로 거부된 환경(wham, 12.3GB)은 Dockerfile.env-split 로
 # 환경 · 레포 · 체크포인트 세 레이어로 짓는다 (2026-11-04). sam2v(7.5GB) · trellis2(11GB) 는 단일 레이어로 push 됐다.
 split_repo() { case $1 in wham) echo "WHAM";; *) echo "";; esac; }
