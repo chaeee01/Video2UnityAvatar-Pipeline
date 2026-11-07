@@ -207,6 +207,10 @@ def main():
                              text=True, env=e).stdout.strip()
         check(f"run_wham.sh {env or '미설정'} → {want}", out == want, out)
 
+    src = (REPO / "scripts" / "run_wham.sh").read_text()
+    check("run_wham.sh 가 tee 앞에서 $DATA/logs 를 만든다",
+          'mkdir -p "$DATA/logs"' in src and src.index('mkdir -p "$DATA/logs"') < src.index("| tee $DATA/logs"))
+
     print("\n" + ("✅ 전체 통과" if OK else "❌ 실패 있음"))
     return 0 if OK else 1
 

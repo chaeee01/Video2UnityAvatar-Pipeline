@@ -29,6 +29,9 @@ eval "$($ENVR/micromamba/bin/micromamba shell hook -s bash)"
 micromamba activate wham
 cd $ENVR/repos/WHAM
 mkdir -p "$OUT"
+# 로그 폴더도 만든다 — 데이터 루트를 /vol/<새 폴더> 처럼 새로 잡으면 logs/ 가 없어 tee 가 실패하고, pipefail 로
+# WHAM 이 끝까지 돌았는데도 종료 코드 1 이 된다 (2026-11-07 §15 검증, 루트 분리 뒤 처음 드러남)
+mkdir -p "$DATA/logs"
 # --visualize 는 pytorch3d 를 요구하는데, conda-forge 의 py39+cu118 pytorch3d 빌드는
 # torch 2.1.2 이상만 있어 torchvision 0.15.1(torch 2.0.0 고정)과 공존할 수 없다.
 # 재투영 육안 검증은 scripts/overlay_vis.py 로 대행한다 (cv2 기반, pytorch3d 불필요).
