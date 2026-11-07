@@ -1051,6 +1051,13 @@ WHAM betas(체형) + 키프레임 pose(자세) → 그 좀비와 같은 자세·
 
   역할표(백업 `clip_roles.json.bak_20261106_205836`)에서 15편의 `source` 를 납품판 폴더로 고치고 옛 값은 `source_prev` 로 남겼다. `bake.ground_align` 은 그 폴더의 `ground_align.json` 으로 — 15편 모두 true. 전체 기록은 **true 39 · false 71**, 미기록 1(char_shuffle `shuffle` — `character.json` 이 없어 일괄 대상 밖, 동작 트랙도 `character.json` 이 있어야 돈다). 수용 기록 · 역할은 그대로다.
 
+- **2026-11-06~07 — 환경 이미지 v2(sshd) 3종 + 통합 이미지 v2ua-all · §15 Pod 검증**:
+
+  **v2 3종** `ghcr.io/chaeee01/v2ua-{sam2v,trellis2,wham}:v2-20261106-5097849` — v1 위에 openssh-server · rsync · `/start.sh` 만 얹었다(`docker/Dockerfile.sshd`; v1 의 python3 · ENV_ALIAS · libnvrtc 수정과 SMPL 제외는 레이어째 그대로). `/start.sh` 는 RunPod 식: `PUBLIC_KEY` 가 있으면 authorized_keys → sshd(키 인증만), 없으면 대기 — 템플릿 Start Command 가 필요 없다. 호스트 키는 굽지 않고, 비대화형 SSH 에도 환경 변수가 들어가게 `~/.ssh/environment`(PermitUserEnvironment)와 `.bashrc` 첫머리에 적는다(첫 빌드 6babef9 는 이것과 rsync 가 빠져 push 전에 고쳤다). 압축 5.45 · 6.58 · 9.79 GB, skopeo push 65 · 1,202 · 106 초(sam2v · wham 은 v1 레이어 재사용).
+  **통합 이미지** `ghcr.io/chaeee01/v2ua-all:v2-20261107-0aa8002`(압축 21.31 GB, 레이어 18) — wham v2 위에 sam2v · trellis2 v2 의 환경 · 레포 복사(`docker/Dockerfile.all`; `/workspace` 에서 겹치는 것은 같은 micromamba 2.8.1 바이너리뿐), 빌드 중 환경 4개 · SMPL 3종 부재 검사. push 1,457 초. 맥 디스크는 빌드 캐시 정리 · 레지스트리 확인 사본 삭제로 확보(51 → 126 GB).
+  **검증**(맥 에뮬레이션 + Pod c775vv6t2oe3f1, RTX 4090): sshd 직접 접속 · 비대화형 환경 전달 · rsync 200MB 왕복 sha256 일치. 원커맨드(`PIPELINE_VOL=/vol/_verify_1107 PIPELINE_ENV_ROOT=/workspace`, walker_walk_02) Pod 구간 S2(마스크 192/192 픽셀 일치) → S5 → G1a(f138) → S3(G2 PASS) → 5-1, 맥 구간 5-4b 자동(walker 가랑이 → 겨드랑이) → FBX 관통. S5 는 같은 masked.mp4 입력에서 pkl 완전 일치(재생성 masked.mp4 는 인코딩 바이트가 달라 pose 최대 차 0.034). 단독 이미지 흉내(sam2 만 있는 환경 루트)에서 S5 앞 종료 코드 2 → 전체 환경 루트에서 `--resume` 이어짐. libnvrtc: 통합 이미지에서도 sam2 · trellis2 는 각자의 `libnvrtc.so.12` 만 적재(cuDNN conv · NVRTC JIT 정상), wham 은 NVRTC JIT 이 sm_89 에서 컴파일 오류(환경 자체 조합, 파이프라인 미사용).
+  **고친 것** `run_wham.sh` — 새 데이터 루트에 `logs/` 가 없으면 tee 실패로 WHAM 성공인데 종료 코드 1(11/06 루트 분리 때 생김) → `mkdir -p "$DATA/logs"`. **기록만** ViTPose 공개 레포의 시험 데이터 `tests/data/smpl/smpl_mean_params.npz` 는 유지(비공개 레지스트리 전제, 공개 전환 시 재검토 — `build_env_images.sh` 주석 · v2ua-all 라벨). RUNBOOK 1-A 를 v2 템플릿(Start Command 비움 · `PUBLIC_KEY` · TCP 22 · `rsync -rt`)으로 갱신.
+
 ## 9. 다음 단계 (우선순위)
 
 2026-10-21 기준. 이전 목록(8월, SMPL 리깅 1~3단계 · SAM2 이전 · TRELLIS 로컬 설치 · 게이트 · 오케스트레이터)은 모두 끝났다.
@@ -1058,7 +1065,7 @@ WHAM betas(체형) + 키프레임 pose(자세) → 그 좀비와 같은 자세·
 1. ~~**웨이트 수리**~~ — **완료(10/22)**: listener(가랑이 · 겨드랑이 · 가슴) · walker(가랑이 · 겨드랑이). 남은 소건은 oiler 배–허벅지 막(필요 시 같은 5-4b).
 2. **EH-211 T포즈 rest 통일** — 기존 3캐릭터(walker · stalker · listener). 캐릭터 간 모션 공유(회신 ③ 공통 동작 확산)의 전제.
 3. **gate_s2 보강** — 실루엣-마스크 면적 차 점검, 실루엣과 독립된 좌우 팔 점검.
-4. ~~**Docker 이미지화** (EH-229)~~ — **완료(11/05)**: 3종 이미지 ghcr.io/chaeee01 비공개, Pod 검증 통과(S2 마스크 · S5 pkl 완전 일치, S3 정점 일치), 갭 3개 수정판 재push. 남은 운영 항목: RunPod 템플릿(GHCR read 자격증명 · 시작 명령 · `/vol`), sshd 포함 여부.
+4. ~~**Docker 이미지화** (EH-229)~~ — **완료(11/05)**: 3종 이미지 ghcr.io/chaeee01 비공개, Pod 검증 통과(S2 마스크 · S5 pkl 완전 일치, S3 정점 일치), 갭 3개 수정판 재push. 남은 운영 항목: ~~RunPod 템플릿(GHCR read 자격증명 · 시작 명령 · `/vol`), sshd 포함 여부~~ → 11/07 v2(sshd) · 통합 이미지 · 템플릿 정리 완료(RUNBOOK 1-A).
 
 **G4 구현 완료(10/22)** — `scripts/gate_g4.py`, RUNBOOK 5.6절. **바닥 판정 · 바닥 정렬 추가(10/26)** — RUNBOOK 5-5 · 5.6절.
 
