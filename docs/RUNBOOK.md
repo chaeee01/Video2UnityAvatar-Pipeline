@@ -65,25 +65,29 @@ EU-RO-1), SMPL/SMPLify 계정 인증 완료. 이미지 Pod(1-A)을 쓰려면 GHC
 ## 1. Pod 준비
 
 Pod 은 두 가지로 띄운다. **기본은 1-A 이미지 Pod** — 환경 3종(sam2 · trellis2 · wham)을 볼륨 아카이브
-그대로 이미지로 굳혀 GHCR 에 올렸다(2026-11-05 Pod 검증: S2 마스크 · S5 pkl 완전 일치, S3 정점 일치).
-**1-B 볼륨 Pod** 는 볼륨에 직접 설치된 환경을 쓰는 원래 방식으로, 환경 아카이브(8절) · 디버깅 ·
-원커맨드 Pod 구간(1.5절)에 쓴다. 어느 쪽이든 GPU 는 **RTX 4090**, 리전은 볼륨과 같은 **EU-RO-1** 이다.
+그대로 이미지로 굳혀 GHCR 에 올렸다(2026-11-05 Pod 검증: S2 마스크 · S5 pkl 완전 일치, S3 정점 일치). v2(11/06~07)는
+sshd 직접 접속과 세 환경 통합 이미지를 더해, 원커맨드 Pod 구간도 이미지 Pod 하나에서 돈다(11/07 검증).
+**1-B 볼륨 Pod** 는 볼륨에 직접 설치된 환경을 쓰는 원래 방식으로, 환경 아카이브(8절) · 디버깅에 쓴다. 어느 쪽이든 GPU 는 **RTX 4090**, 리전은 볼륨과 같은 **EU-RO-1** 이다.
 
 ### 1-A. 이미지 Pod (기본)
 
-1. **템플릿** (RunPod → Templates, 환경마다 1개):
+1. **템플릿** (RunPod → Templates). **기본은 v2 통합 이미지 하나**다 — 환경 3종이 다 들어 있어 원커맨드 Pod 구간을
+   한 Pod 에서 끝낸다(2026-11-07 §15 검증).
 
-   | 환경 | 이미지 |
-   |---|---|
-   | sam2 | `ghcr.io/chaeee01/v2ua-sam2v:20260929-2b90b9f` |
-   | trellis2 | `ghcr.io/chaeee01/v2ua-trellis2:20261008-75fbf01` |
-   | wham | `ghcr.io/chaeee01/v2ua-wham:20261008-2b54f77` |
+   | 이미지 | 태그 | 내용 |
+   |---|---|---|
+   | **`ghcr.io/chaeee01/v2ua-all`** | `v2-20261107-0aa8002` | sam2(→sam2v) · trellis2 · wham + sshd · rsync · `/start.sh` (압축 21.3GB) |
+   | `ghcr.io/chaeee01/v2ua-{sam2v,trellis2,wham}` | `v2-20261106-5097849` | 환경 하나씩 + sshd (단독 대조 · 가벼운 Pod 용) |
+   | 같은 이름 (v1) | `20260929-2b90b9f` · `20261008-75fbf01` · `20261008-2b54f77` | sshd 없음 — 아래 v1 주의 |
 
    - **Container Registry Credentials**: GHCR 사용자 + **`read:packages` 권한만 가진 PAT**.
      비공개 패키지라 없으면 이미지를 받지 못한다.
-   - **Start Command**: **`bash -c "sleep infinity"`**. 이미지 CMD `bash` 는 곧바로 끝나 Pod 이 죽는다
-     (2026-11-05 1차 Pod 실패).
+   - **Start Command**: **비운다**(v2). 이미지 CMD `/start.sh` 가 sshd 를 띄우고 대기까지 한다.
+   - **Environment Variables**: **`PUBLIC_KEY`** = 맥의 `~/.ssh/id_ed25519.pub` 내용. 없으면 sshd 없이 대기만 한다.
+   - **Expose TCP Ports**: **`22`**.
    - **Volume Mount Path**: **`/vol`**. 이미지의 `/workspace`(환경 · 레포 · 체크포인트)와 겹치지 않게 한다.
+   - *v1 이미지를 쓸 때만*: Start Command `bash -c "sleep infinity"` 필요(이미지 CMD `bash` 는 곧바로 끝나 Pod 이 죽는다,
+     2026-11-05), 접속은 프록시 SSH(PTY 전용, scp 불가)뿐.
 2. **배포**: Storage → `pipeline-vol` → 해당 템플릿으로 Deploy.
 3. **볼륨에서 이어 붙일 것** — 이미지에 넣을 수 없거나 넣지 않은 것은 이 셋뿐이다:
    - **SMPL 계열 3개 (wham)** — 라이선스상 재배포 불가라 이미지에서 뺐다. 볼륨에서 이미지 경로로 링크한다:
@@ -98,8 +102,10 @@ Pod 은 두 가지로 띄운다. **기본은 1-A 이미지 Pod** — 환경 3종
 
    체크포인트는 여기 들지 않는다 — **wham 체크포인트(hmr2a · vitpose 등)는 이미지 안에 있고**, sam2 도
    11/05 검증에서 `/vol` 참조 0 으로 돌았다.
-4. **접속**: 이미지에 sshd 가 없어 **프록시 SSH(PTY 전용, scp 불가)** 만 된다. 결과 파일은 `/vol/logs/` 등
-   볼륨에 남기고, 회수는 볼륨 Pod(1-B) 또는 다음 접속에서 한다.
+4. **접속 (v2)**: 콘솔의 "SSH over exposed TCP" 주소 · 포트로 직접 — `ssh -p <포트> root@<IP> -i ~/.ssh/id_ed25519`.
+   비대화형 명령(`ssh … 'cmd'`)에도 PATH · `MAMBA_ROOT_PREFIX` · `RUNPOD_*` · `PIPELINE_*` 가 들어온다(`/start.sh` 가
+   `~/.ssh/environment` · `/etc/rp_environment` 에 적는다). 호스트 키는 Pod 마다 새로 생긴다(이미지에 굽지 않음).
+   회수 · 반입은 **`rsync -rt`** — `/vol`(MooseFS)은 chown 이 안 돼 `rsync -a` 는 파일을 옮기고도 종료 코드 23 을 낸다.
 5. 환경 이름은 파이프라인과 같다 — `micromamba run -n sam2` (sam2v 이미지는 `sam2 → sam2v` 별칭이 들어 있다).
 
 #### 확인 포인트 (1-A)
@@ -107,9 +113,15 @@ Pod 은 두 가지로 띄운다. **기본은 1-A 이미지 Pod** — 환경 3종
   main 최신 확인은 1-B 확인 포인트와 같다.
 - `setup_<env>.sh --check` 와 `scripts/restore_probe.py` — 적재 모듈이 이미지 안에서 오는지(`/vol` 참조 0).
 - wham: `ls -la /workspace/repos/WHAM/dataset/body_models` 에 SMPL 링크 3개가 보이는지.
-- 이미지 하나에 환경 하나다. 오케스트레이터는 다음 단계의 환경이 이 이미지에 없으면 멈추고 어느 이미지에서
-  이어받을지 알린다(2026-11-06~, 1.5절 "루트") — 다만 이미지 Pod 원커맨드는 **실검증 전**이라, 검증 전까지는 단계마다
-  해당 이미지 Pod 에서 단계 스크립트(2~4절)를 직접 부르는 것이 확인된 방법이다.
+- **원커맨드(2026-11-07 검증)**: 통합 이미지 Pod 에서 `PIPELINE_VOL=/vol PIPELINE_ENV_ROOT=/workspace python3
+  scripts/orchestrate.py --video … --name …` 로 Pod 구간 전체(G0 → S2 → S5 → G1a → S3 → 5-1)가 돈다. 단독 이미지에서는
+  다음 단계의 환경이 없으면 종료 코드 2 로 멈추고 어느 이미지에서 이어받을지 알린다 — run 폴더가 `/vol` 에 있어 다른
+  이미지 Pod 에서 `--resume` 하면 이어진다(같은 날 재현).
+- **통합 이미지의 libnvrtc**: wham 용 `/usr/local/lib/libnvrtc.so`(cu11.2) 링크가 이미지 전체에 걸리지만, sam2 · trellis2 는
+  각자의 `libnvrtc.so.12` 만 적재한다(GPU 에서 cuDNN conv · NVRTC JIT 뒤 `/proc/self/maps` 확인, 11/07). wham 환경은
+  NVRTC JIT 이 sm_89 에서 컴파일 오류 — 환경 자체의 조합이고 WHAM 파이프라인은 쓰지 않는다.
+- wham 이미지에는 `repos/WHAM/third-party/ViTPose/tests/data/smpl/smpl_mean_params.npz`(ViTPose 공개 레포의 시험 데이터)가
+  있다 — 비공개 레지스트리 전제로 유지(`docker/build_env_images.sh` 주석), **이미지 공개 전환 시 재검토**.
 
 ### 1-B. 볼륨 Pod (보조 — 아카이브 · 디버깅 · 원커맨드 Pod 구간)
 
@@ -279,8 +291,9 @@ python3 scripts/orchestrate.py --motion --character listener --name <클립> --r
   run 폴더가 `/vol` 에 있으므로 다른 이미지 Pod 에서 `--resume` 하면 이어진다.
 
 **한계 (2026-11-06 기준)**
-- 이미지 Pod 에서의 원커맨드 실행은 **코드만 있고 실검증 전**이다(통합 이미지 빌드 사이클에서 검증). 지금까지 원커맨드
-  Pod 구간이 검증된 곳은 1-B 볼륨 Pod 뿐이다.
+- 이미지 Pod 원커맨드는 **2026-11-07 통합 이미지(v2ua-all)에서 검증**됐다 — S2 마스크 참조와 192/192 픽셀 일치, S5 는 같은
+  masked.mp4 입력에서 pkl 완전 일치(재생성한 masked.mp4 는 마스크가 같아도 인코딩 바이트가 달라 S5 가 미세하게 다르다),
+  맥 구간까지 FBX 관통. 데이터 루트를 새로 잡을 때 `run_wham.sh` 가 `logs/` 를 만들지 않던 결함은 같은 날 고쳤다.
 - 스크립트 독스트링 기준 v1 골격이다 — 외형 트랙의 게이트 분기 · 재시도(설계 3-4절)는 다음 단계.
 - 동작 트랙은 고정 npz 를 만드는 단계(트랙 선택 · 이음 · `gait_window`)를 포함하지 않는다 — 있으면 쓰기만 한다.
   11/02 걷기 · 달리기의 고정 npz 를 만든 `gait_window.py` 는 레포에 없다(맥에서도 찾지 못함 — 결손). 출처는 각 모션 폴더의
