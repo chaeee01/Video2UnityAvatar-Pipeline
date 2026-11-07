@@ -15,6 +15,10 @@ ARG TRELLIS2
 FROM ${SAM2V} AS sam2v
 FROM ${TRELLIS2} AS trellis2
 FROM ${WHAM}
+# FROM 뒤에서 라벨에 쓰려면 다시 선언해야 한다
+ARG WHAM
+ARG SAM2V
+ARG TRELLIS2
 COPY --from=sam2v /workspace/micromamba/envs/ /workspace/micromamba/envs/
 COPY --from=sam2v /workspace/repos/sam2 /workspace/repos/sam2
 COPY --from=trellis2 /workspace/micromamba/envs/trellis2 /workspace/micromamba/envs/trellis2
