@@ -257,6 +257,40 @@ footer .wrap{border-top:1px solid var(--line);padding-top:32px}
   </div>
 </section>
 
+<section class="sec" id="numbers">
+  <div class="wrap">
+    <div class="kicker">By the numbers</div>
+    <h2>에셋 하나를 만드는 데 드는 시간과 비용</h2>
+    <p class="lead">완성된 파이프라인으로 지금 에셋 하나 — 캐릭터 1종, 또는 동작 클립 1편 — 를 만들 때 드는 시간과 비용입니다.
+    시간은 실행 로그 실측값이며, 비용은 현행 생성 모델의 공식 단가와 GPU 시간당 요금으로 산출해
+    실제 청구 내역과 대조했습니다. 비교 대상은 인디·프로토타입 규모의 에셋 제작이며, 아티스트의 리터치를 대체하지 않습니다.</p>
+    <table>
+      <thead><tr><th>산출물</th><th>전통 제작</th><th>본 파이프라인</th></tr></thead>
+      <tbody>
+        <tr><td>캐릭터 1종</td><td>모델링·텍스처 3일~4주 + 리깅 수일</td><td><b>기계 ~11분 · 약 $2</b> — 리깅까지 포함</td></tr>
+        <tr><td>동작 클립 1편</td><td>키프레임 1~1.5일 또는 모캡 클립당 $50~200+</td><td><b>~6분 · 약 $1.7</b> — 자동 게이트 판정 포함</td></tr>
+        <tr><td>영상 → FBX 세트</td><td>외형·동작 결합 공정 (일 단위)</td><td><b>~17분 · 약 $4</b> — 원커맨드, 사람 개입 0~1회</td></tr>
+      </tbody>
+    </table>
+    <div class="stats">
+      <div class="stat"><b>$1.52</b><small>영상 1편(10초) 생성 단가 — 현행 모델 Gemini Omni 1.1 Flash 기준</small></div>
+      <div class="stat"><b>$0.90<span style="font-size:.9rem">/시간</span></b><small>GPU 단가 (RunPod RTX 4090, 2026-11 기준) — 전 기간(2026.07–11) RunPod 총비용 $132 (GPU $95 + 스토리지 $37), 시행착오·실패분 포함</small></div>
+      <div class="stat"><b>100%</b><small>레시피 확립 후 생성 성공률 (11월 17/17 · 전체 기간 92%)</small></div>
+    </div>
+    <p style="color:var(--sub);font-size:.86rem;max-width:680px;margin-top:20px">
+    영상 생성은 Veo 3.1(편당 $0.80, 8초 기준)을 사용하다 제공 종료 이후 Gemini Omni 1.1 Flash로 이행했습니다.
+    단가는 2026-11 조회한 공식 가격 — Omni는 영상 출력 $17.50/M토큰으로 10초(86,880토큰)에 $1.52,
+    Veo 3.1 Fast는 $0.10/초(일부 구간은 standard $0.40/초 사용).
+    표의 비용 구성(현행 단가 기준): 캐릭터 1종 ≈ 영상 $1.52 + 참조 이미지 $0.04 + GPU $0.15~0.46,
+    동작 클립 1편 ≈ 영상 $1.52 + GPU $0.05~0.19, FBX 세트는 두 항목의 합(≈$3.7)입니다.</p>
+    <p style="color:var(--sub);font-size:.86rem;max-width:680px;margin-top:12px">전통 제작 수치 출처:
+    <a href="https://pixune.com/blog/how-long-does-it-take-to-create-a-3d-model/">Pixune</a>(캐릭터 제작 기간) ·
+    <a href="https://www.animatorisland.com/how-fast-should-you-animate/">Animator Island</a>(게임 애니메이션 하루 5~10초) ·
+    <a href="https://mocaponline.com/blogs/mocap-news/animation-budget-planning-game-dev">Mocap Online</a>(모캡 비용).
+    본 파이프라인 수치는 실행 로그와 RunPod · Google AI Studio 청구 내역에서 집계했습니다.</p>
+  </div>
+</section>
+
 <section class="sec" id="gates">
   <div class="wrap">
     <div class="kicker">Quality gates</div>
@@ -330,6 +364,24 @@ footer .wrap{border-top:1px solid var(--line);padding-top:32px}
         <figure><video src="assets/ba_gait_stalker.mp4" muted loop playsinline preload="metadata"></video><figcaption>걷기/달리기 — 문장 추가 전후 (각 쌍의 좌=전, 우=후)</figcaption></figure>
       </div>
     </div>
+  </div>
+</section>
+
+<section class="sec" id="repro">
+  <div class="wrap">
+    <div class="kicker">Reproducibility</div>
+    <h2>누구나, 명령 하나로 실행한다</h2>
+    <p class="lead">파이프라인은 torch 1.11~2.5, CUDA 11.3~12.4가 충돌하는 세 환경을 분리해 사용합니다.
+    이 환경 전체를 Docker 이미지로 굳혀 공개 레지스트리(GHCR)에 올렸습니다 — GPU 서버에서 이미지를 받으면
+    누구든 영상 1편 → FBX 파이프라인 전체를 명령 한 줄로 실행할 수 있고, 서버가 사라져도 복구는 pull 한 번입니다.</p>
+    <div class="stats">
+      <div class="stat"><b>1커맨드</b><small>새 GPU 서버에서 영상 1편 → FBX까지 관통 — 실측 9.9분</small></div>
+      <div class="stat"><b>3환경 → 1이미지</b><small>충돌하는 의존성을 분리한 채로 한 장에 통합 (21GB)</small></div>
+      <div class="stat"><b>산출물 일치</b><small>같은 입력에서 S2 마스크 · S5 pkl 동일, S3 정점 수 일치 — 이미지 환경 대조 검증</small></div>
+    </div>
+    <p style="color:var(--sub);font-size:.86rem;max-width:680px;margin-top:20px">라이선스상 재배포가
+    금지된 모델 가중치(SMPL 계열)는 이미지에서 제외하고 실행 시 별도 장착하도록 설계해,
+    공개 이미지에서도 라이선스 경계를 지켰습니다.</p>
   </div>
 </section>
 
