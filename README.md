@@ -33,7 +33,7 @@
 ## 파이프라인 설계
 
 ### 현재 설계 (v4)
-![Pipeline v4](docs/assets/pipeline_v4.png)
+![Pipeline v4](docs/assets/pipeline_v4_final.png)
 
 ```
 입력 영상
