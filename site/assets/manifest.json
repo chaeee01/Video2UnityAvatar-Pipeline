@@ -5,25 +5,25 @@
   "image": "JPEG q80, long side ≤1200 px",
   "overrides": "items[].encoding_override"
  },
- "total_bytes": 6546333,
+ "total_bytes": 6731760,
  "items": [
   {
    "id": "pipeline_v4",
    "file": "assets/pipeline_v4.jpg",
    "kind": "image",
-   "width": 1400,
-   "height": 2406,
-   "bytes": 327110,
-   "sha256_16": "27e65d64f5711202",
-   "source": "~/Desktop/Video2UnityAvatar-Pipeline.wt/docs/assets/pipeline_v4.png",
+   "width": 1600,
+   "height": 2069,
+   "bytes": 353630,
+   "sha256_16": "5a5f6df6c3396a09",
+   "source": "docs/assets/pipeline_v4_final.png (2026-11-14 교체 bc480b3 · 1600px 축소 885b945)",
    "character": "-",
    "stage": "개요",
    "caption": "파이프라인 v4 — 영상 한 편에서 외형(TRELLIS.2)과 동작(WHAM)을 따로 뽑아 SMPL 골격 하나로 합친다",
    "pair": null,
    "placeholder": false,
    "encoding_override": {
-    "width": 1400,
-    "q": 88
+    "width": 1600,
+    "q": 85
    },
    "replaces": null,
    "used_on_page": true
@@ -545,6 +545,45 @@
    "used_on_page": true
   },
   {
+   "id": "slide_listener_seq",
+   "file": "assets/slide_listener_seq.jpg",
+   "kind": "image",
+   "width": 1596,
+   "height": 1076,
+   "bytes": 158907,
+   "sha256_16": "e48a9a8dc03c8df0",
+   "source": "~/Desktop/3D_avatar_work/experiments/e2e_check/review_1019/01_listener_run_slide/compare_L04b_M_stalker_R_transplant.mp4",
+   "character": "listener",
+   "stage": "문제 해결 · 미끄러짐",
+   "caption": "달리기 미끄러짐 — 위: 수리 전(무릎만 드는 제자리걸음) · 아래: 수리 후(이식판), 같은 시점 6프레임",
+   "pair": {
+    "group": "foot_slide",
+    "role": "both — 위 before · 아래 after (그림 안 라벨 '수리 전' · '수리 후')"
+   },
+   "placeholder": false,
+   "encoding_override": {
+    "long_side": 1596,
+    "q": 85
+   },
+   "replaces": "ba_slide_listener_still",
+   "used_on_page": true,
+   "provenance": {
+    "frames": [
+     32,
+     34,
+     37,
+     39,
+     41,
+     44
+    ],
+    "time_s": "1.33~1.83 (24fps, 공개 영상 ba_slide_listener.mp4 와 같은 프레임 번호 — 대조 MSE 4~5)",
+    "crop": "1620×960 원본의 왼쪽 패널(x 0~540) · 오른쪽 패널(x 1080~1620)에서 각각 x 137 · y 222 · 266×533, 6장 가로 · 두 줄 세로, 사이 흰 줄 10px",
+    "labels": "왼쪽 위 '수리 전' · '수리 후' (Apple SD Gothic Neo 26px, 어두운 상자) — 덧붙인 것",
+    "same_as": "~/Desktop/Portfolio-Assets/EmptyHouse/p12_품질검증/p12_slide_seq.jpg 와 같은 프레임 · 같은 자리(그쪽은 540p 공개 영상에서 150×300, 라벨 없음) — 이미지_목록.md 2절 12쪽 줄",
+    "made": "2026-11-21"
+   }
+  },
+  {
    "id": "ba_slide_listener_still",
    "file": "assets/ba_slide_listener_still.jpg",
    "kind": "image",
@@ -563,7 +602,8 @@
    "placeholder": false,
    "encoding_override": null,
    "replaces": null,
-   "used_on_page": true
+   "used_on_page": false,
+   "replaced_by": "slide_listener_seq"
   },
   {
    "id": "ba_floor_walker",
@@ -628,5 +668,6 @@
    "replaces": null,
    "used_on_page": true
   }
- ]
+ ],
+ "updated": "2026-11-21 — slide_listener_seq 추가 · pipeline_v4 실측 갱신"
 }

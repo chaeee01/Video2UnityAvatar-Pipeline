@@ -1,12 +1,12 @@
 # site/assets — 공개 페이지 소재 매니페스트 (2026-11-06)
 
-총 32개 · 6.55 MB. 영상 H.264 · 높이 540 · CRF 28 · ≤6초 · 무음, 스틸 JPEG q80 · 긴 변 ≤1200px. **[미사용]** = 현재 `site/index.html` 이 참조하지 않는 소재(지우지 않고 보관). 예외: 구조도 폭 1400 · q88, 라인업 긴 변 1600 · q85, 세로 영상 3편 · 턴테이블 · bake 높이 720 · CRF 26.
+총 33개 · 6.73 MB (2026-11-21 갱신 — `slide_listener_seq.jpg` 추가, `pipeline_v4.jpg` 를 실측으로 고침). 영상 H.264 · 높이 540 · CRF 28 · ≤6초 · 무음, 스틸 JPEG q80 · 긴 변 ≤1200px. **[미사용]** = 현재 `site/index.html` 이 참조하지 않는 소재(지우지 않고 보관). 예외: 구조도 폭 1600 · q85(11/14 교체), 라인업 긴 변 1600 · q85, 미끄러짐 연속 프레임(`slide_listener_seq`) 긴 변 1596 · q85, 세로 영상 3편 · 턴테이블 · bake 높이 720 · CRF 26.
 
 구 파일 대체: `s3_mesh_player.jpg` → `s3_mesh_player_03.jpg`(char3), `s3_mesh_char_shuffle.jpg` → `s3_mesh_player_04.jpg`(char4) — 렌더 비교로 같은 캐릭터 확인(메쉬는 다른 판: 구 TRELLIS.2 · 신 char*.glb).
 
 | 파일 | 종류 | 크기 | 캐릭터 | 단계 | 캡션 | 전후 쌍 | 원본 |
 |---|---|---|---|---|---|---|---|
-| `assets/pipeline_v4.jpg` | image 1400×2406 | 0.33 MB | - | 개요 | 파이프라인 v4 — 영상 한 편에서 외형(TRELLIS.2)과 동작(WHAM)을 따로 뽑아 SMPL 골격 하나로 합친다 | - | `~/Desktop/Video2UnityAvatar-Pipeline.wt/docs/assets/pipeline_v4.png` |
+| `assets/pipeline_v4.jpg` | image 1600×2069 | 0.35 MB | - | 개요 | 파이프라인 v4 — 영상 한 편에서 외형(TRELLIS.2)과 동작(WHAM)을 따로 뽑아 SMPL 골격 하나로 합친다 | - | `docs/assets/pipeline_v4_final.png` (11/14 교체 · 1600px q85) |
 | `assets/lineup_meshes.jpg` **[미사용]** | image 1600×640 | 0.13 MB | walker · listener · stalker · lurker · oiler · dog · player_01~04 | S3 외형 | 납품 캐릭터 10종의 TRELLIS 메쉬 — 좀비 6종(위 5 · 아래 첫 칸 dog) 뒤에 플레이어 4종 (정면, 같은 조명) | - | `~/data/site_raw_1106/lineup10.png` |
 | `assets/input_ref_walker.jpg` | image 669×1200 | 0.09 MB | walker | 입력 | 입력 ① 캐릭터 참조 이미지 (영상 생성의 시작 프레임) | - | `~/data/00_raw/_refs_clean/manor_walker_01_v4_1116_clean.png` |
 | `assets/input_video_walker.mp4` | video 406×720 | 0.28 MB | walker | 입력 | 입력 ② 생성 영상 — 걷기 (9:16, 24fps) | - | `~/data/00_raw/walker_walk_02__fast-ff.mp4` |
@@ -34,7 +34,8 @@
 | `assets/ba_weight_listener_still.jpg` **[미사용]** | image 1200×300 | 0.05 MB | listener | 문제 해결 · 웨이트 | 늘어난 막이 사라진 프레임 비교 (f163 · f96) | weight_smoothing · both — 왼쪽 before · 오른쪽 after | `~/Desktop/3D_avatar_work/experiments/e2e_check/review_1021/05_collar/collar_attack_f163_f96_wfix_vs_c10.png` |
 | `assets/ba_weight_walker.mp4` | video 608×540 | 0.07 MB | walker | 문제 해결 · 웨이트 | walker 겨드랑이 스무딩 — 팔을 들 때 옆구리 막 | weight_smoothing · both — 왼쪽 before · 오른쪽 after | `~/Desktop/3D_avatar_work/experiments/e2e_check/review_1021/07_walker/walker_attack_cur_vs_arm20.mp4` |
 | `assets/ba_slide_listener.mp4` | video 912×540 | 0.17 MB | listener · stalker | 문제 해결 · 미끄러짐 | 달리기 미끄러짐 — 발이 뒤로 쓸리지 않던 판 \| stalker 동작 \| listener 리그에 이식한 판 | foot_slide · both — 왼쪽 before · 오른쪽 after (가운데는 동작 출처) | `~/Desktop/3D_avatar_work/experiments/e2e_check/review_1019/01_listener_run_slide/compare_L04b_M_stalker_R_transplant.mp4` |
-| `assets/ba_slide_listener_still.jpg` | image 1200×500 | 0.09 MB | listener | 문제 해결 · 미끄러짐 | 디딘 발 위치 비교 클로즈업 (4장, 패널 좌우 여백을 잘라 한 줄) | foot_slide · both — 왼쪽 before · 오른쪽 after | `~/data/site_raw_1106/slide_still_row.png` |
+| `assets/slide_listener_seq.jpg` | image 1596×1076 | 0.16 MB | listener | 문제 해결 · 미끄러짐 | 달리기 미끄러짐 — 위: 수리 전(무릎만 드는 제자리걸음) · 아래: 수리 후(이식판), 같은 시점 6프레임 | foot_slide · both — 위 before · 아래 after (그림 안 라벨) | `~/Desktop/3D_avatar_work/experiments/e2e_check/review_1019/01_listener_run_slide/compare_L04b_M_stalker_R_transplant.mp4` 프레임 32 · 34 · 37 · 39 · 41 · 44 (1.33~1.83초), 왼쪽 · 오른쪽 패널 같은 자리 크롭, 라벨 '수리 전' · '수리 후' 덧붙임 — Portfolio-Assets `p12_slide_seq.jpg`(이미지_목록.md 2절 12쪽)와 같은 프레임의 원본 해상도판 |
+| `assets/ba_slide_listener_still.jpg` **[미사용]** | image 1200×500 | 0.09 MB | listener | 문제 해결 · 미끄러짐 | 디딘 발 위치 비교 클로즈업 (4장, 패널 좌우 여백을 잘라 한 줄) | foot_slide · both — 왼쪽 before · 오른쪽 after | `~/data/site_raw_1106/slide_still_row.png` |
 | `assets/ba_floor_walker.mp4` | video 608×540 | 0.08 MB | walker | 문제 해결 · 바닥 | 바닥 정렬 — 깊이 숙일 때 몸 전체가 바닥 아래로 내려가던 것 | floor_align · both — 왼쪽 before · 오른쪽 after | `~/Desktop/3D_avatar_work/experiments/e2e_check/review_1026/09_ga_replace/walker_idle_lurch_전후.mp4` |
 | `assets/ba_floor_stalker.mp4` | video 608×540 | 0.05 MB | stalker | 문제 해결 · 바닥 | 바닥 정렬 — 엎드린 몸이 바닥에서 떠 있던 것 | floor_align · both — 왼쪽 before · 오른쪽 after | `~/Desktop/3D_avatar_work/experiments/e2e_check/review_1026/09_ga_replace/stalker_crawl_loop_전후.mp4` |
 | `assets/ba_gait_stalker.mp4` | video 1218×540 | 0.59 MB | stalker | 문제 해결 · 보행 | 프롬프트 한 줄의 효과 — 걷기 \| 걷기+러닝머신 문장 \| 달리기 \| 달리기+러닝머신 문장 (쓸기 −0.26 → −0.57, 대신 자세가 바뀜) | gait_prompt · both — 각 쌍의 왼쪽 before · 오른쪽 after | `~/Desktop/3D_avatar_work/experiments/e2e_check/review_1102/09_sweeptest/원본_walk01_walk01s_run01_run01s.mp4` |
