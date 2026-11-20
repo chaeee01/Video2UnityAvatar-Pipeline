@@ -123,7 +123,7 @@ sshd 직접 접속과 세 환경 통합 이미지를 더해, 원커맨드 Pod �
 - wham 이미지에는 `repos/WHAM/third-party/ViTPose/tests/data/smpl/smpl_mean_params.npz`(ViTPose 공개 레포의 시험 데이터)가
   있다 — 비공개 레지스트리 전제로 유지(`docker/build_env_images.sh` 주석), **이미지 공개 전환 시 재검토**.
 
-### 1-B. 볼륨 Pod (보조 — 아카이브 · 디버깅 · 원커맨드 Pod 구간)
+### 1-B. 볼륨 Pod (보조 — 아카이브 · 디버깅)
 
 1. RunPod → **Storage** → `pipeline-vol` → **Deploy**. 볼륨에서 배포해야 `/workspace`가 붙는다.
    (Pods 메뉴에서 새로 만들면 볼륨이 연결되지 않는다.)
@@ -206,7 +206,7 @@ micromamba activate wham      # 4·5단계 (python 3.9, torch 2.0.0+cu118)
 GPU 작업(Pod)과 Blender 작업(맥북)이 갈리므로 **같은 스크립트를 양쪽에서 돌리고 완료 마커로 이어받는다**.
 
 ```bash
-# Pod 구간 (1-B 볼륨 Pod)
+# Pod 구간 — 기본은 1-A 통합 이미지 Pod(PIPELINE_VOL=/vol PIPELINE_ENV_ROOT=/workspace, 아래 "루트"), 1-B 볼륨 Pod 은 이 경로 그대로
 python scripts/orchestrate.py --video /workspace/data/00_raw/<샘플>.mp4 --name <샘플>
 # 맥북 구간 (run 폴더 · 산출물 회수 후 — 7절)
 python3 scripts/orchestrate.py --name <샘플> --resume

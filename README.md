@@ -4,7 +4,7 @@
 
 [Software Maestro] 좀비 영상 한 편을 입력하면 유니티 아바타 에셋(캐릭터 + 애니메이션)으로 자동 변환하는 파이프라인.
 
-**공개 페이지**: <https://chaeee01.github.io/Video2UnityAvatar-Pipeline/> — 파이프라인 한 바퀴 · 납품 캐릭터 10종 · 실제 게임 내 플레이 장면 · 문제 해결 기록 (`site/`)
+**공개 페이지**: <https://chaeee01.github.io/Video2UnityAvatar-Pipeline/> — 파이프라인 한 바퀴 · 납품 캐릭터 10종 · 실제 게임 내 플레이 장면 · 품질 개선 기록 (`site/`)
 
 **납품처 게임**: [Empty House (Steam)](https://store.steampowered.com/app/5029430/Empty_House/?l=koreana) — 캐릭터 · 동작 에셋 납품처 (실제 게임 내 장면은 공개 페이지)
 
@@ -111,7 +111,7 @@ WHAM이 추출한 체형 파라미터(betas)를 외형 경로의 리깅 단계�
 | `tools/site/` | 공개 페이지 소재 생성 · 조립 |
 | `site/` | 공개 페이지(GitHub Pages, `.github/workflows/pages.yml` 로 자동 배포) |
 | `.github/workflows/` | `pages.yml` 공개 페이지 배포 · `tests.yml` 시험 자동 실행(push 마다, ubuntu-24.04 · Python 3.9) |
-| `docker/` | 환경 이미지 3종 Dockerfile · 빌드 스크립트 (GHCR) |
+| `docker/` | 환경 이미지 Dockerfile — 환경별(`Dockerfile.env` · `Dockerfile.env-split`), sshd 층(`Dockerfile.sshd` · `start.sh`), 통합(`Dockerfile.all`) — 와 빌드 스크립트 (GHCR 비공개) |
 | `tests/` | 게이트 · 오케스트레이터 · 리깅 도구 시험 |
 | `tests/ci/` | CI 러너(`test_script_suite.py`) — 스크립트형 시험을 하나씩 실행해 종료 코드 확인, 미러 · Blender 가 필요한 7개는 건너뜀 |
 | `requirements-ci.txt` · `pytest.ini` | CI 시험 의존성(버전 고정) · pytest 수집 범위(`tests/ci`) |
@@ -125,12 +125,14 @@ WHAM이 추출한 체형 파라미터(betas)를 외형 경로의 리깅 단계�
 레포별 의존성이 충돌(torch 1.11-2.5, CUDA 11.3-12.4)해 환경을 하나로 합치지 않고 sam2 · trellis2 · wham 으로 나눈다.
 GPU 단계(S2 · S3 · S5, 리깅 5-1 SMPL 메쉬 생성)는 RunPod(RTX 4090, EU-RO-1), 나머지 리깅 · 베이크(5-2~5-5, S7)는 맥북 Blender 4.5 LTS 에서 돈다.
 
-- **Pod — 이미지 Pod(기본)**: 환경마다 GHCR 비공개 이미지(`ghcr.io/chaeee01/v2ua-{sam2v,trellis2,wham}`)로 Pod 을 띄운다.
-  템플릿에 GHCR 읽기 자격증명 · Start Command `bash -c "sleep infinity"` · 볼륨 마운트 `/vol` 이 필요하고,
+- **Pod — 이미지 Pod(기본)**: GHCR 비공개 v2 통합 이미지 `ghcr.io/chaeee01/v2ua-all`(sam2 · trellis2 · wham 세 환경 + sshd)
+  하나로 원커맨드 Pod 구간을 한 Pod 에서 끝낸다(2026-11-07 검증). 환경 하나씩 든 `v2ua-{sam2v,trellis2,wham}` 은 단독 대조용.
+  템플릿: GHCR `read:packages` 자격증명 · Start Command 비움(이미지의 `/start.sh` 가 sshd 를 띄운다) · `PUBLIC_KEY` · TCP 22 ·
+  볼륨 마운트 `/vol`. `bash -c "sleep infinity"` 는 sshd 가 없는 v1 이미지에서만 필요하다.
   SMPL 계열 3개(라이선스상 이미지에서 제외) · HF 모델 캐시 · 입출력 데이터는 볼륨에서 붙인다.
   → [RUNBOOK 1-A](docs/RUNBOOK.md#1-a-이미지-pod-기본)
-- **Pod — 볼륨 Pod(보조)**: 볼륨 `/workspace` 에 설치된 micromamba 환경을 쓴다. 원커맨드 Pod 구간은 여기서 돈다.
-  → [RUNBOOK 1-B](docs/RUNBOOK.md#1-b-볼륨-pod-보조--아카이브--디버깅--원커맨드-pod-구간)
+- **Pod — 볼륨 Pod(보조)**: 볼륨 `/workspace` 에 설치된 micromamba 환경을 쓴다 — 환경 아카이브 · 디버깅용.
+  → [RUNBOOK 1-B](docs/RUNBOOK.md#1-b-볼륨-pod-보조--아카이브--디버깅)
 - **원커맨드 실행** — Pod 과 맥북에서 같은 스크립트를 돌리고 완료 마커로 이어받는다:
 
   ```bash
@@ -146,20 +148,47 @@ GPU 단계(S2 · S3 · S5, 리깅 5-1 SMPL 메쉬 생성)는 RunPod(RTX 4090, EU
 - 검증 완료: WHAM 동작 복원, TRELLIS 외형 복원, **SMPL 골격 직접 리깅(S4)**, 유니티 에셋 반입.
   영상 한 편이 Unity 에셋까지 관통하는 수동 파이프라인이 완성됐다 (M1, 8/28)
 - 검증 완료: **TRELLIS 로컬 설치**(9/9 TRELLIS.2 전환), **품질 게이트**(G0/S2·G2·G2r 9/15, S5 트랙 10/12, G4 늘어남·발 쓸기 10/22 + 바닥 10/26), **원커맨드 E2E 오케스트레이터**(10/11)
-- **납품 현황 (2026-11-02)**: 캐릭터 7종 + player 동작, **동작 클립 115편** — walker 26 · stalker 35 · listener 27 · player 14 · lurker 4 · oiler 4 · char_shuffle 1 · dog 4(Mixamo). 10/17 게임팀 Unity 반입 확인, 10/26 피격 · 넘어짐 · 일어나기 12편, 11/02 걷기 · 달리기 13편 추가
+- **납품 현황 (2026-11-02)**: 캐릭터 10종(좀비 6 · 플레이어 4, char_shuffle = 플레이어 4번), **동작 클립 115편** — walker 26 · stalker 35 · listener 27 · player 14 · lurker 4 · oiler 4 · char_shuffle 1 · dog 4(Mixamo). 10/17 게임팀 Unity 반입 확인, 10/26 피격 · 넘어짐 · 일어나기 12편, 11/02 걷기 · 달리기 13편 추가
 - 검증 완료: **환경 이미지 3종**(EH-229, 11/05) — GHCR 비공개, 이미지 Pod 에서 S2 마스크 · S5 pkl 완전 일치, S3 정점 일치
-- **공개 페이지**(11/06) — GitHub Pages, 소재 32점 · 약 6.6 MB
-- 백로그: EH-211 T포즈 rest 통일, gate_s2 보강, G4 · 5-4b 오케스트레이터 통합
+- **공개 페이지**(11/06 공개, 11/08 v17) — GitHub Pages, 소재 32점(페이지 사용 30) · 6.57 MB (2026-11-20 `site/assets/` 재집계)
+- 백로그: EH-211 T포즈 rest 통일, gate_s2 보강
 
 ## 검증 결과
 
-### 동작 복원 (WHAM)
+### 최신 결과 (2026-10~11)
+
+#### 납품 캐릭터 10종
+![납품 캐릭터 10종](site/assets/lineup_meshes.jpg)
+
+좀비 6종(walker · listener · stalker · lurker · oiler · dog)과 플레이어 4종의 TRELLIS.2 메쉬 — 같은 조명 · 정면.
+동작 클립은 115편을 납품했다(2026-11-02 기준). 실제 게임 내 재생 장면은 공개 페이지에 있다.
+
+#### 품질 게이트와 수리
+G4 클립 품질 게이트(`scripts/gate_g4.py`)로 납품 클립을 역검증했다 — 10/22 늘어남 · 발 쓸기 판정: 납품 86편(dog 제외) PASS 78 · ACCEPTED 8 · CHECK 0 · FAIL 0.
+10/26 바닥 판정(추가 12편 포함, 결함 클립을 바닥 정렬판으로 교체한 뒤): 최종 98편 PASS 85 · ACCEPTED 13 · CHECK 0. 아래는 게이트 · 게임팀 피드백으로 찾아 고친 두 사례다 (각 그림 왼쪽 before · 오른쪽 after).
+
+![listener 달리기 미끄러짐 수리](site/assets/ba_slide_listener_still.jpg)
+
+listener `run` 미끄러짐(10/19) — 접지한 발이 몸 아래로 뒤로 쓸리지 않았다(골반 기준 쓸기 −0.003 / −0.051).
+stalker `run_fwd` 의 동작을 listener 리그에 구운 이식판(−0.82 / −0.79)으로 교체.
+
+![listener 웨이트 경계 스무딩](site/assets/ba_weight_listener_still.jpg)
+
+웨이트 경계 스무딩(5-4b, 10/21) — 가랑이 0.10 초과 늘어난 엣지 471 → 0, 왼쪽 겨드랑이(run · run_slow) 266 · 257 → 0.
+
+#### 이미지 재현 (11/07)
+v2 통합 이미지 Pod 에서 walker_walk_02 를 원커맨드 Pod 구간 → 맥 `--resume` → FBX 까지 관통했다. S2 마스크는 참조와
+192/192 픽셀 일치, S5 는 같은 masked.mp4 입력에서 pkl 완전 일치. 상세는 [PROJECT_STATUS](docs/PROJECT_STATUS.md) 11/06~07 항목.
+
+### 초기 검증 (2026-08, M1)
+
+#### 동작 복원 (WHAM)
 ![WHAM 2D 재투영 검증](docs/assets/wham_overlay.gif)
 
 WHAM이 추정한 SMPL 파라미터에서 공식 J_regressor로 관절을 추출해 원본 영상에 2D 재투영한 결과입니다.
 스켈레톤이 좀비 위에 정합하는 것으로 동작 복원이 정상임을 확인했습니다 (`scripts/overlay_vis.py`).
 
-### 외형 파이프라인 → Unity 반입 (v2 · 폐기 경로)
+#### 외형 파이프라인 → Unity 반입 (v2 · 폐기 경로)
 > **v2 · 폐기 경로의 기록이다.** 아래는 Mixamo 리깅으로 Unity Humanoid 반입을 확인한 초기 검증이며,
 > 현재(v4)는 SMPL 골격 직접 리깅을 쓴다 — 아래 "통합" 절.
 
@@ -170,7 +199,7 @@ WHAM이 추정한 SMPL 파라미터에서 공식 J_regressor로 관절을 추출
 TRELLIS 생성 메쉬 → Mixamo 리깅 → 텍스처 → Unity Humanoid 반입.
 제3자 애니메이션이 그대로 재생되어 표준 Humanoid 규격 충족을 확인.
 
-### 통합 (SMPL 리깅 + WHAM 동작) — 완료
+#### 통합 (SMPL 리깅 + WHAM 동작) — 완료
 | 원본 영상 | Unity 재생 (리타게팅 없음) |
 |---|---|
 | ![](docs/assets/source_video.gif) | ![](docs/assets/unity_wham_demo.gif) |
