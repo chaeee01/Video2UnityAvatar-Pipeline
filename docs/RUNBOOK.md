@@ -10,8 +10,11 @@
 Pod 준비 약 5분 · SAM2 약 2분(모델 로딩 포함) · TRELLIS Space 2-10분(대기열에 따라 변동) ·
 WHAM 수 분 · 리깅 4단계 약 10분 · Unity 약 15분.
 
-**전제**: 맥북(Blender 4.5 LTS, Unity), RunPod 계정, Network Volume `pipeline-vol`(250GB,
+**전제**: RunPod 계정, Network Volume `pipeline-vol`(250GB,
 EU-RO-1), SMPL/SMPLify 계정 인증 완료. 이미지 Pod(1-A)을 쓰려면 GHCR 비공개 패키지 읽기 권한도 필요하다.
+영상 1편 → FBX 는 Pod 하나에서 **명령 하나**로 돈다(1.5절 — GPU 구간과 Blender 구간을 이어서, 오케스트레이터가 구간 경계에서
+그 Pod 의 Blender 실행 가능 여부를 판정). 맥북(Blender 4.5 LTS, Unity)은 재생 영상 검수와 Unity 반입에 쓰고,
+Pod 에서 GPU 구간만 돌린 뒤 맥북 Blender 로 이어받는 방식(7절 회수 → `--resume`)도 그대로 된다.
 
 ---
 
@@ -107,6 +110,16 @@ sshd 직접 접속과 세 환경 통합 이미지를 더해, 원커맨드 Pod �
    `~/.ssh/environment` · `/etc/rp_environment` 에 적는다). 호스트 키는 Pod 마다 새로 생긴다(이미지에 굽지 않음).
    회수 · 반입은 **`rsync -rt`** — `/vol`(MooseFS)은 chown 이 안 돼 `rsync -a` 는 파일을 옮기고도 종료 코드 23 을 낸다.
 5. 환경 이름은 파이프라인과 같다 — `micromamba run -n sam2` (sam2v 이미지는 `sam2 → sam2v` 별칭이 들어 있다).
+6. **Blender 구간도 이 Pod 에서 (명령 하나)** — 오케스트레이터는 Pod 구간이 끝나면 `BLENDER` 를 실제로 띄워 보고(1.5절 "구간 경계")
+   실행할 수 있으면 리깅 · FBX 까지 이어서 돈다. **지금 이미지 태그(위 표)에는 Blender 가 없다** — Blender 를 넣은 이미지를
+   빌드하기 전까지는 2026-11-20 시험 절차대로 갖춘다(PROJECT_STATUS 11/20 항목):
+   - Blender 4.5 LTS 리눅스판(`blender-4.5.12-linux-x64.tar.xz`)을 볼륨 `/vol/opt/` 에 풀어 둔다(볼륨에 남으므로 한 번).
+     이미지에 curl · wget · xz 가 없어 python3 표준 라이브러리(urllib · tarfile)로 받고 푼다.
+   - Pod 마다: `apt-get install -y --no-install-recommends python3-numpy python3-joblib libsm6 libice6`
+     (libSM · libICE 가 없으면 Blender 가 127 로 죽는다).
+   - `BLENDER=/vol/opt/blender-4.5.12-linux-x64/blender` 로 실행한다.
+   - 캐릭터 설정(5-4b · 동작 트랙)은 그 기계의 `$PIPELINE_VOL/data/06_rig/<캐릭터>/` 에서 읽는다 — Pod 에서 돌리면 `/vol/data/06_rig`.
+   Blender 를 갖추지 않으면 지금처럼 Pod 구간 뒤에서 종료 코드 2 로 멈추고, 맥북으로 회수해 이어받으면 된다.
 
 #### 확인 포인트 (1-A)
 - 파이프라인 레포는 볼륨의 `/vol/repos/Video2UnityAvatar-Pipeline` 에서 부른다(11/05 검증도 이 경로).
@@ -203,14 +216,22 @@ micromamba activate wham      # 4·5단계 (python 3.9, torch 2.0.0+cu118)
 ## 1.5. 원커맨드 실행 — orchestrate.py
 
 2~5절을 한 명령으로 잇는다. 설계는 [ORCHESTRATOR_DESIGN.md](ORCHESTRATOR_DESIGN.md), 사용법은 스크립트 독스트링이 원본이다.
-GPU 작업(Pod)과 Blender 작업(맥북)이 갈리므로 **같은 스크립트를 양쪽에서 돌리고 완료 마커로 이어받는다**.
+단계는 GPU 구간(pod — G0 → S2 → S5 → G1a → S3 → 5-1)과 Blender 구간(mac — 5-2 → … → FBX)으로 나뉘고, **Blender 를 실행할 수
+있는 Pod 이면 한 명령으로 두 구간을 이어서 돈다**. 완료 마커로 이어받으므로 두 구간을 다른 기계에서 돌려도 된다.
 
 ```bash
-# Pod 구간 — 기본은 1-A 통합 이미지 Pod(PIPELINE_VOL=/vol PIPELINE_ENV_ROOT=/workspace, 아래 "루트"), 1-B 볼륨 Pod 은 이 경로 그대로
-python scripts/orchestrate.py --video /workspace/data/00_raw/<샘플>.mp4 --name <샘플>
-# 맥북 구간 (run 폴더 · 산출물 회수 후 — 7절)
+# 명령 하나 — 1-A 통합 이미지 Pod(PIPELINE_VOL=/vol PIPELINE_ENV_ROOT=/workspace, 아래 "루트") + Blender(1-A 6)
+BLENDER=<Blender 4.5 실행 파일> python3 scripts/orchestrate.py --video /workspace/data/00_raw/<샘플>.mp4 --name <샘플>
+
+# 두 기계로 나눌 때 — Pod 에서 GPU 구간(Blender 가 없으면 경계에서 종료 코드 2), run 폴더 · 산출물 회수(7절) 뒤 맥북에서
 python3 scripts/orchestrate.py --name <샘플> --resume
 ```
+
+**구간 경계** — pod → mac 경계(그리고 mac 구간에서 시작할 때)에서 `BLENDER`(기본 맥 경로
+`/Applications/Blender4.5.app/Contents/MacOS/Blender`)를 `--background --factory-startup` 으로 실제로 띄워 glTF · FBX 애드온을
+읽어 보고, 이 인터프리터에 numpy · joblib 이 있는지 본다. 모두 되면 `[계속]` 으로 이어 돌고, 아니면 종료 코드 2 로 멈추며 사유와
+두 갈래(이 기계에 Blender 를 갖춰 `--resume` / 회수해서 다른 기계에서 `--resume`)를 출력한다. `--section pod` 를 주면 판정 없이
+경계에서 멈춘다(2026-11-21~, 코드 `b557f8b`).
 
 | 옵션 | 뜻 |
 |---|---|
@@ -226,8 +247,8 @@ python3 scripts/orchestrate.py --name <샘플> --resume
 | `--character <캐릭터>` | 동작 트랙에 필수. 외형 트랙에서는 5-4b 설정을 직접 지정할 때 (기본: `rig_build.source_sample` 로 찾는다) |
 
 종료 코드: **0 성공 / 1 실패 / 2 사람 개입 필요**. 마커가 가리키는 다음 단계가 이 기계에서 돌 수 없으면
-그 자리에서 멈춘다(실행 환경을 추정하지 않는다). 맥북에서 돌릴 때는 회수한 run 폴더를 `--runs-dir`
-(또는 `PIPELINE_VOL`)로 가리킨다.
+그 자리에서 멈춘다 — GPU 단계는 환경(micromamba env) 유무로, Blender 단계는 위 "구간 경계" 판정으로 본다.
+맥북에서 이어받을 때는 회수한 run 폴더를 `--runs-dir`(또는 `PIPELINE_VOL`)로 가리킨다.
 
 ### 5-4b 자동 적용 (외형 트랙, 2026-11-06~)
 

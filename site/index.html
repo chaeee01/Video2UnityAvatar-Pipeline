@@ -373,11 +373,12 @@ footer .wrap{border-top:1px solid var(--line);padding-top:32px}
     <h2>새 서버에서 같은 결과를 재현한다</h2>
     <p class="lead">파이프라인은 torch 1.11~2.5, CUDA 11.3~12.4가 충돌하는 세 환경을 분리해 사용합니다.
     이 환경 전체를 Docker 이미지로 굳혀 비공개 레지스트리(GHCR)에 두었습니다 — 접근 권한과 SMPL 라이선스가 있으면 누구나 새 GPU 서버에
-    이 이미지를 띄워 영상 1편 → FBX를 명령 두 번으로 실행합니다. GPU 구간(분할 · 동작 · 외형 · SMPL 메쉬)은 서버에서,
-    리깅 · FBX 구간은 로컬 Blender에서 --resume으로 이어받습니다. 서버가 사라져도 환경은 이미지로 복구하고,
+    이 이미지를 띄워 영상 1편 → FBX를 명령 하나로 실행합니다. GPU 구간(분할 · 동작 · 외형 · SMPL 메쉬)과
+    리깅 · FBX 구간(Blender)을 한 서버에서 이어서 돌리며, 구간이 바뀌기 전에 오케스트레이터가 그 서버에서 Blender를
+    실행할 수 있는지 판정합니다 — 실행할 수 없으면 멈추고 이어받을 방법을 알립니다. 서버가 사라져도 환경은 이미지로 복구하고,
     SMPL 계열 3개 · 모델 캐시 · 입출력 데이터는 볼륨에서 연결합니다.</p>
     <div class="stats">
-      <div class="stat"><b>2구간 · 명령 2번</b><small>GPU 구간(서버) → 리깅 · FBX 구간(로컬 Blender, --resume) — 영상 1편 → FBX까지 관통 (2026-11-07 검증)</small></div>
+      <div class="stat"><b>명령 하나</b><small>영상 1편 → FBX — GPU 구간과 리깅 · FBX 구간(Blender)을 한 서버에서 이어서, 구간 경계에서 Blender 실행 가능 여부를 자동 판정</small></div>
       <div class="stat"><b>3환경 → 1이미지</b><small>충돌하는 의존성을 분리한 채로 한 장에 통합 (21GB)</small></div>
       <div class="stat"><b>산출물 일치</b><small>같은 입력에서 S2 마스크 · S5 pkl 동일, S3 정점 수 일치 — 이미지 환경 대조 검증</small></div>
     </div>
