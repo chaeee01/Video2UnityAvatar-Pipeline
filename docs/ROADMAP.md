@@ -274,7 +274,9 @@ G1m(동작 클립 평가) · G3(재투영 PCK) · G4(통합 평가)는 **W5 로 
    가중치 캐시(약 20GB)는 범위에서 뺐다 — setup 이 다시 받는다 (10/8 에 담으려다 당시
    150GB 였던 볼륨 쿼터를 채웠고, 그 뒤 250GB 로 증설했다)
 3. **Docker 이미지화** — **M2 이후.** Pod 안에서는 빌드할 수 없어(Pod 자체가 컨테이너)
-   GitHub Actions 경로로 간다 (EH-229)
+   GitHub Actions 경로로 간다 (EH-229) — **계획은 Actions 였으나 실제는 맥(Docker Desktop, linux/amd64)에서
+   빌드하고 수동 push 했다** (`docker/build_env_images.sh`; docker push 가 실패한 이미지는 skopeo,
+   2026-11-04~05 — PROJECT_STATUS 해당 항목)
 
 ## W6. 10/12-10/17 — 양산 (실적 기준)
 

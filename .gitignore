@@ -9,6 +9,7 @@
 !docs/assets/*.png
 .DS_Store
 __pycache__/
+.pytest_cache/
 
 # 자격증명 — 절대 커밋 금지
 .env

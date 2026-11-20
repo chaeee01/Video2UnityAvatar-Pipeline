@@ -1,0 +1,38 @@
+name: tests
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "scripts/**"
+      - "tests/**"
+      - "tools/**"
+      - "config.yaml"
+      - "requirements-ci.txt"
+      - "pytest.ini"
+      - ".github/workflows/tests.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    # ubuntu-latest(26.04)에는 Python 3.9 빌드가 없다 — 맥 시험 환경(3.9)과 맞추려고 이미지를 고정한다 (2026-11-19)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+          cache: pip
+          cache-dependency-path: requirements-ci.txt
+      - name: Install
+        run: python -m pip install -r requirements-ci.txt
+      - name: Environment
+        run: |
+          which python python3
+          python --version; python3 --version
+          python -m pip freeze
+      - name: Test
+        run: python -m pytest tests/ci -v -rs

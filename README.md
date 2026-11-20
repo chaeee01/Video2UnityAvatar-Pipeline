@@ -1,5 +1,7 @@
 # Video2UnityAvatar-Pipeline
 
+[![tests](https://github.com/chaeee01/Video2UnityAvatar-Pipeline/actions/workflows/tests.yml/badge.svg)](https://github.com/chaeee01/Video2UnityAvatar-Pipeline/actions/workflows/tests.yml)
+
 [Software Maestro] 좀비 영상 한 편을 입력하면 유니티 아바타 에셋(캐릭터 + 애니메이션)으로 자동 변환하는 파이프라인.
 
 **공개 페이지**: <https://chaeee01.github.io/Video2UnityAvatar-Pipeline/> — 파이프라인 한 바퀴 · 납품 캐릭터 10종 · 실제 게임 내 플레이 장면 · 문제 해결 기록 (`site/`)
@@ -108,10 +110,15 @@ WHAM이 추출한 체형 파라미터(betas)를 외형 경로의 리깅 단계�
 | `tools/review/` | 검토 · 일괄 베이크 도구(`bake_character.sh`, G4 모아 보기 등) |
 | `tools/site/` | 공개 페이지 소재 생성 · 조립 |
 | `site/` | 공개 페이지(GitHub Pages, `.github/workflows/pages.yml` 로 자동 배포) |
+| `.github/workflows/` | `pages.yml` 공개 페이지 배포 · `tests.yml` 시험 자동 실행(push 마다, ubuntu-24.04 · Python 3.9) |
 | `docker/` | 환경 이미지 3종 Dockerfile · 빌드 스크립트 (GHCR) |
 | `tests/` | 게이트 · 오케스트레이터 · 리깅 도구 시험 |
+| `tests/ci/` | CI 러너(`test_script_suite.py`) — 스크립트형 시험을 하나씩 실행해 종료 코드 확인, 미러 · Blender 가 필요한 7개는 건너뜀 |
+| `requirements-ci.txt` · `pytest.ini` | CI 시험 의존성(버전 고정) · pytest 수집 범위(`tests/ci`) |
 | `notebooks/sam2/` | SAM2 전처리 Colab 시행착오 노트북 (try1-try6) |
 | `pipeline/qa/` | 빈 자리(`.gitkeep`) — 게이트와 오케스트레이터는 `scripts/` 에 구현됐다 |
+
+시험 로컬 실행: `pip install -r requirements-ci.txt` 환경에서 `pytest tests/ci -v -rs`
 
 ## 실행 방법
 

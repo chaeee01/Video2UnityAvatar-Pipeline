@@ -1020,7 +1020,9 @@ Pod 환경을 통째로 tar 로 떠서 보관하고, 새 Pod 에서 그대로 �
 >계속 참조하며, 원본이 없는 기계에서는 깨진다 (2026-09-29 실측).
 
 **Docker 이미지는 Pod 안에서 만들 수 없다.** Pod 자체가 도커 컨테이너다(`/.dockerenv`,
-cgroup `/docker/…` 확인). 이미지화는 M2 이후 GitHub Actions 경로로 간다 (EH-229).
+cgroup `/docker/…` 확인). 이미지화는 M2 이후 GitHub Actions 경로로 간다 (EH-229) — 계획은 Actions 였으나
+실제는 **맥(Docker Desktop, linux/amd64)에서 빌드하고 수동 push** 했다(`docker/build_env_images.sh`; docker push 가
+실패한 이미지는 skopeo, 2026-11-04~05).
 
 ### 아카이브 만들기
 

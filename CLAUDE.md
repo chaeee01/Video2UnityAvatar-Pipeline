@@ -66,7 +66,7 @@ WHAM(S5)의 betas를 S4로 전달해 두 경로의 골격을 SMPL로 통일한�
 | 중간 결과 | feature에 커밋·푸시 | 코멘트 (수치·로그 경로) |
 | 검증 통과 | main 머지 + 같은 머지에 PROJECT_STATUS "최근 작업" 항목 | 카드 → 완료 |
 | 검증 실패 | feature 유지 | 코멘트에 원인 |
-| 커밋 전 | 문서 외 변경은 관련 시험 실행 (`tests/`) | — |
+| 커밋 전 | 문서 외 변경은 관련 시험 실행 (`tests/`). push 하면 CI(`tests.yml`)가 RUN 목록의 시험(2026-11-19 기준 13개 파일)을 자동 실행하지만, 건너뜀 7개(미러 · Blender 필요, 실물 절 0건)는 맥에서 직접 돌린다. 새 시험 파일은 `tests/ci/test_script_suite.py` 의 RUN 또는 SKIP 에 넣는다(빠지면 수집 단계에서 멈춘다) | — |
 | 주간 마무리 | PROJECT_STATUS 주간 요약 + ROADMAP 체크 | 다음 주 카드 정리 |
 
 - PROJECT_STATUS는 feature 브랜치에서 고치지 않고 main 머지 때 갱신한다.

@@ -1,6 +1,6 @@
 # 좀비 영상 → 유니티 아바타 파이프라인 — 진행 상황 정리
 
-작성일: 2026-08-11 (최종 갱신: 2026-11-05)
+작성일: 2026-08-11 (최종 갱신: 2026-11-20)
 레포: [Video2UnityAvatar-Pipeline](https://github.com/chaeee01/Video2UnityAvatar-Pipeline) — 초기 이름 `3DGS-Character-Generation-Pipeline`에서 개명. SuGaR(3DGS) 기반 복원을 설계에서 제외하면서 이름이 실제 구성과 어긋나 정리함.
 목표: 좀비 영상 한 편을 입력하면 SAM2로 객체를 분리하고, TRELLIS로 외형을, WHAM으로 동작을 복원한 뒤 유니티 에셋(아바타 + 애니메이션)으로 반입하는 파이프라인 구축.
 
@@ -1057,6 +1057,18 @@ WHAM betas(체형) + 키프레임 pose(자세) → 그 좀비와 같은 자세·
   **통합 이미지** `ghcr.io/chaeee01/v2ua-all:v2-20261107-0aa8002`(압축 21.31 GB, 레이어 18) — wham v2 위에 sam2v · trellis2 v2 의 환경 · 레포 복사(`docker/Dockerfile.all`; `/workspace` 에서 겹치는 것은 같은 micromamba 2.8.1 바이너리뿐), 빌드 중 환경 4개 · SMPL 3종 부재 검사. push 1,457 초. 맥 디스크는 빌드 캐시 정리 · 레지스트리 확인 사본 삭제로 확보(51 → 126 GB).
   **검증**(맥 에뮬레이션 + Pod c775vv6t2oe3f1, RTX 4090): sshd 직접 접속 · 비대화형 환경 전달 · rsync 200MB 왕복 sha256 일치. 원커맨드(`PIPELINE_VOL=/vol/_verify_1107 PIPELINE_ENV_ROOT=/workspace`, walker_walk_02) Pod 구간 S2(마스크 192/192 픽셀 일치) → S5 → G1a(f138) → S3(G2 PASS) → 5-1, 맥 구간 5-4b 자동(walker 가랑이 → 겨드랑이) → FBX 관통. S5 는 같은 masked.mp4 입력에서 pkl 완전 일치(재생성 masked.mp4 는 인코딩 바이트가 달라 pose 최대 차 0.034). 단독 이미지 흉내(sam2 만 있는 환경 루트)에서 S5 앞 종료 코드 2 → 전체 환경 루트에서 `--resume` 이어짐. libnvrtc: 통합 이미지에서도 sam2 · trellis2 는 각자의 `libnvrtc.so.12` 만 적재(cuDNN conv · NVRTC JIT 정상), wham 은 NVRTC JIT 이 sm_89 에서 컴파일 오류(환경 자체 조합, 파이프라인 미사용).
   **고친 것** `run_wham.sh` — 새 데이터 루트에 `logs/` 가 없으면 tee 실패로 WHAM 성공인데 종료 코드 1(11/06 루트 분리 때 생김) → `mkdir -p "$DATA/logs"`. **기록만** ViTPose 공개 레포의 시험 데이터 `tests/data/smpl/smpl_mean_params.npz` 는 유지(비공개 레지스트리 전제, 공개 전환 시 재검토 — `build_env_images.sh` 주석 · v2ua-all 라벨). RUNBOOK 1-A 를 v2 템플릿(Start Command 비움 · `PUBLIC_KEY` · TCP 22 · `rsync -rt`)으로 갱신.
+
+- **2026-11-18~19 — 시험 CI (GitHub Actions · pytest)**:
+
+  **무엇** 스크립트형 시험(`tests/test_*.py`, 종료 코드로 합격을 알린다)을 pytest 러너 `tests/ci/test_script_suite.py` 로 묶어 `.github/workflows/tests.yml` 에서 돌린다. 러너는 시험 파일을 하나씩 `sys.executable` 로 실행해 종료 코드 0 을 확인할 뿐 시험 내용은 건드리지 않는다. 트리거는 push(모든 브랜치, 경로 `scripts/**` · `tests/**` · `tools/**` · `config.yaml` · `requirements-ci.txt` · `pytest.ini` · `.github/workflows/tests.yml`)와 수동 실행. 이미지 `ubuntu-24.04`, Python 3.9(실행 시 3.9.25), `requirements-ci.txt` 고정 — numpy 2.0.2 · scipy 1.13.1 · opencv-python-headless 5.0.0.93 · joblib 1.5.3 · pytest 8.4.2. `pytest.ini` 의 `testpaths = tests/ci` 로 tests/ 전체 수집(`def test_` 가 있는 파일의 이중 실행)을 막는다.
+
+  **결과** **13 passed · 7 skipped** (CI 의 pytest 1.43초, 작업 전체 약 38초). 13 은 검사 수가 아니라 **시험 파일 수**이고, 그중 4개(track_stitch · g1a_terms · keyframe_gap · review_tools)는 미러 없는 절만 도는 **부분 실행**이다. 건너뜀 7 은 사유별로 미러 필요 4(g1a_reselect · keyframe_leg · orchestrate_dryrun · orchestrate_g1a) · Blender · 미러 필요 1(motion_bake) · 실물 절 0건이라 실패 집계 2(gate_s2 · gate_g2). 맥(새 가상환경, HOME 가림)에서도 같은 13 · 7.
+
+  **경위** 첫 실행 `617aaeb` 은 `ubuntu-latest` 가 Ubuntu 26.04 로 넘어가 있었고 26.04 용 Python 3.9 빌드가 없어 setup-python 에서 실패했다 — <https://github.com/chaeee01/Video2UnityAvatar-Pipeline/actions/runs/44509030341>. `runs-on: ubuntu-24.04` 고정(`7995976`)으로 통과 — <https://github.com/chaeee01/Video2UnityAvatar-Pipeline/actions/runs/44514095541>.
+
+  **조사에서 나온 것** ① **joblib 이 필요하다** — `test_track_stitch.py` 의 `test_real()` 이 미러 검사보다 먼저 `import joblib` 해서, 없으면 건너뛰지 않고 ImportError 로 실패한다. ② **사용자 site-packages 의존** — 맥의 numpy · scipy · cv2 는 `~/Library/Python/3.9` 에 있어, HOME 만 바꿔 미러를 가리면 패키지까지 사라진다(9개가 ModuleNotFoundError). 로컬 확인은 새 가상환경에서 했다. ③ `test_orch_character.py:188` 은 PATH 의 `python3` 를 직접 부른다(숫자 출력만, import 없음) — CI 에서는 python · python3 가 같은 3.9.25 였다.
+
+  **남은 것** Node 20 폐기 경고 — `actions/checkout@v4` · `actions/setup-python@v5` 가 Node 24 로 강제 실행 중(`pages.yml` 도 `checkout@v4` 를 쓴다). gate_s2 · gate_g2 의 판정 절 CI 편입은 시험 코드 수정이 필요하다. pytest 간접 의존 7개(exceptiongroup · iniconfig · packaging · pluggy · Pygments · tomli · typing_extensions)는 고정하지 않았다. numpy 2.0.2 · scipy 1.13.1 은 cp310~cp312 리눅스 wheel 도 있어 상위 Python 실행 줄을 더할 수 있다(cp313 이상은 없다).
 
 ## 9. 다음 단계 (우선순위)
 
