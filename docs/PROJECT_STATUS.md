@@ -994,7 +994,7 @@ WHAM betas(체형) + 키프레임 pose(자세) → 그 좀비와 같은 자세·
 
   갭 수정판을 다시 지어(17분 + wham 20분) 세 이미지 안에서 python3 · 별칭 · 링크 · SMPL 부재를 확인하고 같은 태그로 다시 push 했다 — 레지스트리(압축) sam2v 5.45 · trellis2 6.21 · wham 9.79 GB, rootfs diff ID 가 로컬과 일치. push 는 trellis2 만 `docker push`(10분 44초)로 됐고 sam2v · wham 은 skopeo(각 11분 06초 · 19분 34초, 단독 실행). 이날 실패 원인은 전부 네트워크였다 — 맥이 휴대폰 핫스팟(172.20.10.x)에서 집 공유기로 바뀌며 진행 중이던 업로드 연결이 끊겼고, Docker Desktop VM 프록시 경로의 docker push 는 매니페스트 단계에서 두 번 멈췄다(규칙: 큰 이미지는 skopeo, 업로드는 한 번에 하나). 이로써 **EH-229 환경 이미지화는 검증까지 끝났다** — 남은 것은 RunPod 템플릿(비공개 패키지 읽기 자격증명, 시작 명령, `/vol` 마운트)과 sshd 포함 여부 결정.
 
-- **2026-11-06 — 공개 페이지(`site/`) 조립 · GitHub Pages 배포 워크플로** (현재 **v11**):
+- **2026-11-06 — 공개 페이지(`site/`) 조립 · GitHub Pages 배포 워크플로** (현재 **v11**) (11/08 v17, 이후 문구 수정은 버전 없이):
 
   <https://chaeee01.github.io/Video2UnityAvatar-Pipeline/> — 레포의 `site/` 를 GitHub Actions 로 Pages 에 올린다(`.github/workflows/pages.yml` — main 의 `site/**` 변경 시 upload-pages-artifact → deploy-pages, 수동 실행 가능). 페이지는 `site/index.html` 한 장(v11) — 파이프라인 한 바퀴 · 납품 캐릭터 10종 · 수치 검사 · 문제 해결 기록 · 한계와 배운 것. 외부 스크립트 · 스타일시트 없음, 로컬 참조 `assets/*` 30개 전부 존재(끊긴 링크 0).
 
@@ -1069,6 +1069,16 @@ WHAM betas(체형) + 키프레임 pose(자세) → 그 좀비와 같은 자세·
   **조사에서 나온 것** ① **joblib 이 필요하다** — `test_track_stitch.py` 의 `test_real()` 이 미러 검사보다 먼저 `import joblib` 해서, 없으면 건너뛰지 않고 ImportError 로 실패한다. ② **사용자 site-packages 의존** — 맥의 numpy · scipy · cv2 는 `~/Library/Python/3.9` 에 있어, HOME 만 바꿔 미러를 가리면 패키지까지 사라진다(9개가 ModuleNotFoundError). 로컬 확인은 새 가상환경에서 했다. ③ `test_orch_character.py:188` 은 PATH 의 `python3` 를 직접 부른다(숫자 출력만, import 없음) — CI 에서는 python · python3 가 같은 3.9.25 였다.
 
   **남은 것** Node 20 폐기 경고 — `actions/checkout@v4` · `actions/setup-python@v5` 가 Node 24 로 강제 실행 중(`pages.yml` 도 `checkout@v4` 를 쓴다). gate_s2 · gate_g2 의 판정 절 CI 편입은 시험 코드 수정이 필요하다. pytest 간접 의존 7개(exceptiongroup · iniconfig · packaging · pluggy · Pygments · tomli · typing_extensions)는 고정하지 않았다. numpy 2.0.2 · scipy 1.13.1 은 cp310~cp312 리눅스 wheel 도 있어 상위 Python 실행 줄을 더할 수 있다(cp313 이상은 없다).
+
+- **2026-11-20 — 공개 페이지 #repro 절 정정 · README 정리**:
+
+  **#repro 절 정정(`site/index.html`).** 제목 "누구나, 명령 하나로 실행한다" → "새 서버에서 같은 결과를 재현한다". 본문의 "공개 레지스트리(GHCR)" · "누구든" · "pull 한 번" · "공개 이미지에서도" 는 사실과 달랐다 — 실제는 **GHCR 비공개**(읽기 권한을 받은 사용자만), 명령은 **두 번**(GPU 구간은 서버, 리깅 · FBX 구간은 로컬 Blender 에서 `--resume` — 11/07 검증 기록이 Pod 구간 → 맥 구간), 환경은 이미지로 복구하되 **SMPL 계열 3개 · 모델 캐시 · 입출력 데이터는 볼륨에서 연결**(RUNBOOK 1-A). 첫 카드 "1커맨드 … 실측 9.9분" → "2구간 · 명령 2번 … (2026-11-07 검증)". 21GB · 산출물 일치 카드는 그대로.
+
+  **"9.9분" 은 원 기록 확인 불가로 뺐다.** 레포 전체에서 이 수치는 페이지 한 곳뿐이고(94e60f1, 11/08 — 커밋 메시지에도 출처 없음), 조사한 곳 — 세션 노트 `~/Desktop/notes/next_pod_session_queue.md` 15절(시간 기록은 rsync 내림 301초 · 올림 약 6분, 맥 구간 회수 175초뿐), `~/data/runs`(walker_walk_02 는 10/11 · 11/02 판만, `_verify_1107` 계열 없음), 집계 파일 `~/data/notes/metrics_video_gen_usd_20261108.md`(영상 생성 비용만) — 어디에도 Pod 구간 · 맥 구간 실행 시간이 없다. 과거 정리표의 "Pod 9.9분 + 맥 53초" 도 원 기록 미확인.
+
+  **README.** 이미지 Pod 절을 RUNBOOK 1-A 기준으로(기본 v2 통합 이미지 `v2ua-all`, Start Command 비움, `PUBLIC_KEY` · TCP 22, `sleep infinity` 는 v1 만), 볼륨 Pod 은 아카이브 · 디버깅용, `docker/` 설명에 sshd · 통합 Dockerfile. 납품 현황을 "캐릭터 10종(좀비 6 · 플레이어 4, char_shuffle = 플레이어 4번)" 으로 — 이전 "7종 + player" 는 char_shuffle 을 별도 1종, player 를 동작 묶음 하나로 센 것이었다. 공개 페이지 소재 32점(페이지 사용 30) · 6.57 MB 재집계, 완료된 백로그(G4 · 5-4b 오케스트레이터 통합) 제거, 페이지 절 이름 "품질 개선 기록". 검증 결과 절은 **최신 결과**(납품 10종 라인업 · G4 판정 · 미끄러짐 · 웨이트 수리 스틸 · 11/07 이미지 재현)를 위에, 8월 소재는 "초기 검증 (2026-08, M1)" 아래로 내렸다(지운 것 없음, 새 이미지 없음 — `site/assets/` 스틸 3장 재사용). RUNBOOK 1-B 제목에서 "원커맨드 Pod 구간" 을 빼고 1.5절 주석을 1-A 통합 이미지 기본으로 맞췄다(README 앵커 함께 수정). 위 11/06 항목의 "(현재 v11)" 뒤에 "(11/08 v17, 이후 문구 수정은 버전 없이)" 를 덧붙였다.
+
+  **미결.** 볼륨 `/vol/logs/day_1107_verify/` 의 `orch_pod` 로그에서 Pod 구간 벽시계 시간을 확인한다(다음 Pod 때). `site/index.html:272` · README:17 의 "~17분 · 약 $4" 와 "캐릭터 ~11분" 은 같은 측정에 기대고 있어 그 로그로 함께 검증한다 — 확인 전까지 숫자는 그대로 둔다.
 
 ## 9. 다음 단계 (우선순위)
 
