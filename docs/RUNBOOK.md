@@ -214,7 +214,7 @@ python3 scripts/orchestrate.py --name <샘플> --resume
 
 | 옵션 | 뜻 |
 |---|---|
-| `--dry-run` | 실행할 명령과 분기만 출력한다 (아무것도 실행하지 않는다) |
+| `--dry-run` | 실행할 명령과 분기만 출력한다 (파이프라인 단계는 실행하지 않는다). 단 Blender 구간 판정(pod → mac 경계, 또는 mac 구간에서 시작할 때)은 dry-run 에서도 한다 — Blender 를 `--background --factory-startup` 으로 한 번 띄워 애드온만 읽고 아무것도 쓰지 않는다(맥 실측 약 2초). 그래야 dry-run 이 실제 실행과 같은 분기를 보여 준다 (2026-11-21~) |
 | `--until <단계>` | 그 단계까지만 돌고 멈춘다 (예: `5-2`) |
 | `--section pod\|mac` | 그 구간만 돈다 (기본: 마커가 가리키는 다음 단계부터) |
 | `--resume` / `--run <폴더>` | 최신 run 또는 지정 run 을 이어받는다 |
@@ -235,7 +235,7 @@ python3 scripts/orchestrate.py --name <샘플> --resume
 5-4 바로 뒤에 **5-4b** 가 끼어든다 — `scripts/seam_smooth_chain.py` 가 적힌 순서대로 `smooth_seams.py` 를 한 번씩
 부른다(앞 단계 출력이 다음 입력, 5-4b 절과 같은 일). 5-4 의 `transferred.blend` 는 덮지 않고
 `transferred_5-4b.blend`(+ 단계별 `transferred_5-4b_<i>_<label>.blend` · `_smooth_params.json` · `_chain.json`)에 쓰며,
-5-5 는 스무딩한 리그에 굽는다. 설정이 없는 샘플은 지금까지와 똑같다.
+5-5 는 스무딩한 리그에 굽는다. 설정을 찾지 못한 샘플은 5-4b 없이 진행하되 조용히 지나가지 않는다 — `5-4b 설정 없음 — 건너뜀 (<사유 · 찾은 경로>)` 을 출력하고 run.json 의 `seam_smooth_5_4b` 에 `applied: false` 와 사유를 남긴다(적용한 경우도 `applied: true` · 설정 경로 · 단계 이름을 남긴다). **외형 트랙에서 `--character` 를 명시했는데 그 설정에 `rig_build.seam_smooth` 가 없으면 종료 코드 1 로 멈춘다** (명시한 의도를 무시하지 않는다 — 5-4b 없이 돌리려면 `--character` 를 뺀다). 동작 트랙(`--motion --character`)은 이 검사와 무관하다 (2026-11-21~). 설정은 `PIPELINE_VOL` 아래 `data/06_rig` 에서 찾는다 — Pod 에서 돌리면 그 기계의 볼륨이 기준이다.
 
 ```jsonc
 "rig_build": {"source_sample": "listener_apose_06", "transfer": {},

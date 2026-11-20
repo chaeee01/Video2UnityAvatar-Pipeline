@@ -1136,6 +1136,26 @@ WHAM betas(체형) + 키프레임 pose(자세) → 그 좀비와 같은 자세·
 
   **남은 것** ① **구간 경계 정지** — Blender 가 있어도 오케스트레이터는 Pod→mac 경계에서 종료 코드 2 로 멈추고 "맥북으로 회수" 를 안내한다. 이번에도 명령 두 번(`--resume`)이었다. ② **캐릭터 설정 · 채택 리그가 맥에만 있다** — Pod 에서는 손으로 올렸다. 없으면 5-4b 는 오류 없이 건너뛴다(`character_config.find_by_source_sample`). ③ **EEVEE 렌더(재생 영상)는 Pod 에서 미검증.** ④ **플랫폼 간 웨이트 비동일**(위 원인 추적) — 공식 LBS 웨이트를 쓰면 피할 수 있는지는 미검증. ⑤ **Pod 가 맥보다 2~6배 느렸다** — MooseFS 볼륨 · CPU 차이 중 원인은 나누지 않았다. ⑥ **이미지 반영 미착수** — 위 apt 4종과 Blender 를 v2ua-all 위에 얹는 것. README · 공개 페이지의 "명령 두 번 · 로컬 Blender" 문구는 이미지 반영 전까지 그대로 둔다.
 
+- **2026-11-21 — 오케스트레이터 구간 경계를 "이 기계가 Blender 구간을 돌 수 있는가" 로 판정 (`feature/orch-blender-boundary`)**:
+  위 11/20 항목 남은 것 ①(경계 정지)의 코드 쪽과 ②의 "조용히 건너뜀" 을 다룬다. 실제 관통은 이미지 반영 뒤 Pod 한 번으로 묶는다.
+
+  **무엇을 바꿨나** (`scripts/orchestrate.py`)
+  - `blender_section_ready()` — (i) `BLENDER` 가 실행 파일, (ii) 실제 기동: `--background --factory-startup --python-exit-code 1 --python-expr "import io_scene_gltf2, io_scene_fbx; print(표지)"` 가 0 이고 표지가 찍힘(제한 120초 — Blender 는 스크립트가 죽어도 0 이라 표지를 같이 본다, 11/20 Pod 는 파일은 있었는데 libSM 부재로 127), (iii) 이 인터프리터에 numpy · joblib. 한 번 실행에 한 번만 판정한다.
+  - 판정은 **pod → mac 경계와 mac 구간 시작(`--resume`)에서만** 한다. 가능하면 `[계속]` 으로 이어 돌고, 불가하면 종료 코드 2 + 사유 + 두 갈래 안내(여기서 `BLENDER=<경로>` 로 이어가기 / 회수 목록을 맥으로 가져가 이어가기). mac 구간 시작에서 불가하면 traceback 대신 `[정지]` 안내. `--section pod` 는 판정 없이 경계에서 멈춘다. GPU 단계의 환경 검사는 그대로 — 단계마다 판정하지 않은 이유는 그 검사가 micromamba 가 없는 기계(맥)에서 그냥 통과하기 때문이다.
+  - `run_cmd` — 실행 파일이 없으면 traceback 대신 사유를 로그 · 출력에 남기고 127.
+  - 5-4b — 설정을 못 찾으면 `5-4b 설정 없음 — 건너뜀 (사유 · 찾은 경로)` 출력 · run.json `seam_smooth_5_4b` 기록. **외형 트랙에서 `--character` 를 명시했는데 `seam_smooth` 가 없으면 종료 코드 1**(이전에는 5-4b 없이 조용히 진행 — 맥 임시 볼륨에서 확인). 설정 파일 자체가 없을 때는 이전에도 종료 코드 1 이었다. 설정 위치는 `PIPELINE_VOL/data/06_rig`(그 기계의 기준, 동기화 도구는 만들지 않음).
+  - RUNBOOK 1.5절 `--dry-run` 행, 5-4b 절 문단.
+
+  **설계에서 달라진 점** ① `run_cmd` 는 1 이 아니라 **127** — 게이트 규약에서 1 은 FAIL 판정이라 "게이트 실행 파일 없음" 이 불합격으로 읽힌다. ② **dry-run 도 판정한다**(Blender 1회 기동, 맥 약 2초, 아무것도 쓰지 않음) — 파이프라인 단계는 실행하지 않고, dry-run 이 실제 실행과 같은 분기를 보여 준다. ③ 판정 불가 정지는 **attempts.json 에 기록**(실제 실행만, 기존 "환경 없음" 정지와 같은 꼴). ④ 5-4b 는 **적용 · 건너뜀 양쪽**을 run.json 에 기록.
+
+  **시험** `tests/test_orch_boundary.py` 신규 **30개 검사** — `/bin/sh` 가짜 Blender(표지 · 127 · 표지 없는 0 · 부재)로 경계 정지 · 계속 · `--section pod` · `--until` · 모듈 부재 · mac 시작 · 판정 1회 · dry-run 기록 불변 · 5-4b 3경우 · 동작 트랙 회수 목록 · `run_cmd` 127. 미러 · Blender 불필요라 CI RUN 에 넣었다(RUN 14). 맥(미러 포함) 21개 파일 전부 종료 코드 0(`test_gate_g2` ❌5 · `test_gate_s2` ❌1 은 불량 샘플의 정상 FAIL 판정 — main 과 줄 단위 동일). CI 조건(Python 3.9 venv, 미러 가림) `pytest tests/ci` **14 passed, 7 skipped**. GitHub Actions(feature): https://github.com/chaeee01/Video2UnityAvatar-Pipeline/actions/runs/44768645200 — `14 passed, 7 skipped`.
+
+  **맥 전후 비교** (`--resume --dry-run`, main 코드 대 새 코드, 스크립트 경로만 정규화) — 5개 run 모두 종료 코드 0 → 0, 명령 · 순서 · 분기 동일, 차이는 **추가된 줄뿐**: `walker_apose_05`(외형, 5-5 · FBX 남음, `--character` 없음)는 `5-4b 설정 없음 — 건너뜀` 과 `Blender 구간 판정: 가능` 2줄 — 오류가 아니라 안내. `walker_walk_02_1102`(walker) · `lurker_roar`(lurker) · `oiler_walk_fwd`(oiler) 동작 트랙은 `Blender 구간 판정: 가능` 1줄. lurker · oiler 는 `seam_smooth` 가 없는 v1 설정이다 — 새 오류 조건은 외형 트랙 분기에만 있어 **동작 트랙은 막히지 않는다**. 맥 `06_rig` 의 character.json 14개 중 `seam_smooth` 가 있는 것은 listener · walker 2개뿐(dog · listener_v3exp · lurker · oiler · player · stalker · stalker_v2 · walker_exp_apose · walker_exp_apose04 · walker_exp_f26 · walker_exp_f49 · walker_v3exp 는 없음). 비교한 run 폴더는 sha256 · 개수 불변.
+
+  **남은 것** ① 이미지 반영 — Blender 4.5.12 · apt 4종 · `ENV BLENDER` 를 v2ua-all 위에. ② Pod 관통 검증 — 반영 뒤 Pod 한 번에 `--video` 하나로 FBX 까지, 영상 → FBX 벽시계 시간. ③ 문서의 "명령 두 번" 문구(RUNBOOK 1.5절 · README · 공개 페이지) — ②가 끝난 뒤 고친다.
+
+  **백로그** 첫 실행(`--video`)은 `--dry-run` 이어도 run 폴더를 만든다(`Run.create`, 기존 동작 — 이번 변경과 무관, 맥 임시 볼륨에서 확인).
+
 ## 9. 다음 단계 (우선순위)
 
 2026-10-21 기준. 이전 목록(8월, SMPL 리깅 1~3단계 · SAM2 이전 · TRELLIS 로컬 설치 · 게이트 · 오케스트레이터)은 모두 끝났다.
