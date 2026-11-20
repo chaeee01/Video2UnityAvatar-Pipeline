@@ -74,8 +74,6 @@ figcaption{padding:10px 14px;font-size:.84rem;color:var(--sub);border-top:1px so
 .media-row.vert1{max-width:235px}
 .media-row.sq1{max-width:300px}
 .media-row.eq video,.media-row.eq img{aspect-ratio:16/10;object-fit:contain;background:#101013}
-.media-row figure.full{grid-column:1/-1}
-.media-row.eq figure.full img{aspect-ratio:auto}
 
 /* lineup */
 .grid7{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
@@ -129,7 +127,7 @@ footer .wrap{border-top:1px solid var(--line);padding-top:32px}
     <div class="stats">
       <div class="stat"><b>10종</b><small>제작한 캐릭터</small></div>
       <div class="stat"><b>115편</b><small>납품한 애니메이션 클립</small></div>
-      <div class="stat"><b>5단계</b><small>자동 품질 게이트 G0–G4</small></div>
+      <div class="stat"><b>5단계</b><small>자동 품질 게이트 G0 · gate_s2 · gate_s5 · G2r · G4</small></div>
       <div class="stat"><b>0회</b><small>리타게팅 — 골격 통일로 제거</small></div>
     </div>
   </div>
@@ -199,8 +197,8 @@ footer .wrap{border-top:1px solid var(--line);padding-top:32px}
       <div class="badge">S4</div>
       <div>
         <h3>리깅 — SMPL 골격 직접 이식</h3>
-        <p>WHAM의 체형으로 만든 SMPL 몸을 TRELLIS 메쉬에 정렬하고, 검증된 SMPL 웨이트를
-        3단계(최근접 표면 → 메쉬 연결 전파 → 거리 폴백)로 전이합니다.
+        <p>WHAM의 체형으로 만든 SMPL 몸을 TRELLIS 메쉬에 정렬하고, SMPL 몸에 Blender 자동 웨이트를 입힌 뒤
+        그 웨이트를 3단계(최근접 표면 → 메쉬 연결 전파 → 거리 폴백)로 전이합니다.
         "공간상 가깝다 ≠ 같은 부위다"를 배운 자리 — 손 정점이 허벅지 웨이트를 받는 오배정을 부위 제약으로 막습니다.</p>
         <div class="media-row eq">
           <figure><img src="assets/s4_align_walker.jpg" alt="SMPL-TRELLIS 정렬 확인" loading="lazy"><figcaption>SMPL 몸(골격)을 메쉬 안에 정렬</figcaption></figure>
@@ -326,9 +324,9 @@ footer .wrap{border-top:1px solid var(--line);padding-top:32px}
       <p>게임팀의 "미끄러져 보인다"는 피드백을 <b>"접지 중 발이 몸 아래로 쓸리는 속도"</b>라는 지표로 번역했습니다.
       문제 클립은 무릎만 드는 제자리걸음(쓸기 ≈ 0)이었고, 같은 골격을 쓰는 다른 캐릭터의 달리기 동작을 이식해 해결 —
       이후 이 지표는 G4의 자동 판정 항목이 됐고, 클립마다 "미끄러지지 않는 권장 이동 속도"를 함께 납품합니다.</p>
-      <div class="media-row eq grid2">
+      <div class="media-row eq">
         <figure><video src="assets/ba_slide_listener.mp4" muted loop playsinline preload="metadata"></video><figcaption>문제판(좌) · 동작 출처(중) · 이식판(우)</figcaption></figure>
-        <figure class="full"><img src="assets/slide_listener_seq.jpg" alt="listener 달리기 — 위 수리 전, 아래 수리 후, 같은 시점 6프레임" loading="lazy"><figcaption>위: 수리 전(무릎만 드는 제자리걸음) · 아래: 수리 후(이식판)</figcaption></figure>
+        <figure><img src="assets/slide_listener_seq_s.jpg" alt="listener 달리기 — 위 수리 전, 아래 수리 후, 같은 시점 3프레임" loading="lazy"><figcaption>위: 수리 전(무릎만 드는 제자리걸음) · 아래: 수리 후(이식판)</figcaption></figure>
       </div>
     </div>
 
@@ -374,7 +372,7 @@ footer .wrap{border-top:1px solid var(--line);padding-top:32px}
     <div class="kicker">Reproducibility</div>
     <h2>새 서버에서 같은 결과를 재현한다</h2>
     <p class="lead">파이프라인은 torch 1.11~2.5, CUDA 11.3~12.4가 충돌하는 세 환경을 분리해 사용합니다.
-    이 환경 전체를 Docker 이미지로 굳혀 비공개 레지스트리(GHCR)에 두었습니다 — 읽기 권한을 받은 사용자는 새 GPU 서버에
+    이 환경 전체를 Docker 이미지로 굳혀 비공개 레지스트리(GHCR)에 두었습니다 — 접근 권한과 SMPL 라이선스가 있으면 누구나 새 GPU 서버에
     이 이미지를 띄워 영상 1편 → FBX를 명령 두 번으로 실행합니다. GPU 구간(분할 · 동작 · 외형 · SMPL 메쉬)은 서버에서,
     리깅 · FBX 구간은 로컬 Blender에서 --resume으로 이어받습니다. 서버가 사라져도 환경은 이미지로 복구하고,
     SMPL 계열 3개 · 모델 캐시 · 입출력 데이터는 볼륨에서 연결합니다.</p>

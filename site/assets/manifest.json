@@ -5,7 +5,7 @@
   "image": "JPEG q80, long side ≤1200 px",
   "overrides": "items[].encoding_override"
  },
- "total_bytes": 6731760,
+ "total_bytes": 6785512,
  "items": [
   {
    "id": "pipeline_v4",
@@ -545,6 +545,43 @@
    "used_on_page": true
   },
   {
+   "id": "slide_listener_seq_s",
+   "file": "assets/slide_listener_seq_s.jpg",
+   "kind": "image",
+   "width": 1200,
+   "height": 750,
+   "bytes": 53752,
+   "sha256_16": "4ffce69b1b1420dc",
+   "source": "~/Desktop/3D_avatar_work/experiments/e2e_check/review_1019/01_listener_run_slide/compare_L04b_M_stalker_R_transplant.mp4",
+   "character": "listener",
+   "stage": "문제 해결 · 미끄러짐",
+   "caption": "달리기 미끄러짐 — 위: 수리 전(무릎만 드는 제자리걸음) · 아래: 수리 후(이식판), 같은 시점 3프레임 (공개 페이지 16:10 칸용)",
+   "pair": {
+    "group": "foot_slide",
+    "role": "both — 위 before · 아래 after (그림 안 라벨 '수리 전' · '수리 후')"
+   },
+   "placeholder": false,
+   "encoding_override": {
+    "width": 1200,
+    "height": 750,
+    "q": 85
+   },
+   "replaces": "ba_slide_listener_still",
+   "used_on_page": true,
+   "provenance": {
+    "frames": [
+     34,
+     39,
+     44
+    ],
+    "time_s": "1.42 · 1.63 · 1.83 (24fps)",
+    "crop": "1620×960 원본의 왼쪽 패널(x 0~540) · 오른쪽 패널(x 1080~1620) 전체 폭, y 222~750(머리~발, 인물 y 240~736 실측) → 높이 372 로 축소, 좌우를 패널 배경색으로 채워 400×372, 3장 가로 · 두 줄 세로, 사이 흰 줄 6px → 1200×750(16:10)",
+    "labels": "왼쪽 위 '수리 전' · '수리 후' (Apple SD Gothic Neo 40px, 어두운 상자) — 덧붙인 것",
+    "same_as": "slide_listener_seq.jpg(README 12컷)의 프레임 34 · 39 · 44 와 같은 원본 프레임",
+    "made": "2026-11-21"
+   }
+  },
+  {
    "id": "slide_listener_seq",
    "file": "assets/slide_listener_seq.jpg",
    "kind": "image",
@@ -566,7 +603,7 @@
     "q": 85
    },
    "replaces": "ba_slide_listener_still",
-   "used_on_page": true,
+   "used_on_page": false,
    "provenance": {
     "frames": [
      32,
@@ -581,7 +618,8 @@
     "labels": "왼쪽 위 '수리 전' · '수리 후' (Apple SD Gothic Neo 26px, 어두운 상자) — 덧붙인 것",
     "same_as": "~/Desktop/Portfolio-Assets/EmptyHouse/p12_품질검증/p12_slide_seq.jpg 와 같은 프레임 · 같은 자리(그쪽은 540p 공개 영상에서 150×300, 라벨 없음) — 이미지_목록.md 2절 12쪽 줄",
     "made": "2026-11-21"
-   }
+   },
+   "note": "README 전용(12컷). 공개 페이지 칸에는 slide_listener_seq_s"
   },
   {
    "id": "ba_slide_listener_still",
@@ -669,5 +707,5 @@
    "used_on_page": true
   }
  ],
- "updated": "2026-11-21 — slide_listener_seq 추가 · pipeline_v4 실측 갱신"
+ "updated": "2026-11-21 — slide_listener_seq_s 추가(페이지 칸용), slide_listener_seq 는 README 전용"
 }
