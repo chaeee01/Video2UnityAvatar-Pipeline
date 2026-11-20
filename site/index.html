@@ -74,6 +74,8 @@ figcaption{padding:10px 14px;font-size:.84rem;color:var(--sub);border-top:1px so
 .media-row.vert1{max-width:235px}
 .media-row.sq1{max-width:300px}
 .media-row.eq video,.media-row.eq img{aspect-ratio:16/10;object-fit:contain;background:#101013}
+.media-row figure.full{grid-column:1/-1}
+.media-row.eq figure.full img{aspect-ratio:auto}
 
 /* lineup */
 .grid7{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
@@ -324,9 +326,9 @@ footer .wrap{border-top:1px solid var(--line);padding-top:32px}
       <p>게임팀의 "미끄러져 보인다"는 피드백을 <b>"접지 중 발이 몸 아래로 쓸리는 속도"</b>라는 지표로 번역했습니다.
       문제 클립은 무릎만 드는 제자리걸음(쓸기 ≈ 0)이었고, 같은 골격을 쓰는 다른 캐릭터의 달리기 동작을 이식해 해결 —
       이후 이 지표는 G4의 자동 판정 항목이 됐고, 클립마다 "미끄러지지 않는 권장 이동 속도"를 함께 납품합니다.</p>
-      <div class="media-row eq">
+      <div class="media-row eq grid2">
         <figure><video src="assets/ba_slide_listener.mp4" muted loop playsinline preload="metadata"></video><figcaption>문제판(좌) · 동작 출처(중) · 이식판(우)</figcaption></figure>
-        <figure><img src="assets/ba_slide_listener_still.jpg" alt="접지 비교 근접" loading="lazy"><figcaption>디딘 발 위치 근접 비교</figcaption></figure>
+        <figure class="full"><img src="assets/slide_listener_seq.jpg" alt="listener 달리기 — 위 수리 전, 아래 수리 후, 같은 시점 6프레임" loading="lazy"><figcaption>위: 수리 전(무릎만 드는 제자리걸음) · 아래: 수리 후(이식판)</figcaption></figure>
       </div>
     </div>
 
@@ -337,7 +339,7 @@ footer .wrap{border-top:1px solid var(--line);padding-top:32px}
       나온다는 걸 측정으로 특정하고, 경계 주변 띠만 스무딩하는 후처리를 설계했습니다. 띠 밖 웨이트는 한 정점도 바뀌지 않아
       기존 납품 클립의 회귀가 0건 — 이 수리로 격리돼 있던 클립 18편이 전부 복구됐습니다.</p>
       <div class="media-row eq">
-        <figure><video src="assets/ba_weight_listener.mp4" muted loop playsinline preload="metadata"></video><figcaption>원본 · 1차 수리 · 가슴까지 수리</figcaption></figure>
+        <figure><video src="assets/ba_weight_listener.mp4" muted loop playsinline preload="metadata"></video><figcaption>동작 원본 영상(좌) · 1차 수리(중) · 가슴까지 수리(우) — 가운데 · 오른쪽 모두 수리 후 결과</figcaption></figure>
         <figure><video src="assets/ba_weight_walker.mp4" muted loop playsinline preload="metadata"></video><figcaption>walker 겨드랑이 — 수리 전(좌) · 후(우)</figcaption></figure>
       </div>
     </div>
