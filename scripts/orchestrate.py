@@ -28,6 +28,18 @@
   (기본 = PIPELINE_VOL). 볼륨 Pod 는 둘 다 설정하지 않는다. 이미지 Pod 는 PIPELINE_VOL=/vol PIPELINE_ENV_ROOT=/workspace.
   다음 단계의 환경이 이 기계에 없으면(이미지 하나에 환경 하나) 그 자리에서 멈추고 알린다.
 
+  구간 경계(pod → mac): 이 기계가 Blender 구간을 실행할 수 있으면 멈추지 않고 이어서 돈다 — 판정은
+  blender_section_ready() 하나다: BLENDER 가 실행 파일이고, 실제로 한 번 띄워 glTF · FBX 애드온을 읽고
+  (--python-exit-code + 표지 문자열 — Blender 는 스크립트가 죽어도 종료 코드 0 이다), 이 인터프리터에
+  numpy · joblib 이 있을 것. 아니면 지금처럼 인계하고 종료 코드 2 로 끝나며 사유와 두 갈래(여기서 이어가기
+  / 회수해서 이어가기)를 출력한다. mac 구간에서 시작할 때(--resume)도 첫 단계 전에 같은 판정을 한다.
+  --section pod 를 주면 판정 없이 경계에서 멈춘다. GPU 단계의 환경 검사는 그대로다.
+  --dry-run 도 이 판정은 한다 (Blender 를 한 번 띄운다 — 파이프라인 단계가 아니고 아무것도 쓰지 않는다).
+  그래야 dry-run 이 실제 실행과 같은 분기를 보여 준다.
+
+  외형 트랙에서 5-4b 설정을 찾지 못하면 "5-4b 설정 없음 — 건너뜀" 을 출력하고 run.json 에 남긴다.
+  --character 를 명시했는데 그 설정에 rig_build.seam_smooth 가 없으면 멈춘다(종료 코드 1).
+
 종료 코드: 0 성공 / 1 실패 / 2 사람 개입 필요
 
 구간이 둘인 이유는 GPU 작업(Pod)과 Blender 작업(맥북)이 갈리기 때문이다. 같은 스크립트를
@@ -37,6 +49,7 @@
 이 파일은 **골격**이다. 게이트 분기·재시도(설계 3-4절)는 다음 단계에서 붙인다.
 """
 import argparse
+import importlib.util
 import json
 import os
 import re
@@ -271,13 +284,61 @@ def run_cmd(argv, log_path, dry):
         print(f"    $ {' '.join(shlex.quote(a) for a in argv)}")
         return 0
     with open(log_path, "w") as f:
-        return subprocess.run(argv, stdout=f, stderr=subprocess.STDOUT).returncode
+        try:
+            return subprocess.run(argv, stdout=f, stderr=subprocess.STDOUT).returncode
+        except FileNotFoundError as e:
+            # 실행 파일이 없다 — traceback 대신 사유를 남기고 127(셸 관례)을 돌려준다.
+            # 1 을 쓰지 않는 이유: 게이트 규약에서 1 은 FAIL 판정이라 "게이트가 없다" 가 불합격으로 읽힌다.
+            msg = f"[오류] 실행 파일을 찾지 못했다: {argv[0]} ({e.strerror})"
+            f.write(msg + "\n")
+            print(f"    {msg}")
+            return 127
 
 
 # ---------------------------------------------------------------- 명령 조립
 # 각 단계가 실제로 무엇을 부르는지. RUNBOOK 의 명령을 그대로 옮긴 것이고,
 # 인자 이름은 CONVENTIONS 2 의 CLI 규약을 따른다.
 BLENDER = os.environ.get("BLENDER", "/Applications/Blender4.5.app/Contents/MacOS/Blender")
+BLENDER_MARK = "V2UA_BLENDER_OK"
+BLENDER_PROBE_TIMEOUT_S = 120
+# mac 구간의 python3 단계(5-5 선행 convert_wham_npz · 5-4b · BAKE)가 이 인터프리터로 돈다 (build_cmd)
+MAC_PY_MODULES = ("numpy", "joblib")
+_ready_cache = None
+
+
+def blender_section_ready():
+    """이 기계가 Blender(mac) 구간을 실행할 수 있는가 → (bool, 사유). 한 프로세스에서 한 번만 판정한다.
+
+    파일이 있다는 것만으로는 부족하다 — 2026-11-20 Pod 에서 실행 파일은 있었지만 libSM 이 없어 127 로 죽었다.
+    그래서 실제로 띄운다. Blender 는 --python 스크립트가 예외로 죽어도 0 을 내므로 --python-exit-code 와
+    표지 문자열을 함께 본다.
+    """
+    global _ready_cache
+    if _ready_cache is None:
+        _ready_cache = _probe_blender_section()
+    return _ready_cache
+
+
+def _probe_blender_section():
+    src = "BLENDER" if "BLENDER" in os.environ else "BLENDER 미지정 — 기본 경로"
+    if not (os.path.isfile(BLENDER) and os.access(BLENDER, os.X_OK)):
+        return False, f"Blender 실행 파일이 없다: {BLENDER} ({src})"
+    probe = [BLENDER, "--background", "--factory-startup", "--python-exit-code", "1",
+             "--python-expr", f"import io_scene_gltf2, io_scene_fbx; print({BLENDER_MARK!r})"]
+    try:
+        r = subprocess.run(probe, capture_output=True, text=True, timeout=BLENDER_PROBE_TIMEOUT_S)
+    except subprocess.TimeoutExpired:
+        return False, f"Blender 기동이 {BLENDER_PROBE_TIMEOUT_S}초 안에 끝나지 않았다: {BLENDER}"
+    except OSError as e:
+        return False, f"Blender 를 실행하지 못했다: {BLENDER} ({e.strerror})"
+    if r.returncode != 0 or BLENDER_MARK not in r.stdout:
+        lines = [x for x in (r.stderr + "\n" + r.stdout).splitlines() if x.strip()]
+        tail = lines[-1].strip()[:200] if lines else "(출력 없음)"
+        return False, f"Blender 기동 실패 (종료 코드 {r.returncode}): {tail}"
+    missing = [m for m in MAC_PY_MODULES if importlib.util.find_spec(m) is None]
+    if missing:
+        return False, f"{' · '.join(missing)} 없음: {sys.executable}"
+    return True, f"Blender 실행 확인: {BLENDER}"
 
 
 def scripts_dir():
@@ -580,11 +641,18 @@ def track_context(a):
         src = (cfg.get("rig_build") or {}).get("source_sample")
         if src != a.name:
             raise cc.ConfigError(f"{cpath} 의 rig_build.source_sample({src}) 이 이 샘플({a.name})이 아니다")
+        if not cc.seam_passes(cfg):
+            # 명시한 의도를 조용히 무시하지 않는다 (2026-11-21 전까지는 5-4b 없이 지나갔다)
+            raise cc.ConfigError(f"--character {a.character} 를 지정했는데 {cpath} 에 rig_build.seam_smooth 가 없다 "
+                                 "— 5-4b 없이 돌리려면 --character 를 빼라")
     else:
         cfg, cpath = cc.find_by_source_sample(data(), a.name)
     passes = cc.seam_passes(cfg)
     if not passes:
-        return {}
+        # 설정이 없는 샘플 — 5-4b 를 건너뛴다. 조용히 지나가지 않고 사유를 남긴다 (main 이 출력 · run.json 기록)
+        why = (f"{cpath} 에 rig_build.seam_smooth 가 없다" if cpath else
+               f"rig_build.source_sample = {a.name} 인 character.json 이 없다 ({data('06_rig')})")
+        return dict(seam_skip=why)
     return dict(character=cfg["character"], config_path=cpath, seam_passes=passes)
 
 
@@ -624,6 +692,11 @@ def main():
         print(f"트랙: 동작 — 캐릭터 {track['character']} (리그 {track['rig_dir']}), 납품 이름 {track['clip_key']}")
     elif track.get("seam_passes"):
         print(f"5-4b: {track['config_path']} — " + " → ".join(p["label"] for p in track["seam_passes"]))
+        run.write_meta({"seam_smooth_5_4b": {"applied": True, "config": str(track["config_path"]),
+                                             "passes": [p["label"] for p in track["seam_passes"]]}})
+    else:
+        print(f"5-4b 설정 없음 — 건너뜀 ({track['seam_skip']})")
+        run.write_meta({"seam_smooth_5_4b": {"applied": False, "reason": track["seam_skip"]}})
 
     # --- 어디서부터? ---
     start, skipped, problem = resume_point(run, a.name, a.section, stages, track)
@@ -667,29 +740,27 @@ def main():
         ctx["keyframe_by_user"] = True
 
     here = a.section or remaining[0]["section"]
+    if here == MAC and remaining[0]["section"] == MAC:
+        # mac 구간에서 시작한다 (--resume) — 첫 단계 전에 이 기계가 Blender 구간을 돌 수 있는지 본다
+        ok, why = blender_section_ready()
+        print(f"\nBlender 구간 판정: {'가능' if ok else '불가'} — {why}")
+        if not ok:
+            return blender_unavailable(remaining[0], ctx, run, a, why)
     for s in remaining:
         if s["section"] != here:
-            # 구간 경계. 다음 단계는 다른 기계에서 돈다 — 여기서 끊고 인계한다.
-            print("=" * 62)
-            print(f"\n[인계] {here} 구간 완료. 다음 [{s['key']}] 은 {s['section']} 구간이다.")
-            if here == POD and ctx.get("track") == "motion":
-                print("\n  아래를 맥북으로 회수한 뒤 이어받는다:")
-                print(f"    {run.root}")
-                for d, sub in (("02_sam2", a.name), ("04_wham", f"{a.name}_masked")):
-                    print(f"    {data(d, sub)}")
-                print(f"\n    python scripts/orchestrate.py --motion --character {ctx['character']} "
-                      f"--name {a.name} --resume")
-            elif here == POD:
-                print("\n  아래를 맥북으로 회수한 뒤 이어받는다:")
-                print(f"    {run.root}")
-                # 04_wham 만 폴더 이름이 다르다 — WHAM 이 입력 클립 이름(<샘플>_masked)으로 쓴다.
-                for d, sub in (("02_sam2", a.name), ("03_trellis2", a.name),
-                               ("04_wham", f"{a.name}_masked"), ("05_smpl_mesh", a.name)):
-                    print(f"    {data(d, sub)}")
-                print(f"\n    python scripts/orchestrate.py --name {a.name} --resume")
+            # 구간 경계. 이 기계가 다음 구간을 돌 수 있으면 이어서 돌고, 아니면 끊고 인계한다.
+            # 판정은 pod → mac 경계에서만 한다 (GPU 단계는 run_stage 의 환경 검사가 맡는다).
+            if here == POD and s["section"] == MAC and not a.section:
+                ok, why = blender_section_ready()
+                if not ok:
+                    return handoff(here, s, ctx, run, a, why)     # 사유는 "멈춘 사유" 로 출력된다
+                print("=" * 62)
+                print(f"\nBlender 구간 판정: 가능 — {why}")
+                print(f"[계속] {here} 구간 완료. 이 기계에서 [{s['key']}] 부터 {s['section']} 구간을 이어 돈다.")
+                here = s["section"]
             else:
-                print(f"\n    python scripts/orchestrate.py --name {a.name} --resume")
-            return EXIT_HUMAN
+                return handoff(here, s, ctx, run, a,
+                               f"--section {a.section} 로 구간을 지정했다" if a.section else None)
         code = run_stage(s, ctx, run, a.dry_run)
         if code != EXIT_OK:
             return code
@@ -707,6 +778,56 @@ def main():
     print("  Rig → Animation Type: Generic  (Humanoid 로 두면 동작이 왜곡된다)")
     print("  Material → URP Base Map 에 textures/<샘플>_tex_0.png 연결")
     return EXIT_OK
+
+
+def resume_cmd(a, c):
+    return (f"python scripts/orchestrate.py "
+            + (f"--motion --character {c['character']} " if c.get("track") == "motion" else "")
+            + f"--name {a.name} --resume")
+
+
+def retrieve_list(a, c, run: Run):
+    """Pod → 맥 회수 목록. 04_wham 만 폴더 이름이 다르다 — WHAM 이 입력 클립 이름(<샘플>_masked)으로 쓴다."""
+    if c.get("track") == "motion":
+        subs = (("02_sam2", a.name), ("04_wham", f"{a.name}_masked"))
+    else:
+        subs = (("02_sam2", a.name), ("03_trellis2", a.name),
+                ("04_wham", f"{a.name}_masked"), ("05_smpl_mesh", a.name))
+    return [run.root] + [data(d, sub) for d, sub in subs]
+
+
+def handoff(here, s, c, run: Run, a, why):
+    """구간 경계에서 멈추고 인계한다. why 는 멈춘 사유 (None 이면 사유 없이 예전 문구)."""
+    print("=" * 62)
+    print(f"\n[인계] {here} 구간 완료. 다음 [{s['key']}] 은 {s['section']} 구간이다."
+          + (f"\n  멈춘 사유: {why}" if why else ""))
+    if here == POD and a.section:
+        print("\n  이 기계에서 이어가려면: --section 없이 이어받는다 (Blender 구간 판정을 거쳐 이어 돈다)")
+        print(f"    {resume_cmd(a, c)}")
+    elif here == POD:
+        print("\n  이 기계에서 이어가려면: Blender 4.5 LTS 를 설치하고(필요하면 numpy · joblib 도) "
+              "BLENDER=<경로> 로 지정한 뒤")
+        print(f"    BLENDER=<경로> {resume_cmd(a, c)}")
+    if here == POD:
+        print("\n  다른 기계(맥북)에서 이어가려면: 아래를 회수한 뒤 이어받는다:")
+        for p in retrieve_list(a, c, run):
+            print(f"    {p}")
+        print(f"\n    {resume_cmd(a, c)}")
+    else:
+        print(f"\n    python scripts/orchestrate.py --name {a.name} --resume")
+    if why and not a.section:
+        run.add_attempt({"stage": s["key"], "verdict": "HUMAN(Blender 구간 실행 불가)", "reason": why})
+    return EXIT_HUMAN
+
+
+def blender_unavailable(s, c, run: Run, a, why):
+    """mac 구간에서 시작했는데 Blender 구간을 돌 수 없다 — traceback 대신 안내하고 멈춘다."""
+    print("=" * 62)
+    print(f"\n[정지] 다음 [{s['key']}] 은 Blender 구간인데 이 기계에서 실행할 수 없다 — {why}")
+    print("  Blender 4.5 LTS 를 설치하고(필요하면 numpy · joblib 도) BLENDER=<경로> 로 지정한 뒤 이어받는다:")
+    print(f"    BLENDER=<경로> {resume_cmd(a, c)}")
+    run.add_attempt({"stage": s["key"], "verdict": "HUMAN(Blender 구간 실행 불가)", "reason": why})
+    return EXIT_HUMAN
 
 
 def run_stage(s, c, run: Run, dry) -> int:

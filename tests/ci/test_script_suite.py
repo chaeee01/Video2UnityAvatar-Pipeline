@@ -8,6 +8,7 @@ tests/ 전체를 pytest 가 수집하게 두지 않는다 — test_s2_prompt · 
 
 목록은 2026-11-18 조사(미러를 가린 상태, Python 3.9)에서 정했다:
   RUN  — 끝까지 실행 9 + 부분 실행 4 (미러 없는 절은 시험이 스스로 건너뛰고 0 으로 끝난다)
+         + 2026-11-21 test_orch_boundary (끝까지 실행, 가짜 Blender — 미러 · Blender 불필요)
   SKIP — 미러 없이는 아무것도 돌지 않거나(종료 0 이지만 검사 0건), 실물 절 0건을 실패로 세는 시험
 tests/test_*.py 가 늘거나 줄면 목록과 어긋나 수집 단계에서 멈춘다 — 새 시험을 조용히 빠뜨리지 않는다.
 """
@@ -27,6 +28,7 @@ RUN = [
     "test_gate_g2r.py",
     "test_ground_align.py",
     "test_orch_character.py",
+    "test_orch_boundary.py",
     "test_part_islands.py",
     "test_restore_probe.py",
     "test_s2_prompt.py",
