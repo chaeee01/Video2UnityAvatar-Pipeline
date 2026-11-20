@@ -1079,6 +1079,62 @@ WHAM betas(체형) + 키프레임 pose(자세) → 그 좀비와 같은 자세·
   **README.** 이미지 Pod 절을 RUNBOOK 1-A 기준으로(기본 v2 통합 이미지 `v2ua-all`, Start Command 비움, `PUBLIC_KEY` · TCP 22, `sleep infinity` 는 v1 만), 볼륨 Pod 은 아카이브 · 디버깅용, `docker/` 설명에 sshd · 통합 Dockerfile. 납품 현황을 "캐릭터 10종(좀비 6 · 플레이어 4, char_shuffle = 플레이어 4번)" 으로 — 이전 "7종 + player" 는 char_shuffle 을 별도 1종, player 를 동작 묶음 하나로 센 것이었다. 공개 페이지 소재 32점(페이지 사용 30) · 6.57 MB 재집계, 완료된 백로그(G4 · 5-4b 오케스트레이터 통합) 제거, 페이지 절 이름 "품질 개선 기록". 검증 결과 절은 **최신 결과**(납품 10종 라인업 · G4 판정 · 미끄러짐 · 웨이트 수리 스틸 · 11/07 이미지 재현)를 위에, 8월 소재는 "초기 검증 (2026-08, M1)" 아래로 내렸다(지운 것 없음, 새 이미지 없음 — `site/assets/` 스틸 3장 재사용). RUNBOOK 1-B 제목에서 "원커맨드 Pod 구간" 을 빼고 1.5절 주석을 1-A 통합 이미지 기본으로 맞췄다(README 앵커 함께 수정). 위 11/06 항목의 "(현재 v11)" 뒤에 "(11/08 v17, 이후 문구 수정은 버전 없이)" 를 덧붙였다.
 
   **미결.** 볼륨 `/vol/logs/day_1107_verify/` 의 `orch_pod` 로그에서 Pod 구간 벽시계 시간을 확인한다(다음 Pod 때). `site/index.html:272` · README:17 의 "~17분 · 약 $4" 와 "캐릭터 ~11분" 은 같은 측정에 기대고 있어 그 로그로 함께 검증한다 — 확인 전까지 숫자는 그대로 둔다.
+  → **Pod 구간 시간은 해소(11/20, 아래 항목).** "~17분 · 약 $4" · "캐릭터 ~11분" 은 미해소 — 11/07 맥 구간 시간이 볼륨에도 맥에도 기록돼 있지 않다.
+
+- **2026-11-20 — Blender 구간 Pod 실행 시험 (성립)**:
+
+  **무엇** 이미지 빌드 · 코드 수정 없이, 통합 이미지 Pod(`v2ua-all:v2-20261107-0aa8002`, Ubuntu 24.04.5, RTX 4090)에 리눅스 Blender 를 설치해 맥북 구간(Blender 구간)을 Pod 에서 돌리고, 같은 입력으로 맥 Blender 결과와 대조했다. 대상은 walker_walk_02 외형 트랙(5-2 → 5-4 → 5-4b → 5-5 → FBX)과 listener_hit_01_v2 동작 트랙(납품 이름 hit_01, BAKE → G4 → CLIPFBX). 실행 코드는 볼륨 레포 bd018ad(main 과 `scripts/` 차이는 `run_wham.sh` 3줄뿐 — Blender 구간과 무관), 맥 기준은 main fd6d5ea 의 `scripts/` 를 `git archive` 로 내보내 썼다. 입력은 11/07 검증 산출물(`/vol/_verify_1107`)과 `/vol/data` 의 클립 산출물을 새 루트 `/vol/_verify_blender_1120` 로 복사(sha256 대조)하고, Pod 에 없던 캐릭터 설정 · 채택 리그(`06_rig/walker/character.json`, `06_rig/listener/{character,clip_roles}.json`, `06_rig/listener_apose_06_wfixc/{transferred.blend,rest_pose.json}`)를 맥에서 올렸다. 원본 폴더는 건드리지 않았다.
+
+  **설치한 것** Blender `blender-4.5.12-linux-x64.tar.xz`(377,902,364 B, sha256 `95e3a2dfedba3bd32ca54fc355eac6b15a11986954ccb02815a07535d0120a25`, <https://download.blender.org/release/Blender4.5/>)를 `/vol/opt/` 에 풀었다(파일 5,579 · 1,168,332,182 B, 배포본 목록과 일치). 이미지에 curl · wget · xz 가 없어 python3 표준 라이브러리(urllib · tarfile)로 받고 풀었다. apt: `apt-get install -y --no-install-recommends python3-numpy python3-joblib libsm6 libice6` — python3-numpy 1:1.26.4+ds-6ubuntu1 · python3-joblib 1.3.2-1 · libsm6 2:1.2.3-1build3 · libice6 2:1.0.10-1build3(의존으로 python3-pkg-resources 68.1.2-2ubuntu1.2). 연기 시험: `ldd` 누락 0, `--background --version` 이 `Blender 4.5.12 LTS (hash 84afd5f785f7)`, Blender 안에서 `io_scene_gltf2` (4,5,51) · `io_scene_fbx` (5,13,1) import — 맥 4.5.12 와 같은 버전.
+
+  **조사 예측과 달랐던 점** 사전 조사는 Blender 실행 파일의 직접 의존만 읽고 "X11 계열 5종(libX11 · libXrender · libXfixes · libXi · libxkbcommon)이 없다" 고 예측했는데, **5종은 이미지에 이미 있었다.** 실제로 빠진 것은 **libSM · libICE** 로, Blender 가 직접 링크하는 동봉 `lib/libusd_ms.so` 가 요구한다(간접 의존 — 조사 때 "확인 불가" 로 남긴 부분). 시스템 python3(3.12.3)에 numpy 가 없는 것은 예측대로였다. 동봉 MaterialX 렌더 · AMD HIP 라이브러리가 찾지 못하는 `libOpenGL.so.0` · `libXt.so.6` · `libamdhip64.so.6` 는 Blender 본체가 링크하지 않고 아래 실행에도 필요 없어 설치하지 않았다.
+
+  **실행 결과** 둘 다 종료 코드 0, Traceback 0. 외형은 `PIPELINE_VOL=/vol/_verify_blender_1120 PIPELINE_ENV_ROOT=/workspace BLENDER=/vol/opt/blender-4.5.12-linux-x64/blender python3 scripts/orchestrate.py --name walker_walk_02 --resume`, 동작은 `--motion --character listener --name listener_hit_01_v2 --resume`. G2r PASS(경고 1건 — 팔–하부몸통 1183 엣지), G4 PASS(늘어남 PASS · 발 쓸기 N/A · 바닥 PASS). 외형 FBX 56,232,332 B, 클립 FBX 280,204 B.
+
+  | 단계 | Pod(초) | 맥(초) |
+  |---|---|---|
+  | 5-2 · 5-3 | 6.7 · 3.3 | 1.7 · 0.5 |
+  | 5-4 (G2r 별도) | 20.8 | 9.2 |
+  | 5-4b (2패스) | 70.4 | 37.3 |
+  | 5-5 · FBX | 4.7 · 12.4 | 0.8 · 2.9 |
+  | **외형 벽시계** | **119** | **52** |
+  | BAKE · G4 · CLIPFBX | 15.4 · 46.2 · 5.7 | 4.4 · 15.9 · 1.2 |
+  | **동작 벽시계** | **68** | **22** |
+
+  **대조 결과** (Pod 결과는 회수본 561개 sha256 전수 일치 후 비교. FBX · .blend 는 양쪽 모두 맥 Blender 로 읽었다)
+
+  | 항목 | 기준(제안값) | 결과 |
+  |---|---|---|
+  | 판정 (G2r · G4) | 완전 일치 | 일치 — 판정 · 사유 · 경고 문구까지 |
+  | JSON 수치 지표 | 상대 차 ≤ 1e-4 | **정확히 같음** — 32개 파일 · 수치 6,632개(aligned · rigged · transferred_params, G2r, 5-4b 두 패스 · chain, ground_align, G4) |
+  | FBX 구조 (`tools/review/fbxchk.py`) | 일치 | 일치 — walker 본 24 · 정점 868,953 · 면 983,284 · 프레임 1–192 · fps 24 · 텍스처 내장 2 · 치수 [0.342, 0.205, 1.026]; 클립 본 24 · 프레임 1–240 · fps 24. 파일 크기만 다름(56,232,332 / 56,232,108 B, 280,204 / 280,236 B) |
+  | npz (`convert_wham_npz.py`, numpy 1.26.4 vs 2.0.2) | 배열별 최대 절대차 | 두 클립 pose · trans **바이트 동일** (파일 해시는 zip 메타데이터 차이로 다름) |
+  | 정점별 웨이트 | 지배 본 일치율 ≥ 99.9% | **100.0000%**(불일치 0). walker 최대 \|Δw\| 0.0173 — Δw>0 정점 319,148 중 중앙값 6e-8 · 99.9% 4.5e-5, 1e-3 초과 17 · 1e-2 초과 1, 부위는 R_Ankle(0.0173) · R_Knee(0.012) · Head · Neck · L_Ankle 등으로 흩어짐. listener(채택 리그를 그대로 씀)는 바이트 동일 |
+  | 본 전역 행렬 (전 프레임) | — | 최대 \|Δ\| 3.6e-7 (walker) · 3.0e-7 (listener) |
+  | 변형 메쉬 좌표 (5프레임) | — | 최대 \|Δ\| 5.5e-5 (walker) · 1.2e-7 (listener), **정규화 공간 단위** |
+  | 육안 (`render_playback.py`, EEVEE Next, 둘 다 맥에서 렌더) | — | 프레임별 픽셀 최대차 10 · 7 (0–255), 차>8 픽셀 프레임당 최대 1 / 518,400 — 구별 불가 |
+
+  **웨이트 차이의 원인 추적.** ① 맥에서 5-4 를 두 번 다시 돌린 결과는 기존 맥 결과와 바이트 동일 — 같은 플랫폼에서는 결정적이다. ② 맥 Blender 에 **Pod 가 만든 `rigged.blend`** 를 넣어 5-4 를 돌리면 Pod 웨이트와 바이트 동일 — 5-4 계산은 플랫폼과 무관하다. ③ 5-2 산출물(`aligned.blend`)과 5-3 의 아마추어 · 메쉬 좌표는 바이트 동일, 다른 것은 **5-3 의 SMPL_body 웨이트 6890×24 개 중 1개**(정점 3680 · Neck, Pod 0.05836643 / 맥 0.058366433 — float32 1 ULP)뿐이다. ④ 5-3 은 `parent_set(type="ARMATURE_AUTO")`(Blender 자동 웨이트)를 쓴다 — 오케스트레이터가 `--weights`(공식 LBS 웨이트)를 넘기지 않는다. 결론: **x86_64 와 arm64 의 자동 웨이트가 1 ULP 갈리고, 5-4 가 그것을 증폭한다.** 지배 본 · 판정 · 화면에는 나타나지 않는다.
+
+  **단위.** 위 좌표 차이와 FBX 치수는 정규화 공간 단위다(CONVENTIONS 4.6 — TRELLIS 메쉬 높이 ≈ 1, 이번 G2r `trellis_height` 1.0003). `export_unity_fbx.py` 의 `export_scene.fbx` 호출에는 `global_scale` 인자가 없어 기본값 1.0 으로 나가고(`apply_scale_options="FBX_SCALE_ALL"` 만 지정), 9/22 결정의 "export 에서 미터 복원(`global_scale = 1/정렬스케일`)" 은 `scripts/` 에 구현돼 있지 않다(`global_scale` 검색 0건). 그래서 FBX 를 다시 읽은 높이 1.026 도 정규화 단위다.
+
+  **11/07 Pod 구간 시간 원 기록**(위 11/20 항목의 미결). `orch_pod.log` 원문에는 시각이 없어, 같은 run 폴더(`/vol/_verify_1107/data/runs/run_walker_walk_02_20261107_065923`)의 `run.json` · `done/*.done` · `attempts.json` 에서 읽었다(UTC, 로그 파일 mtime 과 일치).
+
+  | 단계 | 끝난 시각 | 단계 시간(초) |
+  |---|---|---|
+  | (시작) | 06:59:23 | |
+  | G0 | 06:59:25 | 0 |
+  | S2 | 07:00:28 | 56.0 |
+  | S5 | 07:01:45 | 76.9 |
+  | G1a | 07:01:48 | 2.4 |
+  | S3 | 07:09:27 | 456.9 |
+  | 5-1 | 07:09:30 | 3.3 |
+
+  단계 시간 합 **595.5초(9.92분)**, 벽시계 **607초(10.1분)** — 단계 시간에는 게이트 실행이 빠진다(S2 는 단계 07:00:21, 게이트 07:00:28 종료). 공개 페이지에서 뺀 "9.9분" 은 **Pod 구간 단계 시간의 합과 일치**하지만, 그렇게 계산했다는 기록은 없다.
+
+  **증거** `~/data_verify_blender_1120/report/` — `SUMMARY.md`(위 표), 대조 원자료(`json_metrics_cmp.txt` · `weights_npz_rig_cmp.txt` · `render_pixel_cmp.txt` · `fbxchk_{linux,mac}.json`), 나란히 재생 영상 2편(왼쪽 Pod · 오른쪽 맥), 최대 차이 프레임 그림 2장(Pod · 맥 · 차이×20), 대조 스크립트(`scripts/`). Pod 결과 전체는 `~/data_verify_blender_1120/linux/`, 맥 기준은 `…/mac/`. 볼륨에는 `/vol/opt/blender-4.5.12-linux-x64/` 와 `/vol/_verify_blender_1120/` 을 남겼다.
+
+  **남은 것** ① **구간 경계 정지** — Blender 가 있어도 오케스트레이터는 Pod→mac 경계에서 종료 코드 2 로 멈추고 "맥북으로 회수" 를 안내한다. 이번에도 명령 두 번(`--resume`)이었다. ② **캐릭터 설정 · 채택 리그가 맥에만 있다** — Pod 에서는 손으로 올렸다. 없으면 5-4b 는 오류 없이 건너뛴다(`character_config.find_by_source_sample`). ③ **EEVEE 렌더(재생 영상)는 Pod 에서 미검증.** ④ **플랫폼 간 웨이트 비동일**(위 원인 추적) — 공식 LBS 웨이트를 쓰면 피할 수 있는지는 미검증. ⑤ **Pod 가 맥보다 2~6배 느렸다** — MooseFS 볼륨 · CPU 차이 중 원인은 나누지 않았다. ⑥ **이미지 반영 미착수** — 위 apt 4종과 Blender 를 v2ua-all 위에 얹는 것. README · 공개 페이지의 "명령 두 번 · 로컬 Blender" 문구는 이미지 반영 전까지 그대로 둔다.
 
 ## 9. 다음 단계 (우선순위)
 
