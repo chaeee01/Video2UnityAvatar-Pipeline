@@ -189,8 +189,17 @@ stalker `run_fwd` 의 동작을 listener 리그에 구운 이식판(−0.82 / �
 팔을 벌리면 왼손과 허벅지 사이가 판자처럼 늘어났다 — 팔 메쉬 안의 작은 조각이 다리 본을 받은 오배정. 부위가 다른 작은 섬을
 메쉬 연결로 되돌리자 ⑤ 엣지 561 → 0, 늘어난 엉덩이–팔 엣지 532 → 0, 판자 사라짐.
 
-웨이트 경계 스무딩(5-4b, 10/21, 그림 없음) — 1차 전이의 딱 잘린 경계를 본 쌍 경계 N겹 안에서만 고른다.
-listener 가랑이 0.10 초과 늘어난 엣지 471 → 0, 왼쪽 겨드랑이(run · run_slow) 266 · 257 → 0.
+![listener 가랑이 — 왼쪽 전신(위치) · 수리 전 · 수리 후, run_04b f34](site/assets/seam_crotch_listener.jpg)
+
+![listener 겨드랑이 — 왼쪽 전신(위치) · 수리 전 · 수리 후, run f62](site/assets/seam_armpit_listener.jpg)
+
+웨이트 경계 스무딩(5-4b, 10/21) — 1차 전이의 딱 잘린 경계를 본 쌍 경계 N겹 안에서만 고른다.
+위: listener 달리기(run_04b) f34 — 수리 전(리그 `listener_apose_06`) · 수리 후(가랑이 경계 스무딩 L_Hip:R_Hip 10겹 · 40회, 리그 `listener_apose_06_wfix_a`).
+다리 사이의 늘어난 막이 사라졌다 — 04b 가랑이 0.10 초과 늘어난 엣지 471 → 0, 전체 579 → 72, 최장 0.179 → 0.119.
+아래: listener 달리기(run — 이식판 `listener_x_stalker_run_fwd`) f62 — 수리 전(리그 `listener_apose_06`, 가랑이도 수리 전) · 수리 후(가랑이 + 겨드랑이 경계 스무딩
+L/R_Shoulder:Spine1·2 20겹 · 160회, 리그 `listener_apose_06_wfix` — 10/21 채택). 허리 높이에서 소매 옆으로 찢겨 나온 조각이 사라졌다 —
+run · run_slow 왼쪽 겨드랑이 0.10 초과 266 · 257 → 0(run 에서 늘어남이 가장 큰 프레임은 f51, 그림은 조각이 실루엣 밖으로 보이는 f62).
+왼쪽 전신 컷의 상자가 근접 영역. 출처 · 카메라는 [docs/assets/seam_figures_1121.md](docs/assets/seam_figures_1121.md).
 
 #### 이미지 재현 (11/07)
 v2 통합 이미지 Pod 에서 walker_walk_02 를 원커맨드 Pod 구간 → 맥 `--resume` → FBX 까지 관통했다. S2 마스크는 참조와
