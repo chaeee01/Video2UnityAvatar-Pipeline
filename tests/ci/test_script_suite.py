@@ -29,6 +29,7 @@ RUN = [
     "test_ground_align.py",
     "test_orch_character.py",
     "test_orch_boundary.py",
+    "test_orch_motion51.py",
     "test_part_islands.py",
     "test_restore_probe.py",
     "test_s2_prompt.py",

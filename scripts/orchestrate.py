@@ -16,10 +16,13 @@
   --point x,y    S2 시작 좌표 (기본: 프레임 중앙)
 
   # 동작 트랙 (2026-11-06~) — 클립 영상 → 캐릭터의 채택 리그에 굽기 → G4 → 클립 FBX
-  python orchestrate.py --motion --character listener --video <클립>.mp4 --name <클립>    # Pod: G0 → S2 → S5
+  python orchestrate.py --motion --character listener --video <클립>.mp4 --name <클립>    # Pod: G0 → S2 → S5 → 5-1
   python orchestrate.py --motion --character listener --name <클립> --resume             # 맥: BAKE → G4 → CLIPFBX
   G4 가 CHECK/FAIL 이면 클립 FBX 를 내보내지 않고 종료 코드 2 로 멈춘다. 사람이 보고 받아들이면
   tools/review/accept_clip.py 로 수용 기록을 남긴 뒤 --resume (G4 만 다시 판정한다).
+  5-1(2026-11-21~)은 BAKE 의 신장비에 쓰는 클립 T포즈 메쉬(05_smpl_mesh/<클립>/smpl_tpose.obj)를 만든다
+  (--frame 0 — 10/26 · 11/02 생산 큐와 같은 호출). 이 변경 전에 만든 동작 run(run.json 에 motion_51 이 없다)은
+  예전 단계 목록 그대로 돌고 5-1 을 건너뛴다 — BAKE 는 지금처럼 T포즈 메쉬, 없으면 bake.fallback_height 를 쓴다.
 
   외형 트랙의 5-4b(경계 스무딩)는 06_rig/<캐릭터>/character.json 의 rig_build.source_sample 이 이 샘플이고
   rig_build.seam_smooth 가 있을 때만 돈다 (--character 로 직접 지정 가능). 설정이 없으면 지금과 똑같다.
@@ -111,7 +114,8 @@ STAGES = [
 # 5-4b 는 캐릭터 설정(rig_build.seam_smooth)이 있는 샘플에서만 5-4 뒤에 끼운다 — stages_for().
 STAGE_54B = dict(key="5-4b", section=MAC, env=None, gate=None,
                  desc="경계 스무딩 (character.json rig_build.seam_smooth 순서대로)")
-# 동작 트랙: Pod 구간은 외형 트랙의 G0 · S2 · S5 를 그대로 쓰고, 맥 구간은 채택 리그에 굽는다.
+# 동작 트랙: Pod 구간은 외형 트랙의 G0 · S2 · S5 · 5-1 을 그대로 쓰고, 맥 구간은 채택 리그에 굽는다.
+# 5-1 은 2026-11-21 에 넣었다 — 그 전 run(motion_legacy)은 예전 목록 그대로다.
 MOTION_MAC = [
     dict(key="BAKE", section=MAC, env=None, gate=None,
          desc="동작 굽기 (채택 리그 — bake_character.sh 한 편과 같은 순서)"),
@@ -127,7 +131,8 @@ G4_OK = ("PASS", "ACCEPTED", "EXEMPT", "N/A")
 def stages_for(c):
     """이 실행의 단계 목록. 설정이 없는 외형 트랙은 STAGES 그대로다."""
     if c.get("track") == "motion":
-        return [STAGE_BY_KEY[k] for k in ("G0", "S2", "S5")] + MOTION_MAC
+        pod = ("G0", "S2", "S5") if c.get("motion_legacy") else ("G0", "S2", "S5", "5-1")
+        return [STAGE_BY_KEY[k] for k in pod] + MOTION_MAC
     if c.get("seam_passes"):
         i = [s["key"] for s in STAGES].index("5-4") + 1
         return STAGES[:i] + [STAGE_54B] + STAGES[i:]
@@ -160,6 +165,9 @@ def stage_outputs(key, name, c=None):
         return [motion_dir(c) / "g4" / f"g4_{c['clip_key']}.json"]
     if key == "CLIPFBX":
         return [data("07_unity", c["character"], f"{c['character']}@{c['clip_key']}.fbx")]
+    if key == "5-1" and c and c.get("track") == "motion":
+        # 동작 트랙에서 5-1 의 쓸모는 T포즈 메쉬 하나다 (bake_clip.height_ratio)
+        return [data("05_smpl_mesh", name, "smpl_tpose.obj")]
     return {
         "G0":  [],
         "S2":  [sam2 / "masks", sam2 / f"{name}_masked.mp4", sam2 / "keyframes"],
@@ -384,9 +392,12 @@ def stage_command(key, c):
             cmd.append("--allow-closed-legs")
         return cmd
     if key == "5-1":
+        # 동작 트랙은 키프레임이 없다 — T포즈 메쉬는 frame 과 무관하고(평균 betas), 10/26 · 11/02 생산 큐가
+        # --frame 0 으로 불렀다. 외형 트랙은 S3 에 넣은 키프레임과 같은 번호다 (RUNBOOK 5-1).
+        frame = "0" if c.get("track") == "motion" else str(c["frame"])
         cmd = ["python", str(S / "generate_smpl_mesh.py"),
                "--pkl", str(wham_pkl(n)),
-               "--frame", str(c["frame"]), "--name", n]
+               "--frame", frame, "--name", n]
         # 스크립트 기본 출력은 /workspace/data/05_smpl_mesh 다. 데이터 루트가 다를 때만 넘긴다
         # (미설정이면 명령이 현행과 바이트까지 같다 — 루트 분리, 2026-11-06).
         if data("05_smpl_mesh") != Path("/workspace/data/05_smpl_mesh"):
@@ -616,7 +627,7 @@ def parse_args():
     ap.add_argument("--dry-run", action="store_true",
                     help="실행할 명령과 분기만 출력한다")
     ap.add_argument("--motion", action="store_true",
-                    help="동작 트랙 — 클립을 --character 의 채택 리그에 굽는다 (G0 · S2 · S5 → BAKE · G4 · CLIPFBX)")
+                    help="동작 트랙 — 클립을 --character 의 채택 리그에 굽는다 (G0 · S2 · S5 · 5-1 → BAKE · G4 · CLIPFBX)")
     ap.add_argument("--character", help="캐릭터 (06_rig/<캐릭터>/character.json). 동작 트랙에 필수, "
                                         "외형 트랙은 rig_build.source_sample 로 찾는다")
     return ap.parse_args()
@@ -677,6 +688,7 @@ def main():
             print("[오류] 첫 실행에는 --video 가 필요하다 (이어받으려면 --resume)")
             return EXIT_FAIL
         run = Run.create(a.name, a.video, runs_dir)
+    created = not (a.run or a.resume)
     run.dry = a.dry_run
 
     print(f"run: {run.root}")
@@ -687,9 +699,21 @@ def main():
     except character_config.ConfigError as e:
         print(f"[오류] 캐릭터 설정: {e}")
         return EXIT_FAIL
+    if track.get("track") == "motion":
+        # 5-1 이 들어가기 전(2026-11-21)에 만든 run 은 예전 단계 목록 그대로 — 맥에서 --resume 할 때 Pod 단계(5-1)가
+        # "미완료" 로 잡혀 멈추지 않게 한다. 새 run 은 만들 때 run.json 에 motion_51 을 남긴다(dry-run 은 쓰지 않고
+        # 이 실행 안에서만 새 run 으로 본다). 예전 run 은 "표지 없이 S5 까지 끝난 run" 이다 — 그 전 단계에서 멈춘
+        # run(dry-run 이 남긴 빈 run 포함)은 아직 Pod 구간이 남았으니 새 목록으로 이어 돌고 표지를 남긴다.
+        flagged = bool(run.meta().get("motion_51"))
+        track["motion_legacy"] = not created and not flagged and run.is_done("S5")
+        if not track["motion_legacy"] and not flagged:
+            run.write_meta({"motion_51": True})
     stages = stages_for(track)
     if track.get("track") == "motion":
         print(f"트랙: 동작 — 캐릭터 {track['character']} (리그 {track['rig_dir']}), 납품 이름 {track['clip_key']}")
+        if track["motion_legacy"]:
+            print("5-1: 이 run 은 동작 트랙에 5-1 이 들어가기 전(2026-11-21) 것이다 — 건너뛴다 "
+                  "(BAKE 는 05_smpl_mesh/<클립>/smpl_tpose.obj, 없으면 bake.fallback_height)")
     elif track.get("seam_passes"):
         print(f"5-4b: {track['config_path']} — " + " → ".join(p["label"] for p in track["seam_passes"]))
         run.write_meta({"seam_smooth_5_4b": {"applied": True, "config": str(track["config_path"]),
@@ -790,6 +814,8 @@ def retrieve_list(a, c, run: Run):
     """Pod → 맥 회수 목록. 04_wham 만 폴더 이름이 다르다 — WHAM 이 입력 클립 이름(<샘플>_masked)으로 쓴다."""
     if c.get("track") == "motion":
         subs = (("02_sam2", a.name), ("04_wham", f"{a.name}_masked"))
+        if not c.get("motion_legacy"):
+            subs += (("05_smpl_mesh", a.name),)
     else:
         subs = (("02_sam2", a.name), ("03_trellis2", a.name),
                 ("04_wham", f"{a.name}_masked"), ("05_smpl_mesh", a.name))
