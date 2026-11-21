@@ -5,17 +5,17 @@
   "image": "JPEG q80, long side ≤1200 px",
   "overrides": "items[].encoding_override"
  },
- "total_bytes": 7205331,
+ "total_bytes": 7187305,
  "items": [
   {
    "id": "pipeline_v4",
    "file": "assets/pipeline_v4.jpg",
    "kind": "image",
    "width": 1600,
-   "height": 2069,
-   "bytes": 353630,
-   "sha256_16": "5a5f6df6c3396a09",
-   "source": "docs/assets/pipeline_v4_final.png (2026-11-14 교체 bc480b3 · 1600px 축소 885b945)",
+   "height": 1946,
+   "bytes": 335604,
+   "sha256_16": "6d620428d1d347cc",
+   "source": "docs/assets/pipeline_v4_current.png (2026-11-21 docs/assets/make_pipeline_v4_current.py — 지금 구현된 모습. sips 폭 1600 · q85, site_assemble.py 와 같은 명령)",
    "character": "-",
    "stage": "개요",
    "caption": "파이프라인 v4 — 영상 한 편에서 외형(TRELLIS.2)과 동작(WHAM)을 따로 뽑아 SMPL 골격 하나로 합친다",
@@ -26,7 +26,8 @@
     "q": 85
    },
    "replaces": null,
-   "used_on_page": true
+   "used_on_page": true,
+   "previous": "11/14 판 docs/assets/pipeline_v4_final.png → 1600px 는 docs/assets/pipeline_v4_web_1114.jpg 로 보존 (5a5f6df6c3396a09)"
   },
   {
    "id": "lineup_meshes",
@@ -893,5 +894,5 @@
    "used_on_page": true
   }
  ],
- "updated": "2026-11-21 — 5-4b 근접 그림 seam_crotch_listener(_s) · seam_armpit_listener(_s) 추가(_s 는 사례 ② 칸), ba_weight_listener · ba_weight_walker 영상은 [미사용]"
+ "updated": "2026-11-21 — 구조도 pipeline_v4.jpg 를 지금 구현된 모습으로 다시 그린 판으로 교체(make_pipeline_v4_current.py). 이전: 5-4b 근접 그림 seam_*_listener(_s) 추가, ba_weight_* 영상 [미사용]"
 }
