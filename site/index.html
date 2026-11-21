@@ -304,7 +304,7 @@ footer .wrap{border-top:1px solid var(--line);padding-top:32px}
     <table>
       <thead><tr><th>게이트</th><th>단계</th><th>무엇을 재나</th></tr></thead>
       <tbody>
-        <tr><td>G0</td><td>입력</td><td>해상도 · 프레임레이트 · 파일 무결성</td></tr>
+        <tr><td>G0</td><td>입력</td><td>프레임 수 · 프레임레이트 · 해상도 (ffprobe 실측)</td></tr>
         <tr><td>G1<br><small>gate_s2 · gate_s5 · G1a</small></td><td>분할 · 동작 추적 · 키프레임 선정</td><td>마스크 품질 — 다음 단계에 쓸 수 있는 분할인지 · 트랙 연속성 — 끊김 없이 전 프레임을 추적했는지 · 외형 생성에 넣을 키프레임 자동 선정(다리 벌어짐 · 시선각)</td></tr>
         <tr><td>G2<br><small>G2 · G2r</small></td><td>메쉬 · 리깅</td><td>메쉬 재질 오류 · 면 수 비율 · 골격-메쉬 거리, 좌우 교차 배정, 폴백 분포, 부위 경계 엣지</td></tr>
         <tr><td>G3<br><small>gate_g3</small></td><td>동작 복원 후</td><td>재투영 일관성 — 추적 이상 구간 표시. 눕기 · 기기 동작의 추정 불안정을 굽기 전에 알림, 불합격 판정에는 쓰지 않음</td></tr>
