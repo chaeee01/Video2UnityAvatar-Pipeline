@@ -274,12 +274,17 @@ python3 scripts/orchestrate.py --name <샘플> --resume
 같은 순서다.
 
 ```bash
-# Pod: G0 → S2 → S5 (외형 트랙과 같은 단계)
+# Pod: G0 → S2 → S5 → 5-1 (5-1 은 클립 T포즈 메쉬 — BAKE 의 신장비, 2026-11-21~)
 python scripts/orchestrate.py --motion --character listener --video /workspace/data/00_raw/<클립>.mp4 --name <클립>
-# 맥북 (02_sam2/<클립> · 04_wham/<클립>_masked 회수 후): BAKE → G4 → CLIPFBX
+# 맥북 (02_sam2/<클립> · 04_wham/<클립>_masked · 05_smpl_mesh/<클립> 회수 후): BAKE → G4 → CLIPFBX
 python3 scripts/orchestrate.py --motion --character listener --name <클립> --resume
 ```
 
+- **5-1 (2026-11-21~)** — `generate_smpl_mesh.py --pkl <WHAM pkl> --frame 0 --name <클립>`(wham 환경, 10/26 · 11/02 생산 큐와
+  같은 호출)으로 `05_smpl_mesh/<클립>/smpl_tpose.obj` 를 만든다. 이 단계가 없을 때는 클립 영상 하나로 시작하면 T포즈 메쉬가
+  없어 BAKE 에서 멈췄다(listener 처럼 `bake.fallback_height` 가 null 인 캐릭터, 11/21 Pod 시험). **그 전에 Pod 구간을 마친 run**
+  (run.json 에 `motion_51` 표지가 없고 S5 가 끝난 run)은 예전 단계 그대로 5-1 을 건너뛴다 — 맥에서 `--resume` 해도 Pod 단계로
+  돌아가지 않고, BAKE 는 예전처럼 T포즈 메쉬(없으면 `bake.fallback_height`)를 쓴다. 건너뛸 때 그 사실을 한 줄 출력한다.
 - **역할표에 클립 항목이 먼저 있어야 한다** — `clip_roles.json` 의 `source`(= `--name`) · `role` · **`bake.ground_align`**
   (true/false). `ground_align` 이 없으면 BAKE 앞에서 멈춘다(조용한 기본값 없음).
 - **BAKE**(`scripts/bake_clip.py`): 모션 폴더 `06_rig/<리그>/motions/<클립>/` 에 `blend_seam.json` · `track_select.json`

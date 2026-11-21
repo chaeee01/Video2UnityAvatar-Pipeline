@@ -107,8 +107,11 @@ def main():
     check("설정 없음 → STAGES 그대로", o.stages_for({}) == o.STAGES)
     keys = [s["key"] for s in o.stages_for({"seam_passes": PASSES})]
     check("5-4b 는 5-4 바로 뒤", keys[keys.index("5-4") + 1] == "5-4b", keys)
-    check("동작 트랙 = G0 · S2 · S5 · BAKE · G4 · CLIPFBX",
-          [s["key"] for s in o.stages_for({"track": "motion"})] == ["G0", "S2", "S5", "BAKE", "G4", "CLIPFBX"])
+    check("동작 트랙(새 run) = G0 · S2 · S5 · 5-1 · BAKE · G4 · CLIPFBX",
+          [s["key"] for s in o.stages_for({"track": "motion"})] == ["G0", "S2", "S5", "5-1", "BAKE", "G4", "CLIPFBX"])
+    check("동작 트랙(5-1 전 run) = G0 · S2 · S5 · BAKE · G4 · CLIPFBX (2026-11-21 전과 같다)",
+          [s["key"] for s in o.stages_for({"track": "motion", "motion_legacy": True})]
+          == ["G0", "S2", "S5", "BAKE", "G4", "CLIPFBX"])
     check("PIPELINE_ENV_ROOT 미설정 → 환경 루트 = 데이터 루트(현행)", o.ENV_ROOT == o.VOL)
     check("micromamba 는 환경 루트에서", o.build_cmd("wham", ["python", "x.py"])[0] == str(tmp / "vol" / "micromamba" / "bin" / "micromamba"))
     o2 = orch_module(tmp / "vol", env_root="/workspace")
