@@ -2,7 +2,7 @@
 
   python gate_s5.py --pkl ~/data/04_wham/<샘플>_masked/wham_output.pkl --frames 192 --out <폴더>
 
-동작의 **품질**(재투영 오차 · 발 접지)은 보지 않는다 — 그것은 G3 의 몫이고 아직 없다.
+동작의 **품질**은 보지 않는다 — 재투영 일관성은 G3(gate_g3.py, 2026-11-21~, PASS / CHECK 기록만), 발은 G4.
 여기서는 "동작 데이터가 클립 전체에 대해 있기는 한가" 만 본다.
 
 배경 (2026-10-12): listener_walk_fwd 에서 S2 가 바지만 잡았고, 그 마스크로 WHAM 은
