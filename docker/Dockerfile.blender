@@ -1,0 +1,69 @@
+# 통합 이미지 v3 — v2ua-all(환경 3종 + sshd) 위에 Blender 4.5 LTS 를 얹어 영상 1편 → FBX 를 Pod 하나에서 명령 하나로 (2026-11-21).
+# 오케스트레이터는 pod → mac 구간 경계에서 $BLENDER 를 실제로 띄워 보고 이어 돈다(scripts/orchestrate.py blender_section_ready, b557f8b).
+# 얹는 것은 2026-11-20 Pod 시험(PROJECT_STATUS 11/20 항목)에서 실측한 것과 같다:
+#   apt python3-numpy · python3-joblib · libsm6 · libice6 (--no-install-recommends)
+#     — numpy · joblib: Blender 구간의 python3 단계(5-5 선행 convert_wham_npz · 5-4b · BAKE)가 시스템 python3 으로 돈다.
+#     — libSM · libICE: Blender 동봉 lib/libusd_ms.so 의 간접 의존. 없으면 Blender 가 127 로 죽는다.
+#   Blender 4.5.12 linux-x64 공식 배포본 → /opt/blender-4.5.12-linux-x64, ENV BLENDER.
+#
+#   docker/build_blender_image.sh            (태그 v3-<날짜>-<커밋>, 같은 태그가 레지스트리에 있으면 멈춘다)
+#
+# 받기 · 풀기: 베이스 이미지에 curl · wget · xz 가 없다(11/20 확인). 11/20 과 같이 시스템 python3 의 표준 라이브러리
+# (urllib.request · hashlib · tarfile+lzma)로 받고 sha256 을 대조한 뒤 푼다 — 도구를 apt 로 더 깔지 않아 이미지에 남는 것이
+# Blender 와 위 4종뿐이다. 받기 · 대조 · 풀기 · 압축 파일 삭제를 한 RUN 에서 해 압축 파일(377 MB)이 레이어에 남지 않는다.
+# (BuildKit 의 ADD --checksum 은 압축 파일이 레이어에 남거나 단계를 하나 더 둬야 해서 쓰지 않았다.)
+ARG BASE=ghcr.io/chaeee01/v2ua-all:v2-20261107-0aa8002
+FROM ${BASE}
+ARG BASE
+ARG BLENDER_VERSION=4.5.12
+ARG BLENDER_HASH=84afd5f785f7
+ARG BLENDER_SHA256=95e3a2dfedba3bd32ca54fc355eac6b15a11986954ccb02815a07535d0120a25
+ARG BLENDER_URL=https://download.blender.org/release/Blender4.5/blender-4.5.12-linux-x64.tar.xz
+ARG REPO_COMMIT=unknown
+
+RUN apt-get update && apt-get install -y --no-install-recommends python3-numpy python3-joblib libsm6 libice6 \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN python3 - <<EOF
+import hashlib, os, tarfile, urllib.request
+url, want, tmp = "${BLENDER_URL}", "${BLENDER_SHA256}", "/tmp/blender.tar.xz"
+urllib.request.urlretrieve(url, tmp)
+h = hashlib.sha256()
+with open(tmp, "rb") as f:
+    for b in iter(lambda: f.read(1 << 20), b""):
+        h.update(b)
+got = h.hexdigest()
+print("sha256", got, os.path.getsize(tmp), "B")
+if got != want:
+    raise SystemExit(f"sha256 불일치: {got} != {want}")
+with tarfile.open(tmp, "r:xz") as t:
+    t.extractall("/opt", filter="tar")
+os.remove(tmp)
+EOF
+
+ENV BLENDER=/opt/blender-${BLENDER_VERSION}-linux-x64/blender
+
+# 갱신한 시작 스크립트 — SSH 세션에 BLENDER 도 넘긴다(/etc/rp_environment · ~/.ssh/environment). 그 밖에는 v2 와 같다.
+COPY docker/start.sh /start.sh
+
+# 빌드 중 검사 — 하나라도 실패하면 빌드가 실패한다.
+#   Blender 버전 · 해시, glTF · FBX 애드온(오케스트레이터 판정과 같은 식: --python-exit-code + 표지 — Blender 는 스크립트가
+#   죽어도 0 이다), 시스템 python3 의 numpy · joblib, 압축 파일 미잔류, Dockerfile.all 의 환경 4개 · SMPL 계열 3종 부재.
+RUN test -x "$BLENDER" \
+    && "$BLENDER" --background --factory-startup --version | tee /tmp/bv \
+    && grep -q "Blender ${BLENDER_VERSION} LTS (hash ${BLENDER_HASH}" /tmp/bv && rm /tmp/bv \
+    && "$BLENDER" --background --factory-startup --python-exit-code 1 \
+         --python-expr "import io_scene_gltf2, io_scene_fbx; print('V2UA_BLENDER_OK')" | grep -q V2UA_BLENDER_OK \
+    && /usr/bin/python3 -c "import numpy, joblib; print('numpy', numpy.__version__, 'joblib', joblib.__version__)" \
+    && test ! -e /tmp/blender.tar.xz \
+    && for e in sam2 sam2v trellis2 wham; do test -e /workspace/micromamba/envs/$e || (echo "환경 없음: $e" && exit 1); done \
+    && for p in repos/WHAM/dataset/body_models/smpl repos/WHAM/dataset/body_models/smplx2smpl.pkl repos/WHAM/dataset/body_models/smpl_mean_params.npz; do \
+         test ! -e "/workspace/$p" || (echo "제외 실패: $p" && exit 1); done \
+    && grep -q BLENDER /start.sh \
+    && echo "검사 통과" && ls /workspace/repos
+
+LABEL v2ua.image_version="v3-blender" v2ua.base="${BASE}" \
+      v2ua.blender="${BLENDER_VERSION} (hash ${BLENDER_HASH})" v2ua.blender_sha256="${BLENDER_SHA256}" \
+      v2ua.blender_url="${BLENDER_URL}" v2ua.apt="python3-numpy python3-joblib libsm6 libice6" \
+      v2ua.repo_commit="${REPO_COMMIT}"
+CMD ["/start.sh"]
