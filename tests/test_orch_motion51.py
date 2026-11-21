@@ -191,7 +191,9 @@ def main():
     print("── 새로 만든 run 은 표지를 남긴다 (실제 실행)")
     with tempfile.TemporaryDirectory() as tmp:
         vol, _ = make_vol(tmp, done=(), flag=False, with_run=False)
-        rc, out = orch(vol, fake_blender(tmp), "--video", str(Path(tmp) / "없는_영상.mp4"))
+        # G0 의 ffprobe 는 CI 러너에 없다 — 입력 검사는 이 시험의 대상이 아니므로 실패로 흉내 낸다
+        no_probe = lambda o: setattr(o, "probe_input", lambda video, dry: (None, "입력 없음(시험)"))
+        rc, out = orch(vol, fake_blender(tmp), "--video", str(Path(tmp) / "없는_영상.mp4"), patch=no_probe)
         runs = sorted((vol / "data" / "runs").glob(f"run_{CLIP}_*"))
         meta = json.loads((runs[-1] / "run.json").read_text())
         check("G0 에서 실패해도(입력 없음) 새 run.json 에 motion_51", len(runs) == 1 and meta.get("motion_51") is True
