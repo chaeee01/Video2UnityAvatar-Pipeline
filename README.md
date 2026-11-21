@@ -14,7 +14,7 @@
 |---|---|---|
 | 캐릭터 1종 (리깅 포함) | 모델링·텍스처 3일~4주 + 리깅 수일 | 약 6~8분 · 약 $2 |
 | 동작 클립 1편 (8~10초) | 키프레임 1~1.5일 / 모캡 $50~200+ | 약 2분 · 약 $1.7 |
-| 영상 → Unity FBX 세트 | 외형·동작 결합 공정 (일 단위) | 약 8~10분 · 약 $4 · 명령 하나, 개입 0~1회 |
+| 영상 → Unity FBX 세트 | 외형·동작 결합 공정 (일 단위) | 약 8~10분 · 약 $4 · 명령 하나 |
 
 - 시간: 한 서버에서 명령 하나로 실행한 벽시계 실측(2026-11-21, 캐릭터 3회 364 · 481 · 438초 · 동작 클립 2회 117 · 118초) — 영상 생성과 서버 기동은 제외.
   메쉬 생성(TRELLIS.2) 단계가 실행마다 달라진다(2026-11-21 210 · 326 · 276초, 11/07 457초 — GPU 구간만 10.1분)
@@ -67,7 +67,7 @@
                                          웨이트 전이 3단 → 경계 스무딩
           → G2 · 리깅 검증 (G2r)         정렬 스케일 · bbox IoU · 관절 거리
                                          말단 본 · 좌우 교차 · 부위 잇는 엣지 · 폴백 분포
-  → 동작 결합 · 베이킹 (S7)       골격이 동일하므로 리타게팅 없음
+  → 동작 결합 · 베이킹 (S7)       골격이 동일하므로 리타겟팅 없음
                                   SMPL pose 를 리깅 메쉬에 직접 적용 (Y-up, TRELLIS 정규화 단위)
                                   베이킹(클립 전 프레임) · 바닥 정렬
   → G4 · 클립 품질                동작 클립마다 — 늘어남 · 발 쓸기 · 바닥 수치 판정
@@ -75,7 +75,7 @@
                                      사람 확인 · 수용 기록 → G4 만 다시 판정 (종료 코드 2)
   → 에셋 반입 완료
 
-R. 오케스트레이터 (orchestrate.py)   명령 하나로 전 구간 · 사람 개입 0~1회
+R. 오케스트레이터 (orchestrate.py)   명령 하나로 전 구간
    단계별 자동 시도 S2 최대 3회 · S3 최대 2회 (그 밖 1회) → 넘으면 사람 개입 (종료 코드 2)
 실행 순서  ① S2 → ② S5 → ③ G1a → ④ S3   키프레임 선정에 WHAM pose 가 필요해 동작 경로가 먼저
 ```
@@ -83,7 +83,7 @@ R. 오케스트레이터 (orchestrate.py)   명령 하나로 전 구간 · 사�
 그림과 도식은 지금 구현된 모습의 개요다 — **G4 는 동작 트랙(`--motion`)에서 클립마다 돈다**(외형 트랙은 베이킹 뒤 FBX 로 끝난다). 트랙 구분과 단계 목록은 [RUNBOOK](docs/RUNBOOK.md) 1.5절(원커맨드 · 동작 트랙) · 5.6절(G4)이 원본이다. 11/14 판 그림(설계 당시)은 [pipeline_v4_final.png](docs/assets/pipeline_v4_final.png).
 
 WHAM 의 SMPL 몸(체형 포함)을 외형 경로의 리깅에 그대로 사용해
-두 경로의 골격을 SMPL로 통일한다. 골격이 동일하므로 골격 간 리타게팅
+두 경로의 골격을 SMPL로 통일한다. 골격이 동일하므로 골격 간 리타겟팅
 단계가 구조적으로 제거된다.
 
 **실행 순서는 동작 경로가 먼저다 — `S2 → S5 → G1a → S3`** (2026-10-08 변경).
@@ -96,16 +96,16 @@ WHAM 의 SMPL 몸(체형 포함)을 외형 경로의 리깅에 그대로 사용�
 | 버전 | 핵심 구성 | 전환 사유 |
 |---|---|---|
 | v1 (기획, 미실행) | SAM2 + SuGaR + WHAM, 가우시안 LOD 렌더링 | 조사 단계에서 SuGaR의 동적 인물 부적합 확인, 배경 3D 불필요 → 착수 전 배제 |
-| v2 | Mixamo 리깅 + SMPL→Mixamo 리타게팅 | 세 방식(Unity Humanoid, 행렬 계산, 컨스트레인트) 모두 자세 붕괴로 실패 → 폐기 ([상세](docs/PROJECT_STATUS.md#3-단계별-검증-결과)) |
+| v2 | Mixamo 리깅 + SMPL→Mixamo 리타겟팅 | 세 방식(Unity Humanoid, 행렬 계산, 컨스트레인트) 모두 자세 붕괴로 실패 → 폐기 ([상세](docs/PROJECT_STATUS.md#3-단계별-검증-결과)) |
 | v3 | 품질 게이트(G0-G4)·재시도 오케스트레이터 추가 | 평가·재시도 체계 확립, 리깅 방식은 v2 유지 |
-| v4 (현재) | SMPL 골격 직접 리깅, WHAM 의 SMPL 몸(체형 포함)을 리깅에 그대로 사용해 골격 통일 | 리타게팅 단계의 구조적 제거 |
+| v4 (현재) | SMPL 골격 직접 리깅, WHAM 의 SMPL 몸(체형 포함)을 리깅에 그대로 사용해 골격 통일 | 리타겟팅 단계의 구조적 제거 |
 
 <details><summary>v1 구조도 (기획)</summary>
 
 ![v1](docs/assets/pipeline_v1.png)
 </details>
 
-<details><summary>v2 구조도 (리타게팅 방식)</summary>
+<details><summary>v2 구조도 (리타겟팅 방식)</summary>
 
 ![v2](docs/assets/pipeline_v2.png)
 </details>
@@ -116,7 +116,7 @@ WHAM 의 SMPL 몸(체형 포함)을 외형 경로의 리깅에 그대로 사용�
 </details>
 
 상세 이력과 각 결정의 검증 근거는 [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md)에 있습니다.
-폐기한 리타게팅 시도는 [`scripts/deprecated/README.md`](scripts/deprecated/README.md)를 참고하세요.
+폐기한 리타겟팅 시도는 [`scripts/deprecated/README.md`](scripts/deprecated/README.md)를 참고하세요.
 
 ## 레포 구조
 
@@ -124,7 +124,7 @@ WHAM 의 SMPL 몸(체형 포함)을 외형 경로의 리깅에 그대로 사용�
 |---|---|
 | `docs/` | 프로젝트 문서 — 읽는 순서는 위 "문서 길잡이" |
 | `scripts/` | 파이프라인 단계 스크립트(SAM2 · TRELLIS.2 · WHAM · 리깅 · 베이크), 게이트(`gate_*.py`), 오케스트레이터(`orchestrate.py`), 환경 setup |
-| `scripts/deprecated/` | 폐기된 시도 — SMPL→Mixamo 리타게팅 계열 |
+| `scripts/deprecated/` | 폐기된 시도 — SMPL→Mixamo 리타겟팅 계열 |
 | `tools/review/` | 검토 · 일괄 베이크 도구(`bake_character.sh`, G4 모아 보기 등) |
 | `tools/site/` | 공개 페이지 소재 생성 · 조립 |
 | `site/` | 공개 페이지(GitHub Pages, `.github/workflows/pages.yml` 로 자동 배포) |
@@ -241,10 +241,10 @@ TRELLIS 생성 메쉬 → Mixamo 리깅 → 텍스처 → Unity Humanoid 반입.
 제3자 애니메이션이 그대로 재생되어 표준 Humanoid 규격 충족을 확인.
 
 #### 통합 (SMPL 리깅 + WHAM 동작) — 완료
-| 원본 영상 | Unity 재생 (리타게팅 없음) |
+| 원본 영상 | Unity 재생 (리타겟팅 없음) |
 |---|---|
 | ![](docs/assets/source_video.gif) | ![](docs/assets/unity_wham_demo.gif) |
 
 영상에서 추정한 WHAM 동작(69프레임)을 SMPL 골격으로 리깅된 TRELLIS
-좀비에 직접 적용해 Unity에서 재생. 골격 통일(v4 설계)로 리타게팅
+좀비에 직접 적용해 Unity에서 재생. 골격 통일(v4 설계)로 리타겟팅
 단계 없이 원본 보행 패턴이 재현된다.
