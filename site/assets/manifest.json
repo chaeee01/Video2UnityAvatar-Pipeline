@@ -5,7 +5,7 @@
   "image": "JPEG q80, long side ≤1200 px",
   "overrides": "items[].encoding_override"
  },
- "total_bytes": 6785512,
+ "total_bytes": 7205331,
  "items": [
   {
    "id": "pipeline_v4",
@@ -479,7 +479,8 @@
    "placeholder": false,
    "encoding_override": null,
    "replaces": null,
-   "used_on_page": true
+   "used_on_page": false,
+   "note": "2026-11-21 사례 ② 에서 근접 그림(seam_*_listener_s.jpg)으로 교체 — listener 는 수리 전 판이 없고(가운데 · 오른쪽 모두 수리 후), walker 는 전후 차이가 식별되지 않았다"
   },
   {
    "id": "ba_weight_listener_still",
@@ -521,7 +522,8 @@
    "placeholder": false,
    "encoding_override": null,
    "replaces": null,
-   "used_on_page": true
+   "used_on_page": false,
+   "note": "2026-11-21 사례 ② 에서 근접 그림(seam_*_listener_s.jpg)으로 교체 — listener 는 수리 전 판이 없고(가운데 · 오른쪽 모두 수리 후), walker 는 전후 차이가 식별되지 않았다"
   },
   {
    "id": "ba_slide_listener",
@@ -622,6 +624,190 @@
    "note": "README 전용(12컷). 공개 페이지 칸에는 slide_listener_seq_s"
   },
   {
+   "id": "seam_crotch_listener_s",
+   "file": "assets/seam_crotch_listener_s.jpg",
+   "kind": "image",
+   "width": 1200,
+   "height": 750,
+   "bytes": 106631,
+   "sha256_16": "4e7ea881d9802dd3",
+   "source": "~/data/06_rig/listener_apose_06/motions/listener_run_04b/animated.blend · ~/Desktop/3D_avatar_work/experiments/e2e_check/review_1021/02_wfix/bake04b_a/animated.blend",
+   "character": "listener",
+   "stage": "문제 해결 · 웨이트",
+   "caption": "가랑이 경계 스무딩 — 수리 전(좌) · 후(우), listener 달리기(run_04b) f34 근접 (공개 페이지 16:10 칸용)",
+   "pair": {
+    "group": "weight_smoothing",
+    "role": "both — 왼쪽 before · 오른쪽 after (그림 안 라벨)"
+   },
+   "placeholder": false,
+   "encoding_override": {
+    "width": 1200,
+    "height": 750,
+    "q": 85
+   },
+   "replaces": "ba_weight_listener · ba_weight_walker",
+   "used_on_page": true,
+   "provenance": {
+    "clip": "listener_run_04b",
+    "frame": 34,
+    "camera": "seam_closeup(= tools/review/closeup.py 카메라: 정면 직교 · Workbench 텍스처 · 본 앞 3 단위) — 근접 Pelvis 폭 0.4, 중심 오프셋 (+0.02, −0.14) → 화면 중심 (0.0283, −0.1029); 전신 Pelvis 폭 1.1",
+    "before": {
+     "bake": "~/data/06_rig/listener_apose_06/motions/listener_run_04b/animated.blend",
+     "bake_sha256": "20aa383097e531e3b66be92bc49e094e30e69368a4c757c7fa75f4f9efdcf5fa",
+     "rig": "~/data/06_rig/listener_apose_06/transferred.blend",
+     "rig_sha256": "f0c3b5caf5f3a3158ebbe2a82e8ed4d40afc68d3896970e4958fe33567aef1cd"
+    },
+    "after": {
+     "bake": "~/Desktop/3D_avatar_work/experiments/e2e_check/review_1021/02_wfix/bake04b_a/animated.blend",
+     "bake_sha256": "1b532646209c12d18d8dc51de25d2e8a4ccd8a822c7a39b3f930b76f9842b42a",
+     "rig": "~/data/06_rig/listener_apose_06_wfix_a/transferred.blend (가랑이 L_Hip:R_Hip 10겹 · 40회)",
+     "rig_sha256": "a43e1c904d5948dc9885463b2eb62714747dada5a4d3ed171522927288cec142"
+    },
+    "numbers": "04b 가랑이 0.10 초과 471 → 0, 전체 579 → 72, 최장 0.179 → 0.119 (PROJECT_STATUS 10/21 웨이트 수리 표)",
+    "labels": "그림 안 라벨 '수리 전' · '수리 후' — slide_listener_seq_s.jpg 와 같은 모양(Bold 40px, 상자 137×58), 가운데 흰 줄 6px",
+    "made": "2026-11-21",
+    "scripts": "tools/site/site_seam_closeup.py → tools/site/site_seam_compose.py (기록 docs/assets/seam_figures_1121.md)"
+   }
+  },
+  {
+   "id": "seam_crotch_listener",
+   "file": "assets/seam_crotch_listener.jpg",
+   "kind": "image",
+   "width": 1596,
+   "height": 638,
+   "bytes": 124961,
+   "sha256_16": "789d2646ab8727cc",
+   "source": "~/data/06_rig/listener_apose_06/motions/listener_run_04b/animated.blend · ~/Desktop/3D_avatar_work/experiments/e2e_check/review_1021/02_wfix/bake04b_a/animated.blend",
+   "character": "listener",
+   "stage": "문제 해결 · 웨이트",
+   "caption": "가랑이 경계 스무딩 — 전신(위치) · 수리 전 · 수리 후, listener 달리기(run_04b) f34",
+   "pair": {
+    "group": "weight_smoothing",
+    "role": "both — 왼쪽 before · 오른쪽 after (그림 안 라벨)"
+   },
+   "placeholder": false,
+   "encoding_override": {
+    "long_side": 1596,
+    "q": 85
+   },
+   "replaces": null,
+   "used_on_page": false,
+   "provenance": {
+    "clip": "listener_run_04b",
+    "frame": 34,
+    "camera": "seam_closeup(= tools/review/closeup.py 카메라: 정면 직교 · Workbench 텍스처 · 본 앞 3 단위) — 근접 Pelvis 폭 0.4, 중심 오프셋 (+0.02, −0.14) → 화면 중심 (0.0283, −0.1029); 전신 Pelvis 폭 1.1",
+    "before": {
+     "bake": "~/data/06_rig/listener_apose_06/motions/listener_run_04b/animated.blend",
+     "bake_sha256": "20aa383097e531e3b66be92bc49e094e30e69368a4c757c7fa75f4f9efdcf5fa",
+     "rig": "~/data/06_rig/listener_apose_06/transferred.blend",
+     "rig_sha256": "f0c3b5caf5f3a3158ebbe2a82e8ed4d40afc68d3896970e4958fe33567aef1cd"
+    },
+    "after": {
+     "bake": "~/Desktop/3D_avatar_work/experiments/e2e_check/review_1021/02_wfix/bake04b_a/animated.blend",
+     "bake_sha256": "1b532646209c12d18d8dc51de25d2e8a4ccd8a822c7a39b3f930b76f9842b42a",
+     "rig": "~/data/06_rig/listener_apose_06_wfix_a/transferred.blend (가랑이 L_Hip:R_Hip 10겹 · 40회)",
+     "rig_sha256": "a43e1c904d5948dc9885463b2eb62714747dada5a4d3ed171522927288cec142"
+    },
+    "numbers": "04b 가랑이 0.10 초과 471 → 0, 전체 579 → 72, 최장 0.179 → 0.119 (PROJECT_STATUS 10/21 웨이트 수리 표)",
+    "labels": "그림 안 라벨 '수리 전' · '수리 후' — slide_listener_seq.jpg 와 같은 모양(Apple SD Gothic Neo Bold 26px, 상자 (20,20,20) 90×42 모서리 붙임, 글자 (250,235,160)), 칸 사이 흰 줄 10px, 왼쪽 전신 컷의 주황 상자 = 근접 영역",
+    "made": "2026-11-21",
+    "scripts": "tools/site/site_seam_closeup.py → tools/site/site_seam_compose.py (기록 docs/assets/seam_figures_1121.md)"
+   },
+   "note": "README · 포트폴리오용. 공개 페이지 칸에는 seam_crotch_listener_s"
+  },
+  {
+   "id": "seam_armpit_listener_s",
+   "file": "assets/seam_armpit_listener_s.jpg",
+   "kind": "image",
+   "width": 1200,
+   "height": 750,
+   "bytes": 77526,
+   "sha256_16": "433b50ce17855c46",
+   "source": "~/Desktop/3D_avatar_work/experiments/e2e_check/review_1019/01_listener_run_slide/transplant_stalker_run_fwd/animated.blend · ~/data/06_rig/listener_apose_06_wfix/motions/listener_x_stalker_run_fwd/animated.blend",
+   "character": "listener",
+   "stage": "문제 해결 · 웨이트",
+   "caption": "겨드랑이 경계 스무딩 — 수리 전(좌) · 후(우), listener 달리기(run, 이식판) f62 근접 (공개 페이지 16:10 칸용)",
+   "pair": {
+    "group": "weight_smoothing",
+    "role": "both — 왼쪽 before · 오른쪽 after (그림 안 라벨)"
+   },
+   "placeholder": false,
+   "encoding_override": {
+    "width": 1200,
+    "height": 750,
+    "q": 85
+   },
+   "replaces": "ba_weight_listener · ba_weight_walker",
+   "used_on_page": true,
+   "provenance": {
+    "clip": "listener_x_stalker_run_fwd (10/21 의 listener run = 이식판)",
+    "frame": 62,
+    "camera": "seam_closeup(= tools/review/closeup.py 카메라) — 근접 L_Shoulder 폭 0.4, 중심 오프셋 (0, −0.1) → 화면 중심 (0.1122, 0.2124); 전신 Pelvis 폭 1.1",
+    "before": {
+     "bake": "~/Desktop/3D_avatar_work/experiments/e2e_check/review_1019/01_listener_run_slide/transplant_stalker_run_fwd/animated.blend",
+     "bake_sha256": "9e5f69c91525a41f8fc712a6daa2c2889d26536cacf60dc61cae8895958c0132",
+     "rig": "~/data/06_rig/listener_apose_06/transferred.blend (가랑이도 수리 전)",
+     "rig_sha256": "f0c3b5caf5f3a3158ebbe2a82e8ed4d40afc68d3896970e4958fe33567aef1cd"
+    },
+    "after": {
+     "bake": "~/data/06_rig/listener_apose_06_wfix/motions/listener_x_stalker_run_fwd/animated.blend",
+     "bake_sha256": "8649f16cf26eb3aaebbeb596db626aca6d413c2af53cbbf41ffb1ce8bb549b45",
+     "rig": "~/data/06_rig/listener_apose_06_wfix/transferred.blend (10/21 채택 — 가랑이 + 겨드랑이 L/R_Shoulder:Spine1·2 20겹 · 160회, _wfix_a_arm20 과 바이트 동일)",
+     "rig_sha256": "fb228c5571a3a301587d12864dfce7f85fdcc460443ecb7b8ab08712255a8518"
+    },
+    "numbers": "run 왼쪽 겨드랑이 0.10 초과 266 → 0 (늘어남이 가장 큰 프레임 f51 — f62 는 조각이 실루엣 밖으로 나와 눈에 보이는 프레임, 10/21 육안 기록)",
+    "labels": "그림 안 라벨 '수리 전' · '수리 후' — slide_listener_seq_s.jpg 와 같은 모양(Bold 40px, 상자 137×58), 가운데 흰 줄 6px",
+    "made": "2026-11-21",
+    "scripts": "tools/site/site_seam_closeup.py → tools/site/site_seam_compose.py (기록 docs/assets/seam_figures_1121.md)"
+   }
+  },
+  {
+   "id": "seam_armpit_listener",
+   "file": "assets/seam_armpit_listener.jpg",
+   "kind": "image",
+   "width": 1596,
+   "height": 638,
+   "bytes": 110701,
+   "sha256_16": "c97614a4db84d79f",
+   "source": "~/Desktop/3D_avatar_work/experiments/e2e_check/review_1019/01_listener_run_slide/transplant_stalker_run_fwd/animated.blend · ~/data/06_rig/listener_apose_06_wfix/motions/listener_x_stalker_run_fwd/animated.blend",
+   "character": "listener",
+   "stage": "문제 해결 · 웨이트",
+   "caption": "겨드랑이 경계 스무딩 — 전신(위치) · 수리 전 · 수리 후, listener 달리기(run, 이식판) f62",
+   "pair": {
+    "group": "weight_smoothing",
+    "role": "both — 왼쪽 before · 오른쪽 after (그림 안 라벨)"
+   },
+   "placeholder": false,
+   "encoding_override": {
+    "long_side": 1596,
+    "q": 85
+   },
+   "replaces": null,
+   "used_on_page": false,
+   "provenance": {
+    "clip": "listener_x_stalker_run_fwd (10/21 의 listener run = 이식판)",
+    "frame": 62,
+    "camera": "seam_closeup(= tools/review/closeup.py 카메라) — 근접 L_Shoulder 폭 0.4, 중심 오프셋 (0, −0.1) → 화면 중심 (0.1122, 0.2124); 전신 Pelvis 폭 1.1",
+    "before": {
+     "bake": "~/Desktop/3D_avatar_work/experiments/e2e_check/review_1019/01_listener_run_slide/transplant_stalker_run_fwd/animated.blend",
+     "bake_sha256": "9e5f69c91525a41f8fc712a6daa2c2889d26536cacf60dc61cae8895958c0132",
+     "rig": "~/data/06_rig/listener_apose_06/transferred.blend (가랑이도 수리 전)",
+     "rig_sha256": "f0c3b5caf5f3a3158ebbe2a82e8ed4d40afc68d3896970e4958fe33567aef1cd"
+    },
+    "after": {
+     "bake": "~/data/06_rig/listener_apose_06_wfix/motions/listener_x_stalker_run_fwd/animated.blend",
+     "bake_sha256": "8649f16cf26eb3aaebbeb596db626aca6d413c2af53cbbf41ffb1ce8bb549b45",
+     "rig": "~/data/06_rig/listener_apose_06_wfix/transferred.blend (10/21 채택 — 가랑이 + 겨드랑이 L/R_Shoulder:Spine1·2 20겹 · 160회, _wfix_a_arm20 과 바이트 동일)",
+     "rig_sha256": "fb228c5571a3a301587d12864dfce7f85fdcc460443ecb7b8ab08712255a8518"
+    },
+    "numbers": "run 왼쪽 겨드랑이 0.10 초과 266 → 0 (늘어남이 가장 큰 프레임 f51 — f62 는 조각이 실루엣 밖으로 나와 눈에 보이는 프레임, 10/21 육안 기록)",
+    "labels": "그림 안 라벨 '수리 전' · '수리 후' — slide_listener_seq.jpg 와 같은 모양(Apple SD Gothic Neo Bold 26px, 상자 (20,20,20) 90×42 모서리 붙임, 글자 (250,235,160)), 칸 사이 흰 줄 10px, 왼쪽 전신 컷의 주황 상자 = 근접 영역",
+    "made": "2026-11-21",
+    "scripts": "tools/site/site_seam_closeup.py → tools/site/site_seam_compose.py (기록 docs/assets/seam_figures_1121.md)"
+   },
+   "note": "README · 포트폴리오용. 공개 페이지 칸에는 seam_armpit_listener_s"
+  },
+  {
    "id": "ba_slide_listener_still",
    "file": "assets/ba_slide_listener_still.jpg",
    "kind": "image",
@@ -707,5 +893,5 @@
    "used_on_page": true
   }
  ],
- "updated": "2026-11-21 — slide_listener_seq_s 추가(페이지 칸용), slide_listener_seq 는 README 전용"
+ "updated": "2026-11-21 — 5-4b 근접 그림 seam_crotch_listener(_s) · seam_armpit_listener(_s) 추가(_s 는 사례 ② 칸), ba_weight_listener · ba_weight_walker 영상은 [미사용]"
 }

@@ -1230,6 +1230,18 @@ WHAM betas(체형) + 키프레임 pose(자세) → 그 좀비와 같은 자세·
 
   **문서** RUNBOOK 5.5 표에 G3 · 5.7절 신설, ROADMAP G3 ☑, README 도식 · CLAUDE.md 의 G3 줄(재투영 일관성, 발 접지는 G4), 공개 페이지 게이트 표를 G0~G4 번호 체계로(G1 = gate_s2 · gate_s5 · G1a, G2 = G2 · G2r, G3 = gate_g3 "불합격 판정에는 쓰지 않음"), 재현 절 셋째 카드에 "같은 서버 · 같은 입력에서". **구조도 그림 파일과 본문이 다른 곳**(그림은 고치지 않음): ① G3 → S4 화살표 "betas 전달 (동일 체형 파라미터 공유)" ② S4 "betas + pose 로 SMPL 메쉬 생성" ③ R "전 구간 원커맨드 실행" ④ G3 상자 "동작 품질 — 재투영 PCK, MPJPE, 발 미끄러짐 / 저크, 접지, 좀비 자세 플래그 / betas 시간 안정성, 대표값 확정" — 실제 G3 는 재투영 일관성(PASS / CHECK)뿐이고 발은 G4 ⑤ betas · pose 화살표가 G3 에서 나간다(실제 G3 는 기록만, 흐름을 바꾸지 않는다) ⑥ G1m 상자(흡수 종결 — gate_s2 · gate_s5 가 대신).
 
+- **2026-11-21 — 5-4b 웨이트 경계 스무딩 전후 근접 그림 (`docs/seam-figure`)**: 공개 페이지 사례 ② 와 README 5-4b 문단("그림 없음")에 넣을 근접 그림을 만들었다. 칸 순서 · 라벨은 굽기 · 리그를 직접 렌더해 정했다.
+
+  **리그 계보 확인(`~/data/06_rig`, 읽기만).** 수리 전 `listener_apose_06` → 가랑이만 `_wfix_a`(L_Hip:R_Hip 10겹 · 40회, 띠 24,695) → 겨드랑이까지 `_wfix_a_arm20`(L/R_Shoulder:Spine1·2 20겹 · 160회, 띠 46,059) = **`_wfix`(10/21 채택, `transferred.blend` 바이트 동일 `fb228c55…`)** → 가슴 Collar 를 더한 `_wfixc`(현재 채택). 실험판 `_wfix_base` · `_wfix_b` · `_wfix_ab` · `_wfix_a_arm10` · `_wfix_collar10` 도 모두 있다. 네 리그의 `rest_pose.json` 은 같은 파일(골격 같고 웨이트만 다름). 굽기 로그의 `Read blend` 로 각 굽기가 읽은 리그를 확인했다 — 가랑이 수리 전 `06_rig/listener_apose_06/motions/listener_run_04b`(f34 L_Hip–R_Hip 0.10 초과 471), 수리 후 `review_1021/02_wfix/bake04b_a`(`_wfix_a`, 0); 겨드랑이(10/21 의 run = 이식판 `listener_x_stalker_run_fwd`) 수리 전 `review_1019/01_listener_run_slide/transplant_stalker_run_fwd`(`listener_apose_06`, 266 · 최대 f51), 수리 후 `06_rig/listener_apose_06_wfix/motions/listener_x_stalker_run_fwd`(`_wfix`, 0). 겨드랑이 전후의 동작 입력 `wham_pose.npz` 는 같은 파일. 04b 는 이식판으로 바뀌어 `_wfix` 굽기가 없으므로 가랑이 "수리 후" 는 측정이 나온 `_wfix_a` 로 정했다(사용자 결정).
+
+  **기존 근접 캡처의 칸 확정 — 재렌더 픽셀 대조.** `review_1021/02_wfix/closeup_f34_adopted_a_ab.png` · `arm_run_f62_a_arm10_arm20.png` 는 각각 개별 PNG 셋을 파일명 순으로 이은 것(칸마다 픽셀 차 0)이고, 개별 PNG 를 `tools/review/closeup.py` 로 다시 렌더해 굽기와 짝지었다. 기록에 없던 인자는 실루엣 경계 맞춤과 24본 전수 렌더로 찾았다 — 가랑이 Pelvis 폭 1.1, 겨드랑이 L_Shoulder 폭 0.6. 결과: 가랑이 칸은 왼쪽부터 수리 전 · `_wfix_a` · `_wfix_ab`(BFS 용접, 채택 안 됨), 겨드랑이 칸은 `_wfix_a` · 10겹 · 20겹(채택) — 재렌더와 **픽셀 차 0**, 다른 칸과는 5,285~17,006 픽셀 차. **기존 겨드랑이 그림의 왼쪽 칸은 "수리 전 리그" 가 아니었다** — `_wfix_a`(가랑이만 수리, 겨드랑이는 수리 전과 같은 266)다.
+
+  **새 그림.** `tools/site/site_seam_closeup.py`(closeup.py 와 같은 카메라 + 화면 중심 오프셋 — 오프셋 0 이면 closeup.py 와 픽셀 동일, 재렌더도 픽셀 동일) → `tools/site/site_seam_compose.py`(잘라내기 · 라벨 · 위치 상자만). 가랑이 run_04b **f34**(근접 Pelvis 폭 0.4 · 아래로 0.14), 겨드랑이 run **f62**(근접 L_Shoulder 폭 0.4). **f62 를 고른 이유**: 늘어남이 가장 큰 f51 은 찢긴 조각이 실루엣 안쪽 · 같은 색이라 거의 보이지 않고, f62 는 허리 높이에서 소매 옆으로 실루엣 밖까지 튀어나와 수리 전후가 바로 구별된다(10/21 실험 기록의 육안 관찰과 같은 프레임). 네 장 모두 수리 전의 결함(가랑이 — 다리 사이 세로 줄무늬의 늘어난 막, 겨드랑이 — 허리 높이 찢긴 조각)이 보이고 수리 후에 없는 것을 직접 열어 확인했다. 라벨 · 구분선은 `slide_listener_seq(_s).jpg` 실측에 맞췄다(Apple SD Gothic Neo Bold, 글자 (250,235,160), 불투명 상자 (20,20,20) 모서리 붙임 — 16:10 판 40px · 흰 줄 6px, README 판 26px · 흰 줄 10px). `site/assets/seam_crotch_listener(_s).jpg` · `seam_armpit_listener(_s).jpg` — `_s`(1200×750)는 사례 ② 칸, 나머지(1596×638, 전신 소형 컷 + 근접 2칸)는 README. 출처 · 리그 · 굽기 sha256 · 카메라는 `docs/assets/seam_figures_1121.md`.
+
+  **공개 페이지 사례 ②** — 영상 두 편(`ba_weight_listener.mp4` — 수리 전 판이 없음, `ba_weight_walker.mp4` — 전후 차이가 식별되지 않음)을 근접 그림 두 장으로 바꿨다. 헤드리스 Chrome 실측: 데스크톱(1280) 사례 ① · ② · ③ 의 칸이 모두 372.0×232.5, 폰 폭 390 에서 모두 291.0×181.9(375 에서 276.0×172.5). 본문 문장은 그대로. 영상은 지우지 않고 manifest [미사용]. manifest 38개(페이지 사용 30) · 7.21 MB.
+
+  **확인할 것** — 실험 기록 폴더는 `~/Desktop/e2e_check/` 에서 `~/Desktop/3D_avatar_work/experiments/e2e_check/` 로 옮겨져 있다(리그 `WFIX.md` · 굽기 로그 · 측정 JSON 안의 경로는 옛 위치).
+
 ## 9. 다음 단계 (우선순위)
 
 2026-10-21 기준. 이전 목록(8월, SMPL 리깅 1~3단계 · SAM2 이전 · TRELLIS 로컬 설치 · 게이트 · 오케스트레이터)은 모두 끝났다.
