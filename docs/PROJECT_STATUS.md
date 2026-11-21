@@ -1183,6 +1183,34 @@ WHAM betas(체형) + 키프레임 pose(자세) → 그 좀비와 같은 자세·
 
   **확인만 한 것** — "betas 를 리깅 단계로 전달"(공개 페이지 구조도 캡션 · README 설계 절): `generate_smpl_mesh.py` 는 betas 를 매개변수로 넘기지 않고, WHAM 이 이미 계산한 키프레임 정점(`verts[f]`, 그 프레임의 betas · 자세가 반영됨)을 그대로 `smpl_frame<f>.obj` 로 저장해 5-2 정렬 대상으로 쓰며, 관절도 그 정점에서 뽑는다(`joints_frame<f>.json` 의 `posed`). betas 자체는 T포즈 메쉬 · `betas_mean`(G2r · rest pose · 베이킹에서 사용)에만 쓰인다. 고치지 않았다.
 
+- **2026-11-21 — 통합 이미지 v3(Blender 포함) 빌드 · Pod 관통 검증: 영상 1편 → FBX 를 한 Pod 에서 명령 하나로 (`feature/blender-image` · `feature/motion-51`)**:
+  **빌드** `ghcr.io/chaeee01/v2ua-all:v3-20261121-d160513` — `docker/Dockerfile.blender`(커밋 `d160513`), 베이스 `v2-20261107-0aa8002`(18레이어 그대로) 위에 apt 와 Blender 4.5.12 LTS(`/opt/blender-4.5.12-linux-x64`, sha256 `95e3a2df…0120a25`, 한 RUN 에서 받기 · 대조 · 풀기 · 압축 파일 삭제), `ENV BLENDER`, `start.sh` 가 SSH 세션에 `BLENDER` 를 넘기도록 수정. 맥(arm64)에서 linux/amd64 에뮬레이션 빌드, 빌드 중 검사(버전 · 해시, glTF · FBX 애드온, numpy · joblib, 환경 4개, SMPL 3종 부재) 전부 통과. digest(목록) `sha256:e767e3235ed32af8dd2490b196cba3160e69aeb534d464c1e565a01127836866`, amd64 매니페스트 `sha256:2752530e…f33aa`, 로컬 표시 크기 21.82 GB, 새 레이어 4개(11.3 MB · 492.4 MB · 빈 2). 시간: 베이스 pull **1533초** · 빌드 **78초** · push **58초**(`docker push`, 18레이어 "already exists", 새 레이어만 올라감). **디스크 소요 61.6 GB**(pull 전 88.17 → 뒤 26.55 GB — containerd 스토어가 압축 blob 과 풀린 스냅숏을 함께 둔다, 추정 55 GB 보다 컸다). apt 실설치: python3-numpy 1:1.26.4+ds-6ubuntu1 · python3-joblib 1.3.2-1 · libsm6 2:1.2.3-1build3 · libice6 2:1.0.10-1build3 + 의존 **python3-pkg-resources 68.1.2-2ubuntu1.2 — 라벨 `v2ua.apt` 에 빠져 있다**. 패키지 비공개 유지(익명 토큰 401). 빌드 · push 로그 `~/data_verify_blender_1120/report/{build_v3,push_v3}.log`.
+
+  **관통 검증** (Pod RTX 4090 EU-RO-1, 이미지 v3, `BLENDER` 지정 · apt 설치 없음, 볼륨 레포 main `7753501` → 동작 트랙 재검증 때만 `feature/motion-51` `23a3cce`, 끝나고 main 으로 되돌림. 새 루트 `/vol/_verify_onecmd_1121` 에만 썼다)
+
+  | 실행 | 종료 코드 | 벽시계 | 단계 시간(초) |
+  |---|---|---|---|
+  | 외형 walker_walk_02 `--point 540,960`(11/07 조건) | 0 | **364.3초** | S2 28.7 · S5 32.1 · G1a 0.9 · S3 210.5 · 5-1 1.6 · 5-2 1.5 · 5-3 0.8 · 5-4 16.8 · 5-4b 58.7 · 5-5 1.6 · FBX 5.4 |
+  | 외형 walker_walk_02 (기본 프롬프트 auto6) | 0 | **480.6초** | S2 29.3 · S5 35.6 · G1a 0.9 · S3 326.4 · 5-1 1.6 · 5-2 1.4 · 5-3 0.7 · 5-4 16.6 · 5-4b 54.8 · 5-5 1.9 · FBX 5.5 |
+  | 동작 listener_hit_01_v2 (수정 전) | **1** | 78.9초 | BAKE 에서 정지 — 아래 |
+  | 동작 listener_hit_01_v2 (`feature/motion-51`) | 0 | **116.8초** | S2 37.1 · S5 35.7 · 5-1 1.5 · BAKE 7.5 · G4 27.7 · CLIPFBX 2.1 |
+
+  두 외형 실행 모두 경계에서 `Blender 구간 판정: 가능 — Blender 실행 확인: /opt/blender-4.5.12-linux-x64/blender` → `[계속]`, run.json `seam_smooth_5_4b` applied (crotch → armpit). 판정 S2 · S5 · G2 · G2r PASS(G2r 경고 팔–하부몸통 1,140 · 895 엣지). FBX 57,278,700 B(`105b6f6e…`) · 57,641,148 B(`19a8be0c…`). **S3 편차가 크다(210 · 326초, 11/07 457초)** — 벽시계는 두 번의 측정이다.
+
+  **11/07 · 11/20 대조** (`--point` 판). 같아야 하는 것: S2 마스크 192/192 바이트 동일, G1a f138(점수 0.1999 / 0.1998), S3 입력 키프레임 PNG 바이트 동일, 판정 S2 · S5 · G2 · G2r 동일, 5-4b 패스 · 겹 · 횟수 동일 — 전부 같다. 달라도 되는 것: masked.mp4 · S5 pkl(재인코딩, 11/07 기록과 같은 현상), **S3 내보내기 전 정점 3,907,052 → 3,902,611**(−0.11%, 최종 868,953 → 878,912 — TRELLIS.2 생성의 Pod 간 차이, 10/11 항목), 그에 따른 G2r 지표(scale 0.5728 → 0.5721, IoU 0.7985 → 0.8000, joint_dist 0.02814 → 0.02815)와 5-4b 영역 · FBX 크기. 기본 프롬프트 판은 S2 프롬프트가 달라(auto6) 마스크 192장 전부 다르고 G1a 가 f137 — 입력 조건 차이다(11/07 은 `--point 540,960` 을 명시했다, 세션 노트 `next_pod_session_queue.md:305`).
+
+  **동작 트랙 실패와 수정.** 클립 영상 하나로 시작하면 BAKE 가 `[오류] T포즈 메쉬가 없는데 character.json bake.fallback_height 도 없다 (…/05_smpl_mesh/listener_hit_01_v2/smpl_tpose.obj)` 로 종료 코드 1 — 동작 트랙(11/06~)에 클립 T포즈 메쉬를 만드는 단계가 없었다. 생산(10/26 · 11/02)은 `--until S5` 뒤 큐 스크립트가 `generate_smpl_mesh.py --pkl <pkl> --frame 0 --name <클립>` 을 따로 불렀고(`/vol/logs/day_1026b/job.sh`), 11/06 · 11/20 시험은 그 산출물 복사본을 써서 드러나지 않았다. **수정(`feature/motion-51`, `23a3cce` · 시험 `9258108`)**: 동작 트랙 Pod 구간에 5-1 — 같은 호출, 필수 산출물 `smpl_tpose.obj`. 호환: 새 run 은 run.json 에 `motion_51` 표지, 표지 없이 S5 까지 끝난 예전 run 은 예전 목록 그대로 5-1 을 건너뛴다(한 줄 안내). 시험 `tests/test_orch_motion51.py`(CI RUN) 30항목, 맥 시험 22개 파일 종료 코드 0, `pytest tests/ci` 15 통과 · 7 건너뜀, CI 통과. 예전 동작 run 3개(walker_walk_02_1102 · lurker_roar · oiler_walk_fwd) `--resume --dry-run` 전후 차이는 안내 한 줄뿐, run 폴더 33파일 불변. 재검증: G4 **PASS (늘어남 PASS · 발 쓸기 N/A · 바닥 PASS)** — 11/20 과 같음. S2 마스크 10/26 과 240/240 바이트 동일, S5 pose 최대 차 0.024(재인코딩). T포즈 메쉬 높이 1.78398 → 1.78308, 신장비 0.99246 → 0.99296(+0.05%), G4 수치 edges.longest 0.0265 → 0.0269 · ground.sink −0.0197 → −0.0195 · sweep.worst 0.002 → 0.001. 클립 FBX 280,620 B(`183804cf…`). 같은 브랜치로 외형 트랙 dry-run 계획은 오늘 통과한 12단계와 같다.
+
+  **회수** `~/data_verify_onecmd_1121/` — 1,122개 파일 sha256 전수 일치(`logs/sha256_pod_manifest_2.txt`). 볼륨에는 `/vol/_verify_onecmd_1121/` 만 더했다.
+
+  **미결 해소** — 11/20 항목의 "Blender 를 넣은 이미지" 와 11/21 `docs/one-command` 항목의 "Blender 가 든 이미지 빌드와 Pod 관통 검증은 미완" 은 이 항목으로 끝났다. `2140dcc`("명령 하나")는 외형 트랙에서 통과해 유지한다 — 되돌리기안 `docs/revert-onecmd`(`848b5ad`)는 쓰지 않게 됐다(브랜치만 남김). "betas 전달" 문구는 이 머지에서 고쳤다 — 공개 페이지 구조도 캡션, README 67 · 83행 · ASCII 도식 51행, CLAUDE.md. 구조도 그림 파일(`site/assets/pipeline_v4.jpg` · `docs/assets/pipeline_v4_final.png`) 안의 문구는 그대로다 — 본문과 다른 곳: ① G3 → S4 화살표 라벨 "betas 전달 (동일 체형 파라미터 공유)" ② S4 상자 "betas + pose 로 SMPL 메쉬 생성"(실제는 WHAM 키프레임 정점을 그대로 저장) ③ R 상자 "전 구간 원커맨드 실행"(본문은 "명령 하나") ④ 화살표가 G3 에서 나가지만 G3 는 미구현.
+
+  **숫자 절 시간 표기(사용자 결정 A 안)** — 공개 페이지 · README 의 "~11분 · ~6분 · ~17분" 과 "실행 로그 실측값" 을 이 측정으로 바꿨다: 캐릭터 약 6~8분(364 · 481초), 동작 클립 약 2분(117초), 세트 약 8~10분, 머리말 "한 서버에서 명령 하나로 실행한 벽시계 실측(2026-11-21, 캐릭터 2회 · 동작 클립 1회) — 영상 생성과 서버 기동은 제외", 표 아래에 메쉬 생성 단계 편차(210 · 326초, 11/07 457초 · GPU 구간 10.1분). 비용은 유지하고 비용 구성 식의 GPU 하한만 다시 계산했다 — 캐릭터 364초 × $0.90/3600초 = $0.091 → **$0.09**(이전 $0.15), 동작 클립 117초 × $0.90/3600초 = $0.029 → **$0.03**(이전 $0.05). 상한($0.46 · $0.19, 실청구 배분)은 그대로. 그 결과 구성 합의 하한이 캐릭터 $1.65(= 1.52 + 0.04 + 0.09) · 동작 $1.55(= 1.52 + 0.03) · 세트 $3.20 로 내려가 표의 "약 $2 · 약 $1.7 · 약 $4" 와 하한 쪽에서 벌어진다(상한 쪽 합 $2.02 · $1.71 · $3.73 은 그대로) — 표 비용은 고치지 않았다(사용자 결정 대기).
+
+  **미결** — **볼륨 레포 `/vol/repos/Video2UnityAvatar-Pipeline` 은 main `7753501`** 이다(이 머지들 이전). 다음 Pod 세션에서 최신 main 으로 올린다(`git status --porcelain` 확인 → `git pull --ff-only`). 볼륨 레포에는 로컬 브랜치 `feature/motion-51` 이 남아 있다.
+
+  **백로그** ① 새 run 의 `--dry-run` 이 S5 뒤에서 멈춘다(G0 를 실측하지 않아 `frames` 없음) ② 새 run 의 dry-run 이 빈 run 폴더를 남긴다 ③ 이미지 라벨 `v2ua.apt` 에 python3-pkg-resources 가 빠져 있다(다음 빌드 때) ④ 숫자 절 시간 표기 — 사용자 결정 대기.
+
 ## 9. 다음 단계 (우선순위)
 
 2026-10-21 기준. 이전 목록(8월, SMPL 리깅 1~3단계 · SAM2 이전 · TRELLIS 로컬 설치 · 게이트 · 오케스트레이터)은 모두 끝났다.
