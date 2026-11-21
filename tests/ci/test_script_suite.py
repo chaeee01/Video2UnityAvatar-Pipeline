@@ -24,6 +24,7 @@ REPO = TESTS.parent
 RUN = [
     # 끝까지 실행
     "test_blend_track_seam.py",
+    "test_g3.py",
     "test_g4_rules.py",
     "test_gate_g2r.py",
     "test_ground_align.py",

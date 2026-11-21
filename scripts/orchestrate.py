@@ -24,6 +24,10 @@
   (--frame 0 — 10/26 · 11/02 생산 큐와 같은 호출). 이 변경 전에 만든 동작 run(run.json 에 motion_51 이 없다)은
   예전 단계 목록 그대로 돌고 5-1 을 건너뛴다 — BAKE 는 지금처럼 T포즈 메쉬, 없으면 bake.fallback_height 를 쓴다.
 
+  G3(재투영 일관성, 2026-11-21~)는 S5 의 두 번째 판정이다 — gate_s5 PASS 뒤 S5 마커 전에 gate_g3.py 를 돌려
+  PASS / CHECK 를 기록하고(run/gates/gate_g3_<시도>.json, run.json 의 g3) CHECK 면 구간과 할 일을 안내한다. 멈추지 않는다.
+  이미 S5 를 마친 run 은 --resume 해도 G3 를 돌리지 않는다. G3 가 판정을 내지 못하면(입력 · 회귀 행렬 없음) 멈춘다.
+
   외형 트랙의 5-4b(경계 스무딩)는 06_rig/<캐릭터>/character.json 의 rig_build.source_sample 이 이 샘플이고
   rig_build.seam_smooth 가 있을 때만 돈다 (--character 로 직접 지정 가능). 설정이 없으면 지금과 똑같다.
 
@@ -93,7 +97,7 @@ STAGES = [
     # 바꿔도 총 시간은 같다. G3 가 생기면 S5 와 G1a 사이에 들어간다 — 동작을 먼저
     # 확정해야 G3 재시도가 S3 를 무효화하지 않는다.
     dict(key="S5",   section=POD, env="wham",     gate="gate_s5",
-         desc="WHAM 동작 복원 (게이트는 트랙 연속성만 — G3 미구현, 설계 7절)"),
+         desc="WHAM 동작 복원 (게이트 gate_s5 트랙 연속성 + G3 재투영 일관성 — G3 는 기록 · 안내만)"),
     dict(key="G1a",  section=POD, env="wham",     gate=None,
          desc="키프레임 재선정 (마스크 + WHAM 시선각·다리 움직임)"),
     dict(key="S3",   section=POD, env="trellis2", gate="gate_g2",
@@ -1022,6 +1026,12 @@ def run_stage(s, c, run: Run, dry) -> int:
                          "elapsed_s": round(elapsed, 1),
                          "at": datetime.now().isoformat(timespec="seconds")})
         if verdict == "PASS" or dry:
+            if key == "S5":
+                # G3 는 S5 의 두 번째 판정이다 — S5 마커보다 먼저 돈다. 그래서 이미 S5 를 마친 run 은 --resume 해도
+                # G3 를 다시 돌리지 않는다(S5 가 건너뜀). G3 판정 JSON 은 S5 의 필수 산출물이 아니다(예전 run 에는 없다).
+                g = g3_review(s, c, run, tag, dry)
+                if g != EXIT_OK:
+                    return g
             run.mark_done(key, stage_outputs(key, c["name"], c), elapsed)
             return EXIT_OK
 
@@ -1038,6 +1048,75 @@ def run_stage(s, c, run: Run, dry) -> int:
 
     # ---- 상한 도달 → 사람 개입 ----
     return exhausted(key, c, run)
+
+
+G3_REGRESSOR = ("repos", "WHAM", "dataset", "body_models", "J_regressor_coco.npy")
+
+
+def g3_command(c, run: "Run"):
+    """S5 뒤 G3(재투영 일관성) → argv. 회귀 행렬은 환경 루트의 WHAM 에서 (SMPL 본체가 아니라 이미지에도 들어 있다)."""
+    n = c["name"]
+    if not (c.get("width") and c.get("height")):
+        raise SystemExit("[오류] G3 에 G0 영상 크기가 없다 (run.json 의 width · height)")
+    return ["python", str(scripts_dir() / "gate_g3.py"),
+            "--pkl", str(wham_pkl(n)),
+            "--tracking", str(data("04_wham", f"{n}_masked", "tracking_results.pth")),
+            "--regressor", str(ENV_ROOT.joinpath(*G3_REGRESSOR)),
+            "--width", str(c["width"]), "--height", str(c["height"]),
+            "--out", str(run.gates), "--name", f"{n}_g3"]
+
+
+def g3_review(s, c, run: "Run", tag, dry):
+    """G3 — PASS / CHECK 를 기록하고 안내한다. CHECK 여도 실행은 멈추지 않는다(EXIT_OK).
+    G3 가 돌지 못하면(입력 · 회귀 행렬 없음 등) 판정 없이 지나가지 않고 멈춘다 — 게이트 오류와 같다."""
+    print("    G3 재투영 일관성:")
+    if dry and not (c.get("width") and c.get("height")):
+        # dry-run 은 G0 를 실측하지 않는다 — 실제 실행에서는 G0 가 잰 크기로 돈다(없으면 g3_command 가 멈춘다)
+        print("    G3: (dry — run.json 에 G0 영상 크기가 없어 명령을 조립하지 않았다)")
+        return EXIT_OK
+    log = run.logs / f"G3_{tag}.log"
+    rc = run_cmd(build_cmd(s["env"], g3_command(c, run)), log, dry)
+    if dry:
+        print("    G3: (dry)")
+        return EXIT_OK
+    gj = run.gates / "gate_g3.json"
+    if rc != 0 or not gj.exists():
+        print(f"    [오류] G3 가 판정을 내지 못했다 (종료 코드 {rc}) — 로그: {log}")
+        run.add_attempt({"stage": "G3", "verdict": "ERROR", "rc": rc, "log": str(log)})
+        return EXIT_FAIL
+    kept = gj.with_name(f"gate_g3_{tag}.json")
+    gj.replace(kept)
+    d = json.loads(kept.read_text())
+    m = d.get("metrics", {})
+    spans = m.get("check_spans", [])
+    b = m.get("body", {})
+    print(f"    G3: {d['verdict']}  (몸 관절 오차 중앙 {b.get('median')} · p95 {b.get('p95')}, "
+          f"키 대비 {d['thresholds']['frame_max']} 초과 최장 {m.get('longest_run')}프레임 연속)")
+    run.add_attempt({"stage": "G3", "verdict": d["verdict"], "reasons": d.get("reasons", []),
+                     "check_spans": spans, "gate_json": str(kept),
+                     "at": datetime.now().isoformat(timespec="seconds")})
+    run.write_meta({"g3": {"verdict": d["verdict"], "check_spans": spans, "gate_json": str(kept)}})
+    if d["verdict"] == "CHECK":
+        print("    ⚠️  CHECK — 불합격이 아니다, 실행은 계속한다. WHAM 이 약한 자세 구간(눕기 · 엎드리기 · 기기)으로 보인다:")
+        for sp in spans:
+            print(f"       f{sp['start']}~f{sp['end']} ({sp['frames']}프레임, 최대 {100 * sp['max']:.1f}%)")
+        if c.get("track") == "motion":
+            print(f"       할 일 ① 역할표 {c.get('roles_path')} 의 '{c.get('clip_key')}' bake.ground_align 확인"
+                  f" (지금: {_ground_align_now(c)}) — 결과물의 바닥은 G4 가 판정한다")
+        print(f"       할 일 {'②' if c.get('track') == 'motion' else '①'} 겹침 영상으로 그 구간을 본다 (wham 환경):")
+        print(f"         python scripts/overlay_vis.py --pkl {wham_pkl(c['name'])} --video {c.get('video')} "
+              f"--smpl-model {ENV_ROOT.joinpath('repos', 'WHAM', 'dataset', 'body_models', 'smpl', 'SMPL_NEUTRAL.pkl')}")
+        print(f"       판정: {kept}")
+    return EXIT_OK
+
+
+def _ground_align_now(c):
+    """동작 클립의 역할표 bake.ground_align 현재 값 (안내용 — 읽지 못하면 사유)."""
+    try:
+        clips = json.loads(Path(c["roles_path"]).read_text()).get("clips", {})
+        return (clips.get(c["clip_key"], {}).get("bake") or {}).get("ground_align", "없음")
+    except (OSError, KeyError, ValueError) as e:
+        return f"읽지 못함 ({type(e).__name__})"
 
 
 def g4_verdict(c, run: "Run", tag, elapsed, dry):
