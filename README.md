@@ -64,7 +64,7 @@
        └→ (불합격 시) R. 재시도 오케스트레이터 → 실패 원인별 게이트 재진입
 ```
 
-WHAM이 추출한 체형 파라미터(betas)를 외형 경로의 리깅 단계에 전달해
+WHAM 의 SMPL 몸(체형 포함)을 외형 경로의 리깅에 그대로 사용해
 두 경로의 골격을 SMPL로 통일한다. 골격이 동일하므로 골격 간 리타게팅
 단계가 구조적으로 제거된다.
 
@@ -80,7 +80,7 @@ WHAM이 추출한 체형 파라미터(betas)를 외형 경로의 리깅 단계�
 | v1 (기획, 미실행) | SAM2 + SuGaR + WHAM, 가우시안 LOD 렌더링 | 조사 단계에서 SuGaR의 동적 인물 부적합 확인, 배경 3D 불필요 → 착수 전 배제 |
 | v2 | Mixamo 리깅 + SMPL→Mixamo 리타게팅 | 세 방식(Unity Humanoid, 행렬 계산, 컨스트레인트) 모두 자세 붕괴로 실패 → 폐기 ([상세](docs/PROJECT_STATUS.md#3-단계별-검증-결과)) |
 | v3 | 품질 게이트(G0-G4)·재시도 오케스트레이터 추가 | 평가·재시도 체계 확립, 리깅 방식은 v2 유지 |
-| v4 (현재) | SMPL 골격 직접 리깅, betas 전달로 골격 통일 | 리타게팅 단계의 구조적 제거 |
+| v4 (현재) | SMPL 골격 직접 리깅, WHAM 의 SMPL 몸(체형 포함)을 리깅에 그대로 사용해 골격 통일 | 리타게팅 단계의 구조적 제거 |
 
 <details><summary>v1 구조도 (기획)</summary>
 
@@ -127,8 +127,9 @@ GPU 단계(S2 · S3 · S5, 리깅 5-1 SMPL 메쉬 생성)와 Blender 단계(리�
 **명령 하나**로 잇는다 — 오케스트레이터가 구간 경계에서 그 Pod 이 Blender 4.5 LTS 를 실행할 수 있는지 판정하고, 가능하면 이어서 돈다.
 맥북은 재생 영상 검수와 Unity 반입에 쓴다. Pod 에서 GPU 구간만 돌리고 맥북 Blender 로 `--resume` 해 이어받는 방식도 그대로 된다.
 
-- **Pod — 이미지 Pod(기본)**: GHCR 비공개 v2 통합 이미지 `ghcr.io/chaeee01/v2ua-all`(sam2 · trellis2 · wham 세 환경 + sshd)
-  하나로 원커맨드 Pod 구간을 한 Pod 에서 끝낸다(2026-11-07 검증). 환경 하나씩 든 `v2ua-{sam2v,trellis2,wham}` 은 단독 대조용.
+- **Pod — 이미지 Pod(기본)**: GHCR 비공개 v3 통합 이미지 `ghcr.io/chaeee01/v2ua-all:v3-20261121-d160513`(sam2 · trellis2 · wham
+  세 환경 + sshd + Blender 4.5.12 LTS) 하나로 영상 1편 → FBX 를 한 Pod 에서 끝낸다(2026-11-21 검증 — 외형 트랙 · 동작 트랙).
+  v2 통합 이미지(`v2-20261107-0aa8002`, Blender 없음)와 환경 하나씩 든 `v2ua-{sam2v,trellis2,wham}` 은 보조 · 단독 대조용.
   템플릿: GHCR `read:packages` 자격증명 · Start Command 비움(이미지의 `/start.sh` 가 sshd 를 띄운다) · `PUBLIC_KEY` · TCP 22 ·
   볼륨 마운트 `/vol`. `bash -c "sleep infinity"` 는 sshd 가 없는 v1 이미지에서만 필요하다.
   SMPL 계열 3개(라이선스상 이미지에서 제외) · HF 모델 캐시 · 입출력 데이터는 볼륨에서 붙인다.
@@ -138,14 +139,15 @@ GPU 단계(S2 · S3 · S5, 리깅 5-1 SMPL 메쉬 생성)와 Blender 단계(리�
 - **원커맨드 실행** — 영상 1편 → FBX 를 한 명령으로:
 
   ```bash
-  BLENDER=<Blender 4.5 실행 파일> python3 scripts/orchestrate.py --video /workspace/data/00_raw/<샘플>.mp4 --name <샘플>
-  python3 scripts/orchestrate.py --name <샘플> --dry-run                                  # 실행 없이 명령 · 분기만
+  python3 scripts/orchestrate.py --video /workspace/data/00_raw/<샘플>.mp4 --name <샘플>          # 외형 트랙 → 캐릭터 FBX
+  python3 scripts/orchestrate.py --motion --character <캐릭터> --video <클립>.mp4 --name <클립>   # 동작 트랙 → 클립 FBX
+  python3 scripts/orchestrate.py --name <샘플> --resume --dry-run                         # 실행 없이 명령 · 분기만
   ```
 
   Blender 를 실행할 수 없는 Pod 이면 GPU 구간 뒤에서 종료 코드 2 로 멈추고 사유와 두 갈래(그 Pod 에 Blender 를 갖춰
   `--resume` / run 폴더를 맥북으로 회수해 `python3 scripts/orchestrate.py --name <샘플> --resume`)를 알린다.
-  **지금 이미지(`v2ua-all:v2-20261107-0aa8002`)에는 Blender 가 없다** — Blender 를 넣은 이미지를 빌드하기 전까지는
-  Pod 에 Blender 4.5 LTS 리눅스판과 apt 4종을 설치해 `BLENDER` 로 가리킨다([RUNBOOK 1-A](docs/RUNBOOK.md#1-a-이미지-pod-기본) 6).
+  v3 이미지는 `BLENDER` 가 이미지에 지정돼 있어 따로 줄 것이 없다. Blender 가 없는 v2 이미지로 띄웠을 때만 Blender 4.5 LTS
+  리눅스판과 apt 4종을 갖춰 `BLENDER` 로 가리킨다([RUNBOOK 1-A](docs/RUNBOOK.md#1-a-이미지-pod-기본) 6 — 보조 절차).
 
   옵션 · 종료 코드 · 한계는 [RUNBOOK 1.5절](docs/RUNBOOK.md#15-원커맨드-실행--orchestratepy), 단계별 수동 절차는 RUNBOOK 2~7절.
 

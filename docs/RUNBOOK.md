@@ -74,12 +74,13 @@ sshd 직접 접속과 세 환경 통합 이미지를 더해, 원커맨드 Pod �
 
 ### 1-A. 이미지 Pod (기본)
 
-1. **템플릿** (RunPod → Templates). **기본은 v2 통합 이미지 하나**다 — 환경 3종이 다 들어 있어 원커맨드 Pod 구간을
-   한 Pod 에서 끝낸다(2026-11-07 §15 검증).
+1. **템플릿** (RunPod → Templates). **기본은 v3 통합 이미지 하나**다 — 환경 3종과 Blender 4.5 LTS 가 다 들어 있어
+   영상 1편 → FBX 를 한 Pod 에서 명령 하나로 끝낸다(2026-11-21 관통 검증 — 외형 트랙 · 동작 트랙, PROJECT_STATUS 11/21).
 
    | 이미지 | 태그 | 내용 |
    |---|---|---|
-   | **`ghcr.io/chaeee01/v2ua-all`** | `v2-20261107-0aa8002` | sam2(→sam2v) · trellis2 · wham + sshd · rsync · `/start.sh` (압축 21.3GB) |
+   | **`ghcr.io/chaeee01/v2ua-all`** | **`v3-20261121-d160513`** | v2 + Blender 4.5.12 LTS(`/opt`, `ENV BLENDER`) · apt python3-numpy · python3-joblib · libsm6 · libice6 · SSH 세션에 `BLENDER` 전달(`docker/Dockerfile.blender`) |
+   | `ghcr.io/chaeee01/v2ua-all` | `v2-20261107-0aa8002` | sam2(→sam2v) · trellis2 · wham + sshd · rsync · `/start.sh` (압축 21.3GB) — Blender 없음 |
    | `ghcr.io/chaeee01/v2ua-{sam2v,trellis2,wham}` | `v2-20261106-5097849` | 환경 하나씩 + sshd (단독 대조 · 가벼운 Pod 용) |
    | 같은 이름 (v1) | `20260929-2b90b9f` · `20261008-75fbf01` · `20261008-2b54f77` | sshd 없음 — 아래 v1 주의 |
 
@@ -111,15 +112,17 @@ sshd 직접 접속과 세 환경 통합 이미지를 더해, 원커맨드 Pod �
    회수 · 반입은 **`rsync -rt`** — `/vol`(MooseFS)은 chown 이 안 돼 `rsync -a` 는 파일을 옮기고도 종료 코드 23 을 낸다.
 5. 환경 이름은 파이프라인과 같다 — `micromamba run -n sam2` (sam2v 이미지는 `sam2 → sam2v` 별칭이 들어 있다).
 6. **Blender 구간도 이 Pod 에서 (명령 하나)** — 오케스트레이터는 Pod 구간이 끝나면 `BLENDER` 를 실제로 띄워 보고(1.5절 "구간 경계")
-   실행할 수 있으면 리깅 · FBX 까지 이어서 돈다. **지금 이미지 태그(위 표)에는 Blender 가 없다** — Blender 를 넣은 이미지를
-   빌드하기 전까지는 2026-11-20 시험 절차대로 갖춘다(PROJECT_STATUS 11/20 항목):
+   실행할 수 있으면 리깅 · FBX 까지 이어서 돈다. **v3 이미지는 갖출 것이 없다** — `BLENDER` · numpy · joblib · libSM · libICE 가
+   이미지에 들어 있다. 캐릭터 설정(5-4b · 동작 트랙)은 그 기계의 `$PIPELINE_VOL/data/06_rig/<캐릭터>/` 에서 읽는다 — Pod 에서
+   돌리면 `/vol/data/06_rig`.
+
+   *보조 — Blender 가 없는 v2 이미지로 띄웠을 때*만 2026-11-20 시험 절차대로 갖춘다(PROJECT_STATUS 11/20 항목):
    - Blender 4.5 LTS 리눅스판(`blender-4.5.12-linux-x64.tar.xz`)을 볼륨 `/vol/opt/` 에 풀어 둔다(볼륨에 남으므로 한 번).
      이미지에 curl · wget · xz 가 없어 python3 표준 라이브러리(urllib · tarfile)로 받고 푼다.
    - Pod 마다: `apt-get install -y --no-install-recommends python3-numpy python3-joblib libsm6 libice6`
      (libSM · libICE 가 없으면 Blender 가 127 로 죽는다).
    - `BLENDER=/vol/opt/blender-4.5.12-linux-x64/blender` 로 실행한다.
-   - 캐릭터 설정(5-4b · 동작 트랙)은 그 기계의 `$PIPELINE_VOL/data/06_rig/<캐릭터>/` 에서 읽는다 — Pod 에서 돌리면 `/vol/data/06_rig`.
-   Blender 를 갖추지 않으면 지금처럼 Pod 구간 뒤에서 종료 코드 2 로 멈추고, 맥북으로 회수해 이어받으면 된다.
+   Blender 를 갖추지 않으면 Pod 구간 뒤에서 종료 코드 2 로 멈추고, 맥북으로 회수해 이어받으면 된다.
 
 #### 확인 포인트 (1-A)
 - 파이프라인 레포는 볼륨의 `/vol/repos/Video2UnityAvatar-Pipeline` 에서 부른다(11/05 검증도 이 경로).
@@ -220,8 +223,8 @@ micromamba activate wham      # 4·5단계 (python 3.9, torch 2.0.0+cu118)
 있는 Pod 이면 한 명령으로 두 구간을 이어서 돈다**. 완료 마커로 이어받으므로 두 구간을 다른 기계에서 돌려도 된다.
 
 ```bash
-# 명령 하나 — 1-A 통합 이미지 Pod(PIPELINE_VOL=/vol PIPELINE_ENV_ROOT=/workspace, 아래 "루트") + Blender(1-A 6)
-BLENDER=<Blender 4.5 실행 파일> python3 scripts/orchestrate.py --video /workspace/data/00_raw/<샘플>.mp4 --name <샘플>
+# 명령 하나 — 1-A v3 통합 이미지 Pod(PIPELINE_VOL=/vol PIPELINE_ENV_ROOT=/workspace, 아래 "루트"). v2 이미지면 BLENDER=<경로> 를 앞에(1-A 6)
+python3 scripts/orchestrate.py --video /workspace/data/00_raw/<샘플>.mp4 --name <샘플>
 
 # 두 기계로 나눌 때 — Pod 에서 GPU 구간(Blender 가 없으면 경계에서 종료 코드 2), run 폴더 · 산출물 회수(7절) 뒤 맥북에서
 python3 scripts/orchestrate.py --name <샘플> --resume
@@ -315,6 +318,12 @@ python3 scripts/orchestrate.py --motion --character listener --name <클립> --r
 - 이미지 Pod 원커맨드는 **2026-11-07 통합 이미지(v2ua-all)에서 검증**됐다 — S2 마스크 참조와 192/192 픽셀 일치, S5 는 같은
   masked.mp4 입력에서 pkl 완전 일치(재생성한 masked.mp4 는 마스크가 같아도 인코딩 바이트가 달라 S5 가 미세하게 다르다),
   맥 구간까지 FBX 관통. 데이터 루트를 새로 잡을 때 `run_wham.sh` 가 `logs/` 를 만들지 않던 결함은 같은 날 고쳤다.
+- **명령 하나(한 Pod 에서 영상 → FBX)는 2026-11-21 v3 이미지(`v3-20261121-d160513`)에서 검증**됐다 — `BLENDER` 지정 · apt 설치 없이.
+  외형 트랙 walker_walk_02(`--point 540,960`): 종료 코드 0, 경계 판정 "가능" 으로 멈추지 않고 FBX 까지, S2 마스크 11/07 과
+  192/192 바이트 동일, G1a f138 동일, 판정 S2 · S5 · G2 · G2r 동일(PASS). 동작 트랙 listener_hit_01_v2(`--motion --character listener
+  --video`): G0 → S2 → S5 → 5-1 → BAKE → G4 → CLIPFBX 종료 코드 0, G4 PASS(늘어남 PASS · 발 쓸기 N/A · 바닥 PASS, 11/20 과 같음).
+- **새 run 의 `--dry-run` 은 S5 뒤에서 멈춘다**(`[오류] S5 게이트에 G0 프레임 수가 없다`) — dry-run 은 G0 를 실측하지 않아
+  `frames` 가 없다. 계획 전체는 `--resume --dry-run`(G0 가 끝난 run)으로 본다. 새 run 의 dry-run 은 빈 run 폴더도 남긴다(백로그).
 - 스크립트 독스트링 기준 v1 골격이다 — 외형 트랙의 게이트 분기 · 재시도(설계 3-4절)는 다음 단계.
 - 동작 트랙은 고정 npz 를 만드는 단계(트랙 선택 · 이음 · `gait_window`)를 포함하지 않는다 — 있으면 쓰기만 한다.
   11/02 걷기 · 달리기의 고정 npz 를 만든 `gait_window.py` 는 레포에 없다(맥에서도 찾지 못함 — 결손). 출처는 각 모션 폴더의
