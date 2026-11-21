@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Video2UnityAvatar Pipeline</title>
+<title>Video-to-Unity 3D Character Pipeline</title>
 <meta name="description" content="영상 한 편에서 리깅·애니메이션이 완성된 Unity 게임 에셋까지 — 생성 AI 기반 캐릭터 제작 자동 파이프라인">
 <style>
 :root{
@@ -29,7 +29,7 @@ body{margin:0;background:var(--bg);color:var(--ink);
   line-height:1.65;-webkit-font-smoothing:antialiased}
 .wrap{max-width:980px;margin:0 auto;padding:0 16px}
 a{color:var(--accent);text-decoration:none} a:hover{text-decoration:underline}
-h1,h2,h3{line-height:1.25;letter-spacing:-.01em}
+h1,h2,h3{line-height:1.25;letter-spacing:-.01em;word-break:keep-all;overflow-wrap:anywhere}
 h2{font-size:1.7rem;margin:0 0 6px}
 .kicker{font-size:.78rem;font-weight:700;letter-spacing:.14em;color:var(--accent);text-transform:uppercase;margin-bottom:8px}
 .sec{padding:72px 0;border-top:1px solid var(--line)}
@@ -65,6 +65,7 @@ figcaption{padding:10px 14px;font-size:.84rem;color:var(--sub);border-top:1px so
 .badge{width:56px;height:56px;border-radius:50%;background:var(--surface);border:2px solid var(--accent);
   display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.8rem;color:var(--accent);font-family:var(--mono)}
 .step h3{margin:14px 0 6px;font-size:1.15rem}
+.step>div{min-width:0}
 .step p{margin:0 0 14px;color:var(--sub);font-size:.94rem;max-width:620px}
 .media-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;max-width:760px}
 .media-row.narrow{max-width:520px}
@@ -103,6 +104,9 @@ footer .wrap{border-top:1px solid var(--line);padding-top:32px}
   .badge{width:40px;height:40px;font-size:.68rem}
   .step::before{left:19px;top:40px}
   .sec{padding:56px 0}
+  table{font-size:.82rem}
+  th,td{padding:8px 10px}
+  td:first-child{white-space:normal}
 }
 </style>
 </head>
@@ -110,15 +114,16 @@ footer .wrap{border-top:1px solid var(--line);padding-top:32px}
 
 <header class="hero">
   <div class="wrap">
-    <div class="kicker">Video2UnityAvatar Pipeline</div>
-    <h1>영상 한 편이<br>게임 캐릭터가 되기까지</h1>
+    <div class="kicker">Video-to-Unity 3D Character Pipeline</div>
+    <h1>영상 기반 3D 캐릭터·애니메이션<br>제작 자동화</h1>
     <p class="tag">레퍼런스 이미지 1장 → 생성 영상 → 3D 외형·동작 복원 → 리깅 → Unity 반입.<br>
-    좀비 서바이벌 게임 <b>Empty House</b>의 캐릭터·애니메이션 에셋을 혼자 만들기 위해 설계한 자동 파이프라인입니다.</p>
+    3인 팀 게임 <b>Empty House</b>의 캐릭터·애니메이션 에셋 제작을 맡아, 영상에서 Unity FBX까지 만드는 파이프라인을 설계·구현했습니다.</p>
     <div class="meta">
       <span>AI·SW Maestro</span><span>2026.07 – 2026.11</span>
       <span>좀비 서바이벌 게임 (Empty House, Steam 출시, 3인 팀)</span>
       <span>파이프라인 기획·설계·구축 1인</span><span>Python · PyTorch · Blender · Unity</span>
-      <span>SAM2 · WHAM · TRELLIS.2 · SMPL · Veo / Gemini Omni</span>
+      <span>사용 모델: SAM2 · WHAM · TRELLIS.2 · SMPL · Veo / Gemini Omni</span>
+      <span>직접 구현: 키프레임 선정 · SMPL 리깅 · 웨이트 전이 · 품질 게이트 · 오케스트레이터</span>
     </div>
     <div class="btns">
       <a class="btn" href="https://github.com/chaeee01/Video2UnityAvatar-Pipeline">GitHub 레포 보기 →</a>
@@ -126,23 +131,44 @@ footer .wrap{border-top:1px solid var(--line);padding-top:32px}
     </div>
     <div class="stats">
       <div class="stat"><b>10종</b><small>제작한 캐릭터</small></div>
-      <div class="stat"><b>115편</b><small>납품한 애니메이션 클립</small></div>
+      <div class="stat"><b>115편</b><small>애니메이션 클립 누적 제작 (최종 반입 98편)</small></div>
       <div class="stat"><b>5단계</b><small>자동 품질 게이트 G0–G4</small></div>
-      <div class="stat"><b>0회</b><small>리타게팅 — 골격 통일로 제거</small></div>
+      <div class="stat"><b>제거</b><small>리타겟팅 단계 — 골격을 SMPL로 통일</small></div>
     </div>
   </div>
 </header>
 
+<section class="sec" id="characters">
+  <div class="wrap">
+    <div class="kicker">Overview</div>
+    <h2>프로젝트 개요 및 제작 결과</h2>
+    <p class="lead">Empty House는 3인 팀이 만든 Steam 출시 게임이고, 이 페이지는 그중 1인으로 담당한 캐릭터·애니메이션 에셋 제작 파이프라인을 다룹니다.
+    게임에 적용한 캐릭터는 좀비 6종과 플레이어 4종 — 전부 이미지 1장에서 출발해 같은 파이프라인으로 생성한 3D 메쉬입니다.</p>
+    <div class="grid7">
+      <figure><img src="assets/s3_mesh_walker.jpg" alt="walker" loading="lazy"><figcaption>zombie — walker</figcaption></figure>
+      <figure><img src="assets/s3_mesh_listener.jpg" alt="listener" loading="lazy"><figcaption>zombie — listener</figcaption></figure>
+      <figure><img src="assets/s3_mesh_stalker.jpg" alt="stalker" loading="lazy"><figcaption>zombie — stalker</figcaption></figure>
+      <figure><img src="assets/s3_mesh_lurker.jpg" alt="lurker" loading="lazy"><figcaption>zombie — lurker</figcaption></figure>
+      <figure><img src="assets/s3_mesh_oiler.jpg" alt="oiler" loading="lazy"><figcaption>zombie — oiler</figcaption></figure>
+      <figure><img src="assets/s3_mesh_dog.jpg" alt="dog" loading="lazy"><figcaption>zombie — dog (골격·동작은 Mixamo)</figcaption></figure>
+      <figure><img src="assets/s3_mesh_player_01.jpg" alt="player 1" loading="lazy"><figcaption>player 01</figcaption></figure>
+      <figure><img src="assets/s3_mesh_player_02.jpg" alt="player 2" loading="lazy"><figcaption>player 02</figcaption></figure>
+      <figure><img src="assets/s3_mesh_player_03.jpg" alt="player 3" loading="lazy"><figcaption>player 03</figcaption></figure>
+      <figure><img src="assets/s3_mesh_player_04.jpg" alt="player 4" loading="lazy"><figcaption>player 04</figcaption></figure>
+    </div>
+  </div>
+</section>
+
 <section class="sec" id="pipeline">
   <div class="wrap">
     <div class="kicker">How it works</div>
-    <h2>파이프라인 한 바퀴</h2>
+    <h2>AI 캐릭터·애니메이션 제작 파이프라인</h2>
     <p class="lead">캐릭터 하나(walker)가 입력에서 게임까지 가는 실제 산출물입니다.<br>
     외형과 동작을 영상에서 따로 복원한 뒤, 하나의 SMPL 골격 위에서 합칩니다.</p>
 
     <figure style="max-width:560px;margin:0 auto 48px">
-      <img src="assets/pipeline_v4.jpg" alt="파이프라인 v4 구조도" loading="lazy">
-      <figcaption>파이프라인 v4 — 동작 경로(WHAM)가 복원한 SMPL 몸 — 체형과 키프레임 자세가 반영된 정점 — 을 외형 경로의 리깅에 그대로 써서 양쪽 골격을 SMPL 24본으로 통일. 이 연결 하나가 리타게팅 단계를 제거합니다.</figcaption>
+      <a href="assets/pipeline_v4.jpg"><img src="assets/pipeline_v4.jpg" alt="파이프라인 v4 구조도 — 입력 영상에서 분할(SAM2), 동작 복원(WHAM), 외형 복원(TRELLIS.2), SMPL 리깅, 동작 결합, 최종 평가로 이어지는 흐름" loading="lazy"></a>
+      <figcaption>파이프라인 v4 — 동작 경로(WHAM)가 복원한 SMPL 몸 — 체형과 키프레임 자세가 반영된 정점 — 을 외형 경로의 리깅에 그대로 써서 양쪽 골격을 SMPL 24본으로 통일. 이 연결 하나가 리타겟팅 단계를 제거합니다.</figcaption>
     </figure>
 
     <div class="step">
@@ -150,10 +176,10 @@ footer .wrap{border-top:1px solid var(--line);padding-top:32px}
       <div>
         <h3>입력 — 이미지 1장과 생성 영상</h3>
         <p>캐릭터 레퍼런스 이미지를 첫 프레임으로 고정해 영상 생성 모델(Veo/Gemini)로 동작 영상을 만듭니다.
-        프롬프트의 문구 하나가 보폭·접지·자세를 바꾸기 때문에, 동작별 프롬프트 레시피를 실측으로 확립했습니다.</p>
+        프롬프트의 문구 하나가 보폭·접지·자세를 바꾸기 때문에, 동작별 프롬프트를 생성 결과의 발 접지 수치로 비교해 정했습니다.</p>
         <div class="media-row vert">
           <figure><img src="assets/input_ref_walker.jpg" alt="walker 레퍼런스 이미지" loading="lazy"><figcaption>① 캐릭터 레퍼런스 이미지</figcaption></figure>
-          <figure><video src="assets/input_video_walker.mp4" muted loop playsinline preload="metadata"></video><figcaption>② 생성된 걷기 영상 (9:16)</figcaption></figure>
+          <figure><video aria-label="② 생성된 걷기 영상 (9:16)" src="assets/input_video_walker.mp4" muted loop playsinline preload="metadata"></video><figcaption>② 생성된 걷기 영상 (9:16)</figcaption></figure>
         </div>
       </div>
     </div>
@@ -164,7 +190,7 @@ footer .wrap{border-top:1px solid var(--line);padding-top:32px}
         <h3>분할 — SAM2</h3>
         <p>배경을 지우고 캐릭터만 남긴 클립을 다음 단계로 넘깁니다. 마스크 품질은 게이트가 자동 검사합니다.</p>
         <div class="media-row vert1">
-          <figure><video src="assets/s2_mask_walker.mp4" muted loop playsinline preload="metadata"></video><figcaption>SAM2 마스크 — 인물만 분리된 클립</figcaption></figure>
+          <figure><video aria-label="SAM2 마스크 — 인물만 분리된 클립" src="assets/s2_mask_walker.mp4" muted loop playsinline preload="metadata"></video><figcaption>SAM2 마스크 — 인물만 분리된 클립</figcaption></figure>
         </div>
       </div>
     </div>
@@ -176,7 +202,7 @@ footer .wrap{border-top:1px solid var(--line);padding-top:32px}
         <p>영상에서 프레임별 3D 자세와 위치를 SMPL 파라미터로 추정합니다.
         복원된 3D 몸을 원본 영상 위에 투영하면 추정이 얼마나 맞는지 눈으로 확인할 수 있습니다.</p>
         <div class="media-row vert1">
-          <figure><video src="assets/s5_wham_overlay_walker.mp4" muted loop playsinline preload="metadata"></video><figcaption>WHAM이 추정한 3D 몸(SMPL 정점)을 원본에 투영</figcaption></figure>
+          <figure><video aria-label="WHAM이 추정한 3D 몸(SMPL 정점)을 원본에 투영" src="assets/s5_wham_overlay_walker.mp4" muted loop playsinline preload="metadata"></video><figcaption>WHAM이 추정한 3D 몸(SMPL 정점)을 원본에 투영</figcaption></figure>
         </div>
       </div>
     </div>
@@ -188,7 +214,7 @@ footer .wrap{border-top:1px solid var(--line);padding-top:32px}
         <p>영상에서 자세가 좋은 키프레임 한 장을 자동 선별해 텍스처가 입혀진 3D 메쉬를 생성합니다.
         키프레임 선별 기준(팔이 몸에서 떨어진 자세 등)도 실패 사례에서 역산해 규칙으로 만들었습니다.</p>
         <div class="media-row vert1">
-          <figure><video src="assets/s3_mesh_walker_turntable.mp4" muted loop playsinline preload="metadata"></video><figcaption>TRELLIS.2 메쉬 턴테이블 — 키프레임 1장에서 생성</figcaption></figure>
+          <figure><video aria-label="TRELLIS.2 메쉬 턴테이블 — 키프레임 1장에서 생성" src="assets/s3_mesh_walker_turntable.mp4" muted loop playsinline preload="metadata"></video><figcaption>TRELLIS.2 메쉬 턴테이블 — 키프레임 1장에서 생성</figcaption></figure>
         </div>
       </div>
     </div>
@@ -199,7 +225,7 @@ footer .wrap{border-top:1px solid var(--line);padding-top:32px}
         <h3>리깅 — SMPL 골격 직접 이식</h3>
         <p>WHAM의 체형으로 만든 SMPL 몸을 TRELLIS 메쉬에 정렬하고, SMPL 몸에 Blender 자동 웨이트를 입힌 뒤
         그 웨이트를 3단계(최근접 표면 → 메쉬 연결 전파 → 거리 폴백)로 전이합니다.
-        "공간상 가깝다 ≠ 같은 부위다"를 배운 자리 — 손 정점이 허벅지 웨이트를 받는 오배정을 부위 제약으로 막습니다.</p>
+        가까운 표면만 따르면 손 정점이 허벅지 웨이트를 받습니다. 이 오배정은 부위 제약으로 막았습니다.</p>
         <div class="media-row eq">
           <figure><img src="assets/s4_align_walker.jpg" alt="SMPL-TRELLIS 정렬 확인" loading="lazy"><figcaption>SMPL 몸(골격)을 메쉬 안에 정렬</figcaption></figure>
           <figure><img src="assets/s4_transfer_walker.jpg" alt="웨이트 전이 부위 제약" loading="lazy"><figcaption>웨이트 전이의 부위 제약 — 팔·다리가 붙는 오배정 방지</figcaption></figure>
@@ -210,12 +236,11 @@ footer .wrap{border-top:1px solid var(--line);padding-top:32px}
     <div class="step">
       <div class="badge">S7</div>
       <div>
-        <h3>결합 — 리타게팅 없이</h3>
+        <h3>결합 — 리타겟팅 없이</h3>
         <p>외형과 동작의 골격이 이미 같으므로, 복원한 동작을 리그에 그대로 굽습니다(베이킹).
-        Mixamo 리깅 + 리타게팅 경로를 세 방식으로 시도해 모두 실패한 끝에, "리타게팅을 잘하는" 대신
-        "리타게팅이 필요 없는" 구조로 문제를 제거한 것이 이 파이프라인의 핵심 결정입니다.</p>
+        Mixamo 리깅 + 리타겟팅을 세 방식으로 시도했으나 모두 자세가 무너져, 골격을 SMPL로 통일하는 구조로 바꿨습니다.</p>
         <div class="media-row narrow">
-          <figure><video src="assets/bake_walker_hit.mp4" muted loop playsinline preload="metadata"></video><figcaption>원본 영상(좌)과 리그에 구운 동작(우)</figcaption></figure>
+          <figure><video aria-label="원본 영상(좌)과 리그에 구운 동작(우)" src="assets/bake_walker_hit.mp4" muted loop playsinline preload="metadata"></video><figcaption>원본 영상(좌)과 리그에 구운 동작(우)</figcaption></figure>
         </div>
       </div>
     </div>
@@ -223,44 +248,157 @@ footer .wrap{border-top:1px solid var(--line);padding-top:32px}
     <div class="step">
       <div class="badge">OUT</div>
       <div>
-        <h3>Unity — 게임 반입</h3>
-        <p>FBX로 내보내 게임팀에 납품합니다. 캐릭터 10종, 클립 115편 — 아래는 이 파이프라인으로 만든
+        <h3>Unity — 게임 적용</h3>
+        <p>FBX로 내보내 팀에 공유하고 게임에 적용했습니다. 캐릭터 10종, 클립 115편 — 아래는 이 파이프라인으로 만든
         걷기·피격·쓰러짐·일어나기·포효 동작이 실제 게임에서 재생되는 장면입니다.</p>
         <div class="media-row grid2">
-          <figure><video src="assets/unity_ingame_1.mp4" muted loop playsinline preload="metadata"></video><figcaption>플레이어 시점 — walker 접근 · 피격 · 쓰러짐</figcaption></figure>
-          <figure><video src="assets/unity_ingame_2.mp4" muted loop playsinline preload="metadata"></video><figcaption>walker — 쓰러진 뒤 다시 일어나 걷기 (get_up)</figcaption></figure>
-          <figure><video src="assets/unity_ingame_3.mp4" muted loop playsinline preload="metadata"></video><figcaption>listener · walker 동시 등장 — 피격 · 쓰러짐</figcaption></figure>
-          <figure><video src="assets/unity_ingame_4.mp4" muted loop playsinline preload="metadata"></video><figcaption>stalker — 발견 · 포효 · 접근 · 피격 · 쓰러짐</figcaption></figure>
+          <figure><video aria-label="플레이어 시점 — walker 접근 · 피격 · 쓰러짐" src="assets/unity_ingame_1.mp4" muted loop playsinline preload="metadata"></video><figcaption>플레이어 시점 — walker 접근 · 피격 · 쓰러짐</figcaption></figure>
+          <figure><video aria-label="walker — 쓰러진 뒤 다시 일어나 걷기 (get_up)" src="assets/unity_ingame_2.mp4" muted loop playsinline preload="metadata"></video><figcaption>walker — 쓰러진 뒤 다시 일어나 걷기 (get_up)</figcaption></figure>
+          <figure><video aria-label="listener · walker 동시 등장 — 피격 · 쓰러짐" src="assets/unity_ingame_3.mp4" muted loop playsinline preload="metadata"></video><figcaption>listener · walker 동시 등장 — 피격 · 쓰러짐</figcaption></figure>
+          <figure><video aria-label="stalker — 발견 · 포효 · 접근 · 피격 · 쓰러짐" src="assets/unity_ingame_4.mp4" muted loop playsinline preload="metadata"></video><figcaption>stalker — 발견 · 포효 · 접근 · 피격 · 쓰러짐</figcaption></figure>
         </div>
       </div>
     </div>
   </div>
 </section>
 
-<section class="sec" id="characters">
+<section class="sec" id="cases">
   <div class="wrap">
-    <div class="kicker">Characters</div>
-    <h2>납품 캐릭터 10종</h2>
-    <p class="lead">좀비 6종과 플레이어 4종 — 전부 이미지 1장에서 출발해 같은 파이프라인으로 생성한 3D 메쉬입니다.</p>
-    <div class="grid7">
-      <figure><img src="assets/s3_mesh_walker.jpg" alt="walker" loading="lazy"><figcaption>zombie — walker</figcaption></figure>
-      <figure><img src="assets/s3_mesh_listener.jpg" alt="listener" loading="lazy"><figcaption>zombie — listener</figcaption></figure>
-      <figure><img src="assets/s3_mesh_stalker.jpg" alt="stalker" loading="lazy"><figcaption>zombie — stalker</figcaption></figure>
-      <figure><img src="assets/s3_mesh_lurker.jpg" alt="lurker" loading="lazy"><figcaption>zombie — lurker</figcaption></figure>
-      <figure><img src="assets/s3_mesh_oiler.jpg" alt="oiler" loading="lazy"><figcaption>zombie — oiler</figcaption></figure>
-      <figure><img src="assets/s3_mesh_dog.jpg" alt="dog" loading="lazy"><figcaption>zombie — dog</figcaption></figure>
-      <figure><img src="assets/s3_mesh_player_01.jpg" alt="player 1" loading="lazy"><figcaption>player 01</figcaption></figure>
-      <figure><img src="assets/s3_mesh_player_02.jpg" alt="player 2" loading="lazy"><figcaption>player 02</figcaption></figure>
-      <figure><img src="assets/s3_mesh_player_03.jpg" alt="player 3" loading="lazy"><figcaption>player 03</figcaption></figure>
-      <figure><img src="assets/s3_mesh_player_04.jpg" alt="player 4" loading="lazy"><figcaption>player 04</figcaption></figure>
+    <div class="kicker">Problem solving</div>
+    <h2>핵심 구현 및 문제 해결</h2>
+    <p class="lead">모든 수리는 "현상 → 수치로 원인 특정 → 처방 → 전수 회귀 검증"의 순서로 진행했고,
+    과정 전체가 레포 문서에 날짜별로 남아 있습니다.</p>
+
+    <div class="case">
+      <h3>① 발이 바닥에서 미끄러진다</h3>
+      <div class="num">접지 중 발 쓸기 속도 <span class="from">−0.003</span> → <span class="to">−0.82</span> (신장/초)</div>
+      <p>게임팀의 "미끄러져 보인다"는 피드백을 <b>"접지 중 발이 몸 아래로 쓸리는 속도"</b>라는 지표로 번역했습니다.
+      문제 클립은 무릎만 드는 제자리걸음(쓸기 ≈ 0)이었고, 같은 골격을 쓰는 다른 캐릭터의 달리기 동작을 이식해 해결 —
+      이후 이 지표는 G4의 자동 판정 항목이 됐고, 클립마다 "미끄러지지 않는 권장 이동 속도"를 함께 공유합니다.</p>
+      <div class="media-row eq">
+        <figure><video aria-label="문제판(좌) · 동작 출처(중) · 이식판(우)" src="assets/ba_slide_listener.mp4" muted loop playsinline preload="metadata"></video><figcaption>문제판(좌) · 동작 출처(중) · 이식판(우)</figcaption></figure>
+        <figure><img src="assets/slide_listener_seq_s.jpg" alt="listener 달리기 — 위 수리 전, 아래 수리 후, 같은 시점 3프레임" loading="lazy"><figcaption>위: 수리 전(무릎만 드는 제자리걸음) · 아래: 수리 후(이식판)</figcaption></figure>
+      </div>
     </div>
+
+    <div class="case">
+      <h3>② 웨이트 경계 스무딩 — 가랑이 · 겨드랑이가 늘어난다</h3>
+      <div class="num">0.10 초과 늘어난 엣지 <span class="from">가랑이 471 · 겨드랑이 266</span> → <span class="to">0</span></div>
+      <p>늘어난 엣지의 87%가 웨이트 전이가 만드는 <b>"딱 잘린 경계"</b>(한 정점은 왼다리만, 옆 정점은 오른다리만)에서
+      나온다는 걸 측정으로 특정하고, 경계 주변 띠만 스무딩하는 후처리를 설계했습니다. 띠 밖 웨이트는 한 정점도 바뀌지 않아
+      기존 적용 클립의 회귀가 0건 — 이 수리로 격리돼 있던 클립 18편이 전부 복구됐습니다.</p>
+      <div class="media-row eq">
+        <figure><img src="assets/seam_crotch_listener_s.jpg" alt="listener 가랑이 근접 — 왼쪽 수리 전(다리 사이 늘어난 막), 오른쪽 수리 후" loading="lazy"><figcaption>가랑이 — 수리 전(좌) · 후(우), listener 달리기 f34</figcaption></figure>
+        <figure><img src="assets/seam_armpit_listener_s.jpg" alt="listener 겨드랑이 근접 — 왼쪽 수리 전(허리 높이에서 찢겨 나온 조각), 오른쪽 수리 후" loading="lazy"><figcaption>겨드랑이 — 수리 전(좌) · 후(우), listener 달리기 f62</figcaption></figure>
+      </div>
+    </div>
+
+    <div class="case">
+      <h3>③ 기각한 개선안 — bfs-weld (UV 이음매 연결)</h3>
+      <div class="num">3차 폴백 비율 11.64% → 0.66% (개선) · 겨드랑이 늘어난 엣지 <span class="to">266</span> → <span class="from" style="text-decoration:none">394</span> (악화)</div>
+      <p>생성 메쉬는 UV 이음매에서 정점이 끊겨 있어 웨이트 전파가 이음매를 넘지 못합니다. 같은 좌표의 정점을 이어 주는 옵션(bfs-weld)을 넣자
+      폴백은 줄었지만, 이음매 건너편의 딱 잘린 웨이트를 그대로 복사해 늘어남이 오히려 커졌습니다(팔–하부 몸통 오배정 엣지 1,048 → 1,159).
+      옵션으로만 남기고 기본값은 off로 두었고, 겨드랑이는 사례 ②의 경계 스무딩으로 따로 해결했습니다(266 → 0). listener 실측, 2026-10-21.</p>
+    </div>
+
+    <div class="case">
+      <h3>④ 몸이 바닥에 뜨거나 묻힌다</h3>
+      <div class="num">바닥 거리 <span class="from">+0.16 공중부양 · −0.14 침하</span> → <span class="to">±0.02</span></div>
+      <p>베이킹이 "서서 시작한다"고 가정하고 있었고, 눕는 동작이 처음 생기자 숨은 버그가 드러났습니다.
+      몸의 최저점이 바닥에 닿도록 루트 높이를 정렬하는 단계를 추가하고, 같은 검사를 G4에 넣어
+      이미 적용한 클립까지 전수 재검사 — 숨어 있던 결함 2건을 추가로 찾아 교체했습니다.</p>
+      <div class="media-row eq">
+        <figure><video aria-label="엎드린 몸이 공중에 뜸 — 수리 전(좌) · 후(우)" src="assets/ba_floor_stalker.mp4" muted loop playsinline preload="metadata"></video><figcaption>엎드린 몸이 공중에 뜸 — 수리 전(좌) · 후(우)</figcaption></figure>
+        <figure><video aria-label="숙일 때 바닥 아래로 묻힘 — 수리 전(좌) · 후(우)" src="assets/ba_floor_walker.mp4" muted loop playsinline preload="metadata"></video><figcaption>숙일 때 바닥 아래로 묻힘 — 수리 전(좌) · 후(우)</figcaption></figure>
+      </div>
+    </div>
+
+    <div class="case">
+      <h3>⑤ 프롬프트 한 줄이 동작을 바꾼다</h3>
+      <div class="num">발 쓸기 <span class="from">−0.26</span> → <span class="to">−0.57</span> — 단, 자세 사양과 트레이드오프</div>
+      <p>"디딘 발이 러닝머신 벨트처럼 뒤로 쓸려 간다"는 문장 하나로 달리기의 접지 품질이 2배가 됩니다.
+      대신 상체 자세가 사양에서 벗어나는 부작용도 실측으로 확인 — 생성 모델의 텍스트 조건화가
+      물리 묘사에 얼마나 민감하고, 조건끼리 어떻게 충돌하는지를 보여주는 사례입니다.</p>
+      <div class="media-row narrow">
+        <figure><video aria-label="걷기/달리기 — 문장 추가 전후 (각 쌍의 좌=전, 우=후)" src="assets/ba_gait_stalker.mp4" muted loop playsinline preload="metadata"></video><figcaption>걷기/달리기 — 문장 추가 전후 (각 쌍의 좌=전, 우=후)</figcaption></figure>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="gates">
+  <div class="wrap">
+    <div class="kicker">Quality gates</div>
+    <h2>애니메이션 품질 검증</h2>
+    <p class="lead">생성 AI의 출력은 매번 다릅니다. 사람 눈에 의존하던 검수를 측정 가능한 지표와
+    자동 게이트로 바꿔, 게임에 적용한 클립 전체를 언제든 다시 검사할 수 있게 했습니다.
+    기준에 못 미치지만 수용한 클립은 사유·날짜·수치가 남는 수용 기록으로 관리되고, 수치가 나빠지면 자동으로 재검토 대상에 올라옵니다.</p>
+    <table>
+      <thead><tr><th>게이트</th><th>단계</th><th>무엇을 재나</th></tr></thead>
+      <tbody>
+        <tr><td>G0</td><td>입력</td><td>프레임 수 · 프레임레이트 · 해상도 (ffprobe 실측)</td></tr>
+        <tr><td>G1<br><small>gate_s2 · gate_s5 · G1a</small></td><td>분할 · 동작 추적 · 키프레임 선정</td><td>마스크 품질 — 다음 단계에 쓸 수 있는 분할인지 · 트랙 연속성 — 끊김 없이 전 프레임을 추적했는지 · 외형 생성에 넣을 키프레임 자동 선정(다리 벌어짐 · 시선각)</td></tr>
+        <tr><td>G2<br><small>G2 · G2r</small></td><td>메쉬 · 리깅</td><td>메쉬 재질 오류 · 면 수 비율 · 골격-메쉬 거리, 좌우 교차 배정, 폴백 분포, 부위 경계 엣지</td></tr>
+        <tr><td>G3<br><small>gate_g3</small></td><td>동작 복원 후</td><td>재투영 일관성 — 추적 이상 구간 표시. 눕기 · 기기 동작의 추정 불안정을 굽기 전에 알림, 불합격 판정에는 쓰지 않음</td></tr>
+        <tr><td>G4</td><td>베이킹 후</td><td>메쉬 늘어남(찢어짐), 발 미끄러짐 속도, 바닥 정렬</td></tr>
+      </tbody>
+    </table>
+    <p style="color:var(--sub);font-size:.86rem;max-width:680px;margin-top:10px">G4 최종 판정 — 반입 98편(dog 제외): PASS 85 · ACCEPTED 13 · CHECK 0.
+    ACCEPTED는 기준에 못 미치지만 사유를 남기고 수용한 클립입니다.</p>
+  </div>
+</section>
+
+<section class="sec" id="repro">
+  <div class="wrap">
+    <div class="kicker">Reproducibility</div>
+    <h2>파이프라인 자동화 및 실행 환경</h2>
+    <p class="lead">파이프라인은 torch 1.11~2.5, CUDA 11.3~12.4가 충돌하는 세 환경을 분리해 사용합니다.
+    이 환경 전체를 Docker 이미지로 굳혀 비공개 레지스트리(GHCR)에 두었습니다 — 접근 권한과 SMPL 라이선스가 있으면 누구나 새 GPU 서버에
+    이 이미지를 띄워 영상 1편 → FBX를 명령 하나로 실행합니다. GPU 구간(분할 · 동작 · 외형 · SMPL 메쉬)과
+    리깅 · FBX 구간(Blender)을 한 서버에서 이어서 돌리며, 구간이 바뀌기 전에 오케스트레이터가 그 서버에서 Blender를
+    실행할 수 있는지 판정합니다 — 실행할 수 없으면 멈추고 이어받을 방법을 알립니다. 서버가 사라져도 환경은 이미지로 복구하고,
+    SMPL 계열 3개 · 모델 캐시 · 입출력 데이터는 볼륨에서 연결합니다.</p>
+    <div class="stats">
+      <div class="stat"><b>명령 하나</b><small>영상 1편 → FBX — GPU 구간과 리깅 · FBX 구간(Blender)을 한 서버에서 이어서, 구간 경계에서 Blender 실행 가능 여부를 자동 판정 (2026-11-21 검증 — 캐릭터 · 동작 클립)</small></div>
+      <div class="stat"><b>3환경 → 1이미지</b><small>충돌하는 의존성을 분리한 채로 한 장에 통합 (약 22GB)</small></div>
+      <div class="stat"><b>산출물 일치</b><small>같은 서버 · 같은 입력에서 S2 마스크 · S5 pkl 동일, S3 정점 수 일치 — 이미지 환경 대조 검증</small></div>
+    </div>
+    <h3 style="margin:36px 0 10px">단일 서버 실행 검증 (2026-11-21)</h3>
+    <table>
+      <thead><tr><th>실행</th><th>벽시계</th><th>판정</th></tr></thead>
+      <tbody>
+        <tr><td>캐릭터<br><small>walker_walk_02</small></td><td>364초 · 481초 · 438초 (3회)</td><td>S2 · S5 · G2 · G2r PASS, 세 번째 실행에서 G3 PASS — 영상 1편 → 리깅된 FBX</td></tr>
+        <tr><td>동작 클립<br><small>listener_hit_01_v2</small></td><td>117초 · 118초 (2회)</td><td>G4 PASS (늘어남 · 바닥), 두 번째 실행에서 G3 PASS — 영상 1편 → 클립 FBX</td></tr>
+      </tbody>
+    </table>
+    <p style="color:var(--sub);font-size:.86rem;max-width:680px;margin-top:10px">RunPod RTX 4090 서버 한 대에 통합 이미지(Blender 4.5 LTS 포함)를 띄워 명령 하나로 실행했습니다.
+    G3는 세 번째 캐릭터 실행과 두 번째 클립 실행부터 포함됐습니다(같은 날 구현). 메쉬 생성 단계의 시간이 실행마다 달라(210 · 326 · 276초) 벽시계가 흔들립니다.</p>
+    <p style="color:var(--sub);font-size:.86rem;max-width:680px;margin-top:20px">라이선스상 재배포가
+    금지된 모델 가중치(SMPL 계열)는 이미지에서 제외하고 실행 시 볼륨에서 연결하도록 설계해,
+    이미지 배포에서도 라이선스 경계를 지켰습니다. 이미지 빌드와 레지스트리 push는 수동으로 합니다.</p>
+  </div>
+</section>
+
+<section class="sec" id="ci">
+  <div class="wrap">
+    <div class="kicker">Regression tests</div>
+    <h2>GitHub Actions CI 및 회귀 테스트</h2>
+    <p class="lead">게이트 판정 규칙, 오케스트레이터의 이어받기·재시도, 웨이트 경계 스무딩 계산을 합성 입력으로 시험합니다.
+    push할 때 GitHub Actions가 실행하며(경로 필터 적용), 실제 데이터 미러가 있어야 도는 시험은 CI에서 제외하고 로컬에서 돌립니다.
+    CI는 테스트 자동화까지이고, Docker 이미지 빌드·배포는 포함하지 않습니다.</p>
+    <div class="stats">
+      <div class="stat"><b>23개</b><small>테스트 파일 (파일 수 기준, 케이스 수 아님)</small></div>
+      <div class="stat"><b>16개</b><small>CI에서 실행하는 파일</small></div>
+      <div class="stat"><b>7개</b><small>CI 제외 — 실제 데이터 미러가 있어야 도는 시험</small></div>
+    </div>
+    <p style="color:var(--sub);font-size:.86rem;max-width:680px;margin-top:20px">집계 기준: main 27ca638 · 2026-11-21 실행 (16 passed, 7 skipped).</p>
   </div>
 </section>
 
 <section class="sec" id="numbers">
   <div class="wrap">
     <div class="kicker">By the numbers</div>
-    <h2>에셋 하나를 만드는 데 드는 시간과 비용</h2>
+    <h2>제작 성과 — 에셋 하나의 제작 시간과 비용</h2>
     <p class="lead">완성된 파이프라인으로 지금 에셋 하나 — 캐릭터 1종, 또는 동작 클립 1편 — 를 만들 때 드는 시간과 비용입니다.
     시간은 한 서버에서 명령 하나로 실행한 벽시계 실측(2026-11-21, 캐릭터 3회 · 동작 클립 2회) — 영상 생성과 서버 기동은 제외 — 이며,
     비용은 현행 생성 모델의 공식 단가와 GPU 시간당 요금으로 산출해
@@ -270,7 +408,7 @@ footer .wrap{border-top:1px solid var(--line);padding-top:32px}
       <tbody>
         <tr><td>캐릭터 1종</td><td>모델링·텍스처 3일~4주 + 리깅 수일</td><td><b>약 6~8분 · 약 $2</b> — 리깅까지 포함</td></tr>
         <tr><td>동작 클립 1편</td><td>키프레임 1~1.5일 또는 모캡 클립당 $50~200+</td><td><b>약 2분 · 약 $1.7</b> — 자동 게이트 판정 포함</td></tr>
-        <tr><td>영상 → FBX 세트</td><td>외형·동작 결합 공정 (일 단위)</td><td><b>약 8~10분 · 약 $4</b> — 명령 하나, 사람 개입 0~1회</td></tr>
+        <tr><td>영상 → FBX 세트</td><td>외형·동작 결합 공정 (일 단위)</td><td><b>약 8~10분 · 약 $4</b> — 명령 하나</td></tr>
       </tbody>
     </table>
     <p style="color:var(--sub);font-size:.86rem;max-width:680px;margin-top:10px">메쉬 생성(TRELLIS.2) 단계의 시간은 실행마다 달라집니다 —
@@ -278,7 +416,6 @@ footer .wrap{border-top:1px solid var(--line);padding-top:32px}
     <div class="stats">
       <div class="stat"><b>$1.52</b><small>영상 1편(10초) 생성 단가 — 현행 모델 Gemini Omni 1.1 Flash 기준</small></div>
       <div class="stat"><b>$0.90<span style="font-size:.9rem">/시간</span></b><small>GPU 단가 (RunPod RTX 4090, 2026-11 기준) — 전 기간(2026.07–11) RunPod 총비용 $132 (GPU $95 + 스토리지 $37), 시행착오·실패분 포함</small></div>
-      <div class="stat"><b>100%</b><small>레시피 확립 후 생성 성공률 (11월 17/17 · 전체 기간 92%)</small></div>
     </div>
     <p style="color:var(--sub);font-size:.86rem;max-width:680px;margin-top:20px">
     영상 생성은 Veo 3.1(편당 $0.80, 8초 기준)을 사용하다 제공 종료 이후 Gemini Omni 1.1 Flash로 이행했습니다.
@@ -294,107 +431,10 @@ footer .wrap{border-top:1px solid var(--line);padding-top:32px}
   </div>
 </section>
 
-<section class="sec" id="gates">
-  <div class="wrap">
-    <div class="kicker">Quality gates</div>
-    <h2>눈 대신 수치로 검사한다</h2>
-    <p class="lead">생성 AI의 출력은 매번 다릅니다. 사람 눈에 의존하던 검수를 측정 가능한 지표와
-    자동 게이트로 바꿔, 납품 전체를 언제든 전수 재검증할 수 있게 했습니다.
-    기준에 못 미치지만 수용한 클립은 사유·날짜·수치가 남는 수용 기록으로 관리되고, 수치가 나빠지면 자동으로 재검토 대상에 올라옵니다.</p>
-    <table>
-      <thead><tr><th>게이트</th><th>단계</th><th>무엇을 재나</th></tr></thead>
-      <tbody>
-        <tr><td>G0</td><td>입력</td><td>프레임 수 · 프레임레이트 · 해상도 (ffprobe 실측)</td></tr>
-        <tr><td>G1<br><small>gate_s2 · gate_s5 · G1a</small></td><td>분할 · 동작 추적 · 키프레임 선정</td><td>마스크 품질 — 다음 단계에 쓸 수 있는 분할인지 · 트랙 연속성 — 끊김 없이 전 프레임을 추적했는지 · 외형 생성에 넣을 키프레임 자동 선정(다리 벌어짐 · 시선각)</td></tr>
-        <tr><td>G2<br><small>G2 · G2r</small></td><td>메쉬 · 리깅</td><td>메쉬 재질 오류 · 면 수 비율 · 골격-메쉬 거리, 좌우 교차 배정, 폴백 분포, 부위 경계 엣지</td></tr>
-        <tr><td>G3<br><small>gate_g3</small></td><td>동작 복원 후</td><td>재투영 일관성 — 추적 이상 구간 표시. 눕기 · 기기 동작의 추정 불안정을 굽기 전에 알림, 불합격 판정에는 쓰지 않음</td></tr>
-        <tr><td>G4</td><td>베이킹 후</td><td>메쉬 늘어남(찢어짐), 발 미끄러짐 속도, 바닥 정렬</td></tr>
-      </tbody>
-    </table>
-  </div>
-</section>
-
-<section class="sec" id="cases">
-  <div class="wrap">
-    <div class="kicker">Problem solving</div>
-    <h2>품질 개선 기록 — 문제, 원인, 수리</h2>
-    <p class="lead">모든 수리는 "현상 → 수치로 원인 특정 → 처방 → 전수 회귀 검증"의 순서로 진행했고,
-    과정 전체가 레포 문서에 날짜별로 남아 있습니다.</p>
-
-    <div class="case">
-      <h3>① 발이 바닥에서 미끄러진다</h3>
-      <div class="num">접지 중 발 쓸기 속도 <span class="from">−0.003</span> → <span class="to">−0.82</span> (신장/초)</div>
-      <p>게임팀의 "미끄러져 보인다"는 피드백을 <b>"접지 중 발이 몸 아래로 쓸리는 속도"</b>라는 지표로 번역했습니다.
-      문제 클립은 무릎만 드는 제자리걸음(쓸기 ≈ 0)이었고, 같은 골격을 쓰는 다른 캐릭터의 달리기 동작을 이식해 해결 —
-      이후 이 지표는 G4의 자동 판정 항목이 됐고, 클립마다 "미끄러지지 않는 권장 이동 속도"를 함께 납품합니다.</p>
-      <div class="media-row eq">
-        <figure><video src="assets/ba_slide_listener.mp4" muted loop playsinline preload="metadata"></video><figcaption>문제판(좌) · 동작 출처(중) · 이식판(우)</figcaption></figure>
-        <figure><img src="assets/slide_listener_seq_s.jpg" alt="listener 달리기 — 위 수리 전, 아래 수리 후, 같은 시점 3프레임" loading="lazy"><figcaption>위: 수리 전(무릎만 드는 제자리걸음) · 아래: 수리 후(이식판)</figcaption></figure>
-      </div>
-    </div>
-
-    <div class="case">
-      <h3>② 팔을 들면 겨드랑이가 찢어진다</h3>
-      <div class="num">0.10 초과 늘어난 엣지 <span class="from">가랑이 471 · 겨드랑이 266</span> → <span class="to">0</span></div>
-      <p>늘어난 엣지의 87%가 웨이트 전이가 만드는 <b>"딱 잘린 경계"</b>(한 정점은 왼다리만, 옆 정점은 오른다리만)에서
-      나온다는 걸 측정으로 특정하고, 경계 주변 띠만 스무딩하는 후처리를 설계했습니다. 띠 밖 웨이트는 한 정점도 바뀌지 않아
-      기존 납품 클립의 회귀가 0건 — 이 수리로 격리돼 있던 클립 18편이 전부 복구됐습니다.</p>
-      <div class="media-row eq">
-        <figure><img src="assets/seam_crotch_listener_s.jpg" alt="listener 가랑이 근접 — 왼쪽 수리 전(다리 사이 늘어난 막), 오른쪽 수리 후" loading="lazy"><figcaption>가랑이 — 수리 전(좌) · 후(우), listener 달리기 f34</figcaption></figure>
-        <figure><img src="assets/seam_armpit_listener_s.jpg" alt="listener 겨드랑이 근접 — 왼쪽 수리 전(허리 높이에서 찢겨 나온 조각), 오른쪽 수리 후" loading="lazy"><figcaption>겨드랑이 — 수리 전(좌) · 후(우), listener 달리기 f62</figcaption></figure>
-      </div>
-    </div>
-
-    <div class="case">
-      <h3>③ 몸이 바닥에 뜨거나 묻힌다</h3>
-      <div class="num">바닥 거리 <span class="from">+0.16 공중부양 · −0.14 침하</span> → <span class="to">±0.02</span></div>
-      <p>베이킹이 "서서 시작한다"고 가정하고 있었고, 눕는 동작이 처음 생기자 숨은 버그가 드러났습니다.
-      몸의 최저점이 바닥에 닿도록 루트 높이를 정렬하는 단계를 추가하고, 같은 검사를 G4에 넣어
-      이미 납품된 클립까지 전수 재검사 — 숨어 있던 결함 2건을 추가로 찾아 교체했습니다.</p>
-      <div class="media-row eq">
-        <figure><video src="assets/ba_floor_stalker.mp4" muted loop playsinline preload="metadata"></video><figcaption>엎드린 몸이 공중에 뜸 — 수리 전(좌) · 후(우)</figcaption></figure>
-        <figure><video src="assets/ba_floor_walker.mp4" muted loop playsinline preload="metadata"></video><figcaption>숙일 때 바닥 아래로 묻힘 — 수리 전(좌) · 후(우)</figcaption></figure>
-      </div>
-    </div>
-
-    <div class="case">
-      <h3>④ 프롬프트 한 줄이 동작을 바꾼다</h3>
-      <div class="num">발 쓸기 <span class="from">−0.26</span> → <span class="to">−0.57</span> — 단, 자세 사양과 트레이드오프</div>
-      <p>"디딘 발이 러닝머신 벨트처럼 뒤로 쓸려 간다"는 문장 하나로 달리기의 접지 품질이 2배가 됩니다.
-      대신 상체 자세가 사양에서 벗어나는 부작용도 실측으로 확인 — 생성 모델의 텍스트 조건화가
-      물리 묘사에 얼마나 민감하고, 조건끼리 어떻게 충돌하는지를 보여주는 사례입니다.</p>
-      <div class="media-row narrow">
-        <figure><video src="assets/ba_gait_stalker.mp4" muted loop playsinline preload="metadata"></video><figcaption>걷기/달리기 — 문장 추가 전후 (각 쌍의 좌=전, 우=후)</figcaption></figure>
-      </div>
-    </div>
-  </div>
-</section>
-
-<section class="sec" id="repro">
-  <div class="wrap">
-    <div class="kicker">Reproducibility</div>
-    <h2>새 서버에서 같은 결과를 재현한다</h2>
-    <p class="lead">파이프라인은 torch 1.11~2.5, CUDA 11.3~12.4가 충돌하는 세 환경을 분리해 사용합니다.
-    이 환경 전체를 Docker 이미지로 굳혀 비공개 레지스트리(GHCR)에 두었습니다 — 접근 권한과 SMPL 라이선스가 있으면 누구나 새 GPU 서버에
-    이 이미지를 띄워 영상 1편 → FBX를 명령 하나로 실행합니다. GPU 구간(분할 · 동작 · 외형 · SMPL 메쉬)과
-    리깅 · FBX 구간(Blender)을 한 서버에서 이어서 돌리며, 구간이 바뀌기 전에 오케스트레이터가 그 서버에서 Blender를
-    실행할 수 있는지 판정합니다 — 실행할 수 없으면 멈추고 이어받을 방법을 알립니다. 서버가 사라져도 환경은 이미지로 복구하고,
-    SMPL 계열 3개 · 모델 캐시 · 입출력 데이터는 볼륨에서 연결합니다.</p>
-    <div class="stats">
-      <div class="stat"><b>명령 하나</b><small>영상 1편 → FBX — GPU 구간과 리깅 · FBX 구간(Blender)을 한 서버에서 이어서, 구간 경계에서 Blender 실행 가능 여부를 자동 판정 (2026-11-21 검증 — 캐릭터 · 동작 클립)</small></div>
-      <div class="stat"><b>3환경 → 1이미지</b><small>충돌하는 의존성을 분리한 채로 한 장에 통합 (21GB)</small></div>
-      <div class="stat"><b>산출물 일치</b><small>같은 서버 · 같은 입력에서 S2 마스크 · S5 pkl 동일, S3 정점 수 일치 — 이미지 환경 대조 검증</small></div>
-    </div>
-    <p style="color:var(--sub);font-size:.86rem;max-width:680px;margin-top:20px">라이선스상 재배포가
-    금지된 모델 가중치(SMPL 계열)는 이미지에서 제외하고 실행 시 볼륨에서 연결하도록 설계해,
-    이미지 배포에서도 라이선스 경계를 지켰습니다.</p>
-  </div>
-</section>
-
 <section class="sec" id="limits">
   <div class="wrap">
-    <div class="kicker">Honest notes</div>
-    <h2>한계와 배운 것</h2>
+    <div class="kicker">Limits</div>
+    <h2>기술적 한계와 배운 것</h2>
     <h3 style="margin:28px 0 10px">한계</h3>
     <ul class="flat">
       <li><b>자세가 어긋나면 리깅이 흔들립니다.</b> 외형 메쉬와 추정 자세를 몸 전체 기준으로 한 번에 맞추기 때문에,
@@ -409,10 +449,10 @@ footer .wrap{border-top:1px solid var(--line);padding-top:32px}
     <ul class="flat">
       <li><b>모호한 피드백은 지표로 번역해야 풀립니다.</b> "미끄러져 보인다"를 측정값으로 바꾸자
       원인 특정 → 수리 → 재발 방지(자동 게이트)까지 한 길로 이어졌습니다.</li>
-      <li><b>잘 고치는 것보다, 문제가 안 생기는 구조가 쌉니다.</b> 리타게팅을 개선하는 대신 골격을 통일해 제거했고,
+      <li><b>잘 고치는 것보다, 문제가 안 생기는 구조가 비용이 적습니다.</b> 리타겟팅을 개선하는 대신 골격을 통일해 제거했고,
       문제를 일으키는 입력(팔이 몸에 붙은 자세)은 레퍼런스 레시피로 상류에서 막았습니다.</li>
       <li><b>개선처럼 보이는 변경도 수치로 검증해야 합니다.</b> 데이터 정합성을 고친 수정이 오히려 변형을
-      악화시킨 적이 있습니다. 그 뒤로 모든 변경은 납품 전체 재검사를 통과해야 반영됩니다.</li>
+      악화시킨 적이 있습니다. 그 뒤로 모든 변경은 적용 클립 전체 재검사를 통과해야 반영됩니다.</li>
     </ul>
     <h3 style="margin:28px 0 10px">향후 개선 방향</h3>
     <ul class="flat">
