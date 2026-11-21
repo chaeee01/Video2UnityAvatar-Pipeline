@@ -329,7 +329,11 @@ python3 scripts/orchestrate.py --motion --character listener --name <클립> --r
   --video`): G0 → S2 → S5 → 5-1 → BAKE → G4 → CLIPFBX 종료 코드 0, G4 PASS(늘어남 PASS · 발 쓸기 N/A · 바닥 PASS, 11/20 과 같음).
 - **새 run 의 `--dry-run` 은 S5 뒤에서 멈춘다**(`[오류] S5 게이트에 G0 프레임 수가 없다`) — dry-run 은 G0 를 실측하지 않아
   `frames` 가 없다. 계획 전체는 `--resume --dry-run`(G0 가 끝난 run)으로 본다. 새 run 의 dry-run 은 빈 run 폴더도 남긴다(백로그).
-- 스크립트 독스트링 기준 v1 골격이다 — 외형 트랙의 게이트 분기 · 재시도(설계 3-4절)는 다음 단계.
+- 게이트 불합격 뒤 자동 재시도는 S2 · S3 에만 있다(`S2_MAX_TRIES` · `G2_MAX_TRIES`, 첫 시도 포함). **S2** 는 gate_s2 불합격 시
+  프롬프트 종류를 바꿔 다시 시도한다 — 시도 최대 3회(1차 `--point` 가 있으면 그 점, 없으면 실루엣 6점 → 2차 실루엣 10점 → 3차 실루엣 상자).
+  **S3** 는 gate_g2 불합격 시 seed 를 바꿔 다시 생성한다 — 시도 최대 2회(seed 0 → 1, 앞 산출물은 `_probe` 로 보존). 그 밖은 시도 1회다.
+  한도를 넘기거나 gate_s5 · G2r 불합격 · G1a 인계 · G4 CHECK/FAIL 이면 종료 코드 2(사람 개입), 단계가 죽거나 산출물이 없으면
+  재시도 없이 종료 코드 1 (`scripts/orchestrate.py` 독스트링).
 - 동작 트랙은 고정 npz 를 만드는 단계(트랙 선택 · 이음 · `gait_window`)를 포함하지 않는다 — 있으면 쓰기만 한다.
   11/02 걷기 · 달리기의 고정 npz 를 만든 `gait_window.py` 는 레포에 없다(맥에서도 찾지 못함 — 결손). 출처는 각 모션 폴더의
   `track_select.json` · `gait_window.json` 에 남아 있다.
@@ -916,6 +920,8 @@ G2r 의 ①~④ 는 `--transferred <06_rig/샘플/transferred_params.json>` 을 
 5-5 로 구운 클립마다 **늘어남** · **발 쓸기** · **바닥**(2026-10-26~, G4 v3) 을 재서 PASS / CHECK / FAIL / ACCEPTED 를 낸다. 판정 규칙은
 `scripts/g4_rules.py`(bpy 없음, `tests/test_g4_rules.py`), 측정은 `scripts/gate_g4.py`. 다른 게이트와 달리
 **종료 코드는 판정과 무관하게 0** 이다(측정 실패만 1) — CHECK 는 사람이 보고 수용 여부를 정한다.
+오케스트레이터에서는 **동작 트랙(`--motion`, 1.5절)에서만** BAKE 뒤에 클립마다 돈다 — 외형 트랙은 5-5 → FBX 로 끝나며 G4 단계가 없다
+(`scripts/orchestrate.py` 의 `MOTION_MAC`). 구조도(`docs/assets/pipeline_v4_current.png`)가 G4 를 가운데 줄기 하나에 그린 것은 개요 수준의 단순화다.
 
 ```bash
 /Applications/Blender4.5.app/Contents/MacOS/Blender --background --python scripts/gate_g4.py -- \

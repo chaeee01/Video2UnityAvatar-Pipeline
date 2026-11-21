@@ -16,7 +16,7 @@ D = f"{H}/data"
 
 # (id, 종류, 원본, 캐릭터, 단계, 캡션, 전후 쌍(그룹, 역할) 또는 None, 시작 초)
 ITEMS = [
-    ("pipeline_v4", "image", f"{R}/pipeline_v4.png", "-", "개요", "파이프라인 v4 — 영상 한 편에서 외형(TRELLIS.2)과 동작(WHAM)을 따로 뽑아 SMPL 골격 하나로 합친다", None, 0),
+    ("pipeline_v4", "image", f"{R}/pipeline_v4_current.png", "-", "개요", "파이프라인 v4 — 영상 한 편에서 외형(TRELLIS.2)과 동작(WHAM)을 따로 뽑아 SMPL 골격 하나로 합친다", None, 0),
     ("lineup_meshes", "image", f"{X}/lineup10.png", "walker · listener · stalker · lurker · oiler · dog · player_01~04", "S3 외형", "납품 캐릭터 10종의 TRELLIS 메쉬 — 좀비 6종(위 5 · 아래 첫 칸 dog) 뒤에 플레이어 4종 (정면, 같은 조명)", None, 0),
     ("input_ref_walker", "image", f"{D}/00_raw/_refs_clean/manor_walker_01_v4_1116_clean.png", "walker", "입력", "입력 ① 캐릭터 참조 이미지 (영상 생성의 시작 프레임)", None, 0),
     ("input_video_walker", "video", f"{D}/00_raw/walker_walk_02__fast-ff.mp4", "walker", "입력", "입력 ② 생성 영상 — 걷기 (9:16, 24fps)", None, 0),
@@ -52,7 +52,7 @@ ITEMS = [
 
 # 항목별 인코딩 예외 — 표시 폭이 줄어든 구조도 · 세로 영상은 선명도 우선, 라인업은 10칸이라 긴 변을 늘린다
 OPTS = {
-    "pipeline_v4": {"width": 1400, "q": 88},
+    "pipeline_v4": {"width": 1600, "q": 85},     # 2026-11-21 — make_pipeline_v4_current.py --jpg 와 같은 sips 값
     "lineup_meshes": {"long": 1600, "q": 85},
     "input_video_walker": {"h": 720, "crf": 26},
     "s2_mask_walker": {"h": 720, "crf": 26},
@@ -106,7 +106,7 @@ tot = sum(m["bytes"] for m in man)
 json.dump({"generated": "2026-11-06", "encoding": {"video": "H.264 mp4, height 540, CRF 28, ≤6 s, no audio, faststart", "image": "JPEG q80, long side ≤1200 px", "overrides": "items[].encoding_override"},
            "total_bytes": tot, "items": man}, open(f"{OUT}/manifest.json", "w"), ensure_ascii=False, indent=1)
 L = ["# site/assets — 공개 페이지 소재 매니페스트 (2026-11-06)", "",
-     f"총 {len(man)}개 · {tot/1e6:.2f} MB. 영상 H.264 · 높이 540 · CRF 28 · ≤6초 · 무음, 스틸 JPEG q80 · 긴 변 ≤1200px. **[미사용]** = 현재 `site/index.html` 이 참조하지 않는 소재(지우지 않고 보관). 예외: 구조도 폭 1400 · q88, 라인업 긴 변 1600 · q85, 세로 영상 3편 · 턴테이블 · bake 높이 720 · CRF 26.", "",
+     f"총 {len(man)}개 · {tot/1e6:.2f} MB. 영상 H.264 · 높이 540 · CRF 28 · ≤6초 · 무음, 스틸 JPEG q80 · 긴 변 ≤1200px. **[미사용]** = 현재 `site/index.html` 이 참조하지 않는 소재(지우지 않고 보관). 예외: 구조도 폭 1600 · q85, 라인업 긴 변 1600 · q85, 세로 영상 3편 · 턴테이블 · bake 높이 720 · CRF 26.", "",
      "구 파일 대체: `s3_mesh_player.jpg` → `s3_mesh_player_03.jpg`(char3), `s3_mesh_char_shuffle.jpg` → `s3_mesh_player_04.jpg`(char4) — 렌더 비교로 같은 캐릭터 확인(메쉬는 다른 판: 구 TRELLIS.2 · 신 char*.glb).", "",
      "| 파일 | 종류 | 크기 | 캐릭터 | 단계 | 캡션 | 전후 쌍 | 원본 |", "|---|---|---|---|---|---|---|---|"]
 for m in man:
