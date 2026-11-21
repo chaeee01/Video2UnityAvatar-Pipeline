@@ -828,10 +828,11 @@ GROUND_ALIGN=1 OUTDIR=<결과 폴더> tools/review/bake_character.sh <리그 샘
 
 ---
 
-## 5.5. 게이트 — 자동 판정 (G0/S2 · G2 · G2r)
+## 5.5. 게이트 — 자동 판정 (G0/S2 · G2 · G2r · G3)
 
 사람이 눈으로 보던 확인 포인트를 수치 판정으로 대체한다. 세 스크립트 모두 같은 규약을 쓴다 —
 **표준출력에 한 줄 요약, `--out` 아래 JSON, 종료 코드 PASS 0 / FAIL 1.** 쉘에서 바로 분기할 수 있다.
+G3(`gate_g3.py`, 5.7절)는 예외다 — 판정이 PASS / CHECK 뿐이고 둘 다 종료 코드 0, 입력을 읽지 못할 때만 0 이 아니다.
 
 ```bash
 python scripts/gate_s2.py  --masks <02_sam2/샘플/masks> --out <판정폴더> --frames 240
@@ -844,10 +845,10 @@ python scripts/gate_g2r.py --params <06_rig/샘플/aligned_params.json> --out <�
 
 ```json
 {
-  "gate": "S2",                  // S2 | G2 | G2r
+  "gate": "S2",                  // S2 | G2 | G2r | G3
   "version": 1,
   "name": "zombie_walker",
-  "verdict": "PASS",             // PASS | FAIL
+  "verdict": "PASS",             // PASS | FAIL  (G3 는 PASS | CHECK)
   "reasons": [],                 // FAIL 사유. 비어 있으면 PASS
   "warnings": [],                // 통과시키되 눈으로 보라는 신호
   "metrics": { },                // 게이트별 실측치
@@ -886,6 +887,7 @@ G2r 의 ①~④ 는 `--transferred <06_rig/샘플/transferred_params.json>` 을 
 | G2r | 웨이트 BFS 전파 | 기준 미정 | 3단 중 2단. 실측 5.3% |
 | G2r | 직선거리 폴백 | > 8% 경고 | 3단 중 3단이자 품질 최하. 실측 1.49%(512) · 3.67%(1024) 가 모두 포즈 시험 통과. 상한 근거가 약해 경고로만 |
 | G2r | 웨이트 무배정 | > 0 불합격 | 실측 0%. 1차 93.2 + BFS 5.3 + 폴백 1.5 = 100% |
+| G3 | 몸 관절 12개 재투영 오차 (사람 키 대비)의 프레임 중앙값 | > 0.05 가 5프레임 이상 연속이면 **CHECK** (불합격 없음) | 2026-11-21 미러 88편 역검증([G3_BACKCHECK.md](G3_BACKCHECK.md)): 77편은 0.05 초과 프레임 0, CHECK 7편은 전부 눕기 · 엎드리기 · 기기 클립이거나 gate_s5 불합격 이력, 서서 하는 납품 클립은 최장 2프레임 연속. 비교한 세 안 중 여유 폭이 가장 큰 안. 얼굴 5관절은 판정 제외(따로 기록). 자세한 것은 5.7절 |
 | — | max-dist 0.08 | (임계 아님) | 전이 파라미터. **정규화 단위이며 미터가 아니다.** 선정 근거가 커밋·주석·문서 어디에도 없다 — 0.05/0.08/0.12 비교 실험이 백로그에 있다 |
 
 **임계값은 전부 잠정이다.** 표본이 한 촬영 세팅(1280×720, 회색 배경, 중앙 인물)에 몰려 있다.
@@ -950,6 +952,52 @@ python3 tools/review/g4_report.py <판정폴더>          # 표 + 판정별 개�
   **최종 98편(dog 제외): PASS 85 · ACCEPTED 13 · CHECK 0**, 바닥 98편 PASS(순간 침하 허용 6편).
 - **G2r ⑤ 와의 관계** — ⑤ 는 리그당 한 번, 정지 상태의 부위 경계를 본다. G4 는 클립마다 동작 중의 늘어남을
   본다. ⑤ 가 0 이어도 동작에서 늘어날 수 있다(walker 수리 전).
+
+
+## 5.7. G3 — 재투영 일관성 (S5 뒤, 2026-11-21~)
+
+**무엇을 재나.** WHAM 이 복원한 SMPL 몸(`wham_output.pkl` 의 verts, 카메라 좌표)에서 COCO 17관절을 뽑아
+(`J_regressor_coco.npy` — 라이선스 대상인 SMPL 본체가 아니라 v3 이미지 · 볼륨에 들어 있다) WHAM 자신의 카메라
+(초점거리 √(W²+H²), 주점 영상 중앙 — `scripts/overlay_vis.py` 와 같다)로 영상에 투영하고, WHAM 이 입력으로 받은 2D 검출
+(`tracking_results.pth` 의 ViTPose keypoints)과의 거리를 **사람 키(px) 대비**로 잰다. 판정은 **몸 관절 12개**(어깨 · 팔꿈치 · 손목 ·
+엉덩이 · 무릎 · 발목)의 프레임별 중앙값으로 한다. 얼굴 5관절(코 · 눈 · 귀)은 판정에서 빼고 따로 기록한다.
+
+```bash
+# 오케스트레이터가 S5 에서 gate_s5 PASS 뒤 자동으로 돈다 (외형 · 동작 트랙 공통). 직접 돌릴 때 (wham 환경 — .pth 를 읽으려면 torch):
+micromamba run -n wham python scripts/gate_g3.py --pkl <04_wham/<샘플>_masked/wham_output.pkl> \
+    --tracking <04_wham/<샘플>_masked/tracking_results.pth> \
+    --regressor /workspace/repos/WHAM/dataset/body_models/J_regressor_coco.npy --width 1080 --height 1920 --out <판정폴더>
+```
+
+**판정 — PASS / CHECK (불합격 없음).** 몸 관절 프레임 오차가 키의 5% 를 넘는 프레임이 **5프레임 이상 연속**이면 CHECK.
+CHECK 여도 실행은 멈추지 않는다 — 오케스트레이터가 구간(프레임 범위)과 할 일을 출력하고 `run/gates/gate_g3_<시도>.json`,
+`attempts.json`, `run.json` 의 `g3` 에 남긴다. G3 가 판정을 내지 못하면(입력 · 회귀 행렬 없음) 판정 없이 지나가지 않고 멈춘다.
+이미 S5 를 마친 run 은 `--resume` 해도 G3 를 다시 돌리지 않는다.
+
+**기준값과 근거(잠정).** 2026-11-21 맥 미러에서 `tracking_results.pth` 가 있는 88편 전부를 역검증했다 —
+[G3_BACKCHECK.md](G3_BACKCHECK.md). 77편은 0.05 초과 프레임 0. CHECK 7편은 전부 눕기 · 엎드리기 · 기기 클립
+(walker · stalker `fall_front_v2`, `common_crawl_to_run`, `stalker_get_up_c` — 모두 `bake.ground_align`)이거나 gate_s5 불합격 이력
+클립(`listener_fall_front`, `walker_get_up_c2`, `common_fall_to_crawl`)이다. 서서 하는 납품 클립은 최장 2프레임 연속
+(`oiler_run_fwd_v2` 의 순간 튐). 세 안(>0.05 연속 ≥5 · >0.04 연속 ≥10 · >0.04 연속 ≥5)을 비교해 서서 하는 납품 클립과의 여유 폭이
+가장 큰 첫 안을 골랐다. 재보정: 서서 하는 클립이 CHECK 로 올라올 때 · 새 캐릭터 · 새 생성 모델.
+
+**한계 두 가지.**
+1. **WHAM 입력과 같은 2D 검출에 대한 자기 일관성 지표다.** 2D 로는 맞는데 깊이 방향으로 틀린 자세는 잡지 못한다 —
+   walker_walk_02 f138(WHAM 왼팔이 메쉬보다 벌어짐, 10/11) 왼손목 0.0106(클립 중앙 0.0092 · p95 0.016), char_shuffle f60(왼손 결함)
+   왼손목 0.0098(합격한 f6 은 0.0184). 둘 다 PASS 다.
+2. **CHECK 가 표시하는 것은 WHAM 이 약한 자세 구간**(눕기 · 엎드리기 · 기기 — 5-5 "바닥 정렬" 의 "WHAM 의 누운 · 엎드린 구간
+   높이도 흔들려")이다. 결과물의 결함 여부는 G4 바닥 판정(5.6절)이 판정한다. 그래서 불합격에 쓰지 않는다.
+
+**CHECK 가 떴을 때 할 일.**
+- 동작 트랙: 역할표(`06_rig/<캐릭터>/clip_roles.json`)에서 그 클립의 `bake.ground_align` 을 확인한다 — 오케스트레이터가 현재 값을 같이 출력한다.
+  누운 · 엎드린 · 기는 구간이 있는 클립이면 켜는 것이 원칙이다(5-5). 결과물의 바닥은 G4 가 판정한다.
+- 겹침 영상으로 그 구간을 본다(wham 환경): `python scripts/overlay_vis.py --pkl <pkl> --video <원본 영상> --smpl-model <SMPL_NEUTRAL.pkl>`
+  — 오케스트레이터가 이 명령을 경로째 출력한다. 몸이 영상과 어긋나 보이면 영상 재생성을 검토한다.
+- 서서 하는 클립이 CHECK 로 올라오면 기준값 재보정 대상이다 — 기록해 둔다.
+
+**확인(2026-11-21 Pod, v3 이미지)** — 외형 walker_walk_02(`--point 540,960`) · 동작 listener_hit_01_v2 를 명령 하나로 돌려
+G3 PASS 로 완주(G3 에 든 시간 약 1초). CHECK 경로는 볼륨의 walker_fall_front_v2 기존 산출물에 게이트를 직접 돌려 맥 역검증과
+판정 · 구간(f110~f129, 20프레임) · 수치가 소수 넷째 자리까지 같았다.
 
 ## 6. Unity 반입 (S7)
 
