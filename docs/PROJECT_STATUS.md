@@ -8,7 +8,7 @@
 
 ## 1. 최종 파이프라인 설계
 
-기획(v1) 이후 세 차례 개정을 거쳐 확정된 v4 구조. 버전별 구조도는 [`assets/`](assets/)에 있다 ([v1](assets/pipeline_v1.png) · [v2](assets/pipeline_v2.png) · [v3](assets/pipeline_v3.png) · [v4](assets/pipeline_v4.png)).
+기획(v1) 이후 세 차례 개정을 거쳐 확정된 v4 구조. 버전별 구조도는 [`assets/`](assets/)에 있다 ([v1](assets/pipeline_v1.png) · [v2](assets/pipeline_v2.png) · [v3](assets/pipeline_v3.png) · [v4](assets/pipeline_v4.png) — 설계 당시 그림. 현재 구현은 [pipeline_v4_current.png](assets/pipeline_v4_current.png), 2026-11-21).
 
 ```
 입력 영상
@@ -107,7 +107,7 @@ WHAM betas(체형) + 키프레임 pose(자세) → 그 좀비와 같은 자세·
   → SMPL 골격을 가진 좀비 → WHAM 동작 무변환 재생 → Unity Humanoid 반입
 ```
 
-구조도: [pipeline_v4.png](assets/pipeline_v4.png) — G3에서 S4로 향하는 `betas 전달` 경로가 v3 대비 유일한 신규 연결이며, 이 한 줄이 리타게팅 단계를 제거한다.
+구조도: [pipeline_v4.png](assets/pipeline_v4.png) (설계 당시 그림 — 현재 구현은 [pipeline_v4_current.png](assets/pipeline_v4_current.png): 전달선은 S5 에서 나가는 "SMPL 몸 전달 (체형 betas · 키프레임 자세 반영)" 이고 G3 는 기록 · 안내만 한다) — G3에서 S4로 향하는 `betas 전달` 경로가 v3 대비 유일한 신규 연결이며, 이 한 줄이 리타게팅 단계를 제거한다.
 
 기대 효과: Mixamo(수동, API 없음) 제거로 완전 자동화 가능. UniRig(스키닝 모델 미공개) 의존 불필요.
 
@@ -1241,6 +1241,17 @@ WHAM betas(체형) + 키프레임 pose(자세) → 그 좀비와 같은 자세·
   **공개 페이지 사례 ②** — 영상 두 편(`ba_weight_listener.mp4` — 수리 전 판이 없음, `ba_weight_walker.mp4` — 전후 차이가 식별되지 않음)을 근접 그림 두 장으로 바꿨다. 헤드리스 Chrome 실측: 데스크톱(1280) 사례 ① · ② · ③ 의 칸이 모두 372.0×232.5, 폰 폭 390 에서 모두 291.0×181.9(375 에서 276.0×172.5). 본문 문장은 그대로. 영상은 지우지 않고 manifest [미사용]. manifest 38개(페이지 사용 30) · 7.21 MB.
 
   **확인할 것** — 실험 기록 폴더는 `~/Desktop/e2e_check/` 에서 `~/Desktop/3D_avatar_work/experiments/e2e_check/` 로 옮겨져 있다(리그 `WFIX.md` · 굽기 로그 · 측정 JSON 안의 경로는 옛 위치).
+
+- **2026-11-21 — 설계도를 지금 구현된 모습으로 다시 그림 (`docs/pipeline-figure`)**: 공개 페이지 · README 의 구조도(`site/assets/pipeline_v4.jpg` · `docs/assets/pipeline_v4_final.png`)가 코드 · RUNBOOK 과 18곳 달랐다.
+
+  **그림의 출처(읽기 전용 조사).** 11/14 에 넣은 `pipeline_v4_final.png`(3000×3880)는 레포 밖에서 만든 그림이다 — `~/Downloads/다이어그램_파이프라인_v3.png`(11/13 Claude 앱으로 받은 파일)와 바이트 동일, 편집 가능한 원본(벡터 · HTML 등)은 맥 어디에서도 찾지 못했다. `docs/assets/make_pipeline_v4.py` 는 10/08 그림 `pipeline_v4.png` 의 원본이고(다시 돌리면 픽셀 차 0) 쓰이는 두 그림과는 무관했다. 페이지 JPG 는 그 PNG 를 1600px 로 줄인 것.
+
+  **불일치 18건과 원인 — 설계도가 구현을 따라오지 않았다.** 그림은 8/17 · 10/08 의 설계를 그린 것이고, 그 뒤 구현이 바뀌는 동안(G1m 흡수 · G3 축소 10/17, G3 구현 11/21, 단계별 재시도, 5-1 의 정점 저장 방식) 글은 고쳤지만 그림은 고치지 않았다(11/21 G3 항목에서 6곳만 적어 둠).
+  ① G3 상자(재투영 PCK · MPJPE · 발 미끄러짐 · 저크 · 접지 · 좀비 자세 · betas 안정성) → 재투영 일관성 PASS / CHECK ② G3 → S4 "betas 전달 (동일 체형 파라미터 공유)" → S5 에서 나가는 "SMPL 몸 전달" ③ pose 전달의 출발점 G3 → S5 ④ S4 "betas + pose 로 SMPL 메쉬 생성" → 5-1 은 WHAM 키프레임 정점을 그대로 저장 ⑤ R "전 구간 원커맨드 실행" → "명령 하나로 전 구간 · 사람 개입 0~1회"(9/30 S2 좌표 1회 · 10/11 0회) ⑥ G1m 상자 → gate_s2 · gate_s5 ⑦ S0 전처리 · ⑧ S1 PySceneDetect — 구현되지 않음(오케스트레이터 단계 없음, 입력 조건 RUNBOOK 0절) ⑨ G0 "해상도, 압축 아티팩트, 대상 존재" → 프레임 수 · fps · 해상도 실측 ⑩ S6 좌표 변환 — 단계 없음(5-2 정렬 · 5-5 굽기 안) ⑪ G2 "LPIPS · CLIP-I · 실루엣 IoU · 대칭 · 파편 · UV 왜곡" → 유효 metallic · 데시메이션 비율 ⑫ G2r "SMPL 24본 계층" — 게이트에 없는 검사 ⑬ "베이킹(240프레임)" → 클립 전 프레임(`apply_wham_pose.py` `T = len(pose)`) ⑭ G4 가 모든 경로에 → 동작 트랙만(`MOTION_MAC`) ⑮ G4 "렌더 결과와 원본 클립 대조" — 없음 ⑯ 재시도 고리(G4 → R → G1a, 완료 → R, 어디에도 닿지 않는 라벨 셋) → 단계별 자동 시도(`S2_MAX_TRIES=3` · `G2_MAX_TRIES=2`, 첫 시도 포함, 그 밖 1회) → 넘으면 사람 개입(종료 코드 2), G4 CHECK · FAIL 은 수용 기록 뒤 G4 만 다시 판정 ⑰ S5 "이동은 DPVO" → DPVO 미설치(`--estimate_local_only` 고정) ⑱ 분기 라벨 "원본 사용" → S5 입력은 마스크 영상, 키프레임 PNG 는 원본 프레임 + 마스크 알파(`select_keyframes.py`).
+
+  **다시 그린 방법.** `docs/assets/make_pipeline_v4_current.py`(PIL) — 11/14 그림의 배치 · 색을 실측해 따르고, 글꼴은 Noto Sans KR(Google Fonts, OFL — 레포에 넣지 않고 `--font` 로 준다. 없으면 Apple SD Gothic Neo 로 그리고 그렇게 출력). 가운데 줄기 상자 가로 중심 · 좌우 열 대칭 · 좌우 여백 · 오른쪽 열 세로 가운데 · 두 전달선의 세로 구간(두 열 사이 정중앙, 위 · 아래로 나눔) · 상자 글자 넘침을 그릴 때 assert 로 검사한다. 원본 3000×3650 `docs/assets/pipeline_v4_current.png`, 페이지용은 `--jpg` 로 `site_assemble.py` 와 같은 sips 명령(폭 1600 · q85, 1600×1946) — 두 경로 바이트 동일. 상자 제목은 이름 먼저 · 단계 번호 뒤(예 "SAM2 분할 · 트래킹 (S2)"), 게이트는 공개 페이지 표의 묶음(G0 / G1 = gate_s2 · gate_s5 · G1a / G2 = G2 · G2r / G3 / G4). 이전 판은 지우지 않았다 — `pipeline_v4_final.png` 그대로, 11/14 페이지 JPG 는 `docs/assets/pipeline_v4_web_1114.jpg`.
+
+  **결정 — 그림은 "지금 구현된 모습", 트랙 구분은 RUNBOOK 에 맡긴다.** 외형 · 동작 트랙을 그림에서 갈라 그린 시안은 복잡해져 되돌렸다. 그림은 G4 를 가운데 줄기 하나에 그린 개요이고, G4 가 동작 트랙(`--motion`)에서 클립마다 돈다는 것은 README 도식 아래 한 줄과 RUNBOOK 5.6절(이번에 한 줄 추가) · 1.5절이 원본이다. README 도식 · CLAUDE.md v4 표는 그림과 글자까지 같게 고쳤다(S0 · S1 · G1m · S6 행 삭제, "실패 원인별 게이트 재진입" → 단계별 자동 시도와 사람 개입). `site_assemble.py` 는 새 그림을 가리킨다(폭 1600 · q85). 공개 페이지 캡션은 새 그림과 맞아 그대로. manifest 38개(페이지 사용 30) · 7.19 MB.
 
 ## 9. 다음 단계 (우선순위)
 

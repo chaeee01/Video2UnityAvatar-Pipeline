@@ -1,12 +1,12 @@
 # site/assets — 공개 페이지 소재 매니페스트 (2026-11-06)
 
-총 38개 · 7.21 MB (2026-11-21 갱신 — 5-4b 근접 그림 `seam_crotch_listener(_s).jpg` · `seam_armpit_listener(_s).jpg` 추가(`_s` 는 사례 ② 칸, 나머지 둘은 README 전용), `ba_weight_listener.mp4` · `ba_weight_walker.mp4` 는 [미사용]. 페이지 사용 30). · `slide_listener_seq_s.jpg`(페이지 칸 3컷) 추가, `pipeline_v4.jpg` 를 실측으로 고침). 영상 H.264 · 높이 540 · CRF 28 · ≤6초 · 무음, 스틸 JPEG q80 · 긴 변 ≤1200px. **[미사용]** = 현재 `site/index.html` 이 참조하지 않는 소재(지우지 않고 보관). 예외: 구조도 폭 1600 · q85(11/14 교체), 라인업 긴 변 1600 · q85, 미끄러짐 연속 프레임 `slide_listener_seq` 긴 변 1596 · q85 · `slide_listener_seq_s` 1200×750(16:10) · q85, 5-4b 근접 `seam_*_listener` 1596×638 · `_s` 1200×750 · q85, 세로 영상 3편 · 턴테이블 · bake 높이 720 · CRF 26.
+총 38개 · 7.19 MB (2026-11-21 갱신 — 구조도 `pipeline_v4.jpg` 를 지금 구현된 모습으로 다시 그린 판으로 교체(1600×1946 · q85, 11/14 판은 `docs/assets/pipeline_v4_web_1114.jpg`). 같은 날 앞서 5-4b 근접 그림 `seam_crotch_listener(_s).jpg` · `seam_armpit_listener(_s).jpg` 추가(`_s` 는 사례 ② 칸, 나머지 둘은 README 전용), `ba_weight_listener.mp4` · `ba_weight_walker.mp4` 는 [미사용]. 페이지 사용 30). · `slide_listener_seq_s.jpg`(페이지 칸 3컷) 추가, `pipeline_v4.jpg` 를 실측으로 고침). 영상 H.264 · 높이 540 · CRF 28 · ≤6초 · 무음, 스틸 JPEG q80 · 긴 변 ≤1200px. **[미사용]** = 현재 `site/index.html` 이 참조하지 않는 소재(지우지 않고 보관). 예외: 구조도 폭 1600 · q85(11/21 다시 그림), 라인업 긴 변 1600 · q85, 미끄러짐 연속 프레임 `slide_listener_seq` 긴 변 1596 · q85 · `slide_listener_seq_s` 1200×750(16:10) · q85, 5-4b 근접 `seam_*_listener` 1596×638 · `_s` 1200×750 · q85, 세로 영상 3편 · 턴테이블 · bake 높이 720 · CRF 26.
 
 구 파일 대체: `s3_mesh_player.jpg` → `s3_mesh_player_03.jpg`(char3), `s3_mesh_char_shuffle.jpg` → `s3_mesh_player_04.jpg`(char4) — 렌더 비교로 같은 캐릭터 확인(메쉬는 다른 판: 구 TRELLIS.2 · 신 char*.glb).
 
 | 파일 | 종류 | 크기 | 캐릭터 | 단계 | 캡션 | 전후 쌍 | 원본 |
 |---|---|---|---|---|---|---|---|
-| `assets/pipeline_v4.jpg` | image 1600×2069 | 0.35 MB | - | 개요 | 파이프라인 v4 — 영상 한 편에서 외형(TRELLIS.2)과 동작(WHAM)을 따로 뽑아 SMPL 골격 하나로 합친다 | - | `docs/assets/pipeline_v4_final.png` (11/14 교체 · 1600px q85) |
+| `assets/pipeline_v4.jpg` | image 1600×1946 | 0.34 MB | - | 개요 | 파이프라인 v4 — 영상 한 편에서 외형(TRELLIS.2)과 동작(WHAM)을 따로 뽑아 SMPL 골격 하나로 합친다 | - | `docs/assets/pipeline_v4_current.png` (11/21 다시 그림 — `make_pipeline_v4_current.py`, sips 1600px q85. 11/14 판은 `docs/assets/pipeline_v4_web_1114.jpg`) |
 | `assets/lineup_meshes.jpg` **[미사용]** | image 1600×640 | 0.13 MB | walker · listener · stalker · lurker · oiler · dog · player_01~04 | S3 외형 | 납품 캐릭터 10종의 TRELLIS 메쉬 — 좀비 6종(위 5 · 아래 첫 칸 dog) 뒤에 플레이어 4종 (정면, 같은 조명) | - | `~/data/site_raw_1106/lineup10.png` |
 | `assets/input_ref_walker.jpg` | image 669×1200 | 0.09 MB | walker | 입력 | 입력 ① 캐릭터 참조 이미지 (영상 생성의 시작 프레임) | - | `~/data/00_raw/_refs_clean/manor_walker_01_v4_1116_clean.png` |
 | `assets/input_video_walker.mp4` | video 406×720 | 0.28 MB | walker | 입력 | 입력 ② 생성 영상 — 걷기 (9:16, 24fps) | - | `~/data/00_raw/walker_walk_02__fast-ff.mp4` |

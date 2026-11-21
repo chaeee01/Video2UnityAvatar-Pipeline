@@ -916,6 +916,8 @@ G2r 의 ①~④ 는 `--transferred <06_rig/샘플/transferred_params.json>` 을 
 5-5 로 구운 클립마다 **늘어남** · **발 쓸기** · **바닥**(2026-10-26~, G4 v3) 을 재서 PASS / CHECK / FAIL / ACCEPTED 를 낸다. 판정 규칙은
 `scripts/g4_rules.py`(bpy 없음, `tests/test_g4_rules.py`), 측정은 `scripts/gate_g4.py`. 다른 게이트와 달리
 **종료 코드는 판정과 무관하게 0** 이다(측정 실패만 1) — CHECK 는 사람이 보고 수용 여부를 정한다.
+오케스트레이터에서는 **동작 트랙(`--motion`, 1.5절)에서만** BAKE 뒤에 클립마다 돈다 — 외형 트랙은 5-5 → FBX 로 끝나며 G4 단계가 없다
+(`scripts/orchestrate.py` 의 `MOTION_MAC`). 구조도(`docs/assets/pipeline_v4_current.png`)가 G4 를 가운데 줄기 하나에 그린 것은 개요 수준의 단순화다.
 
 ```bash
 /Applications/Blender4.5.app/Contents/MacOS/Blender --background --python scripts/gate_g4.py -- \
