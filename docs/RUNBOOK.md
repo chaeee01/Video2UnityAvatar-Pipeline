@@ -251,7 +251,7 @@ micromamba activate wham      # 4·5단계 (python 3.9, torch 2.0.0+cu118)
 
 ```bash
 # 명령 하나 — 1-A v3 통합 이미지 Pod(PIPELINE_VOL=/vol PIPELINE_ENV_ROOT=/workspace, 아래 "루트"). v2 이미지면 BLENDER=<경로> 를 앞에(1-A 6)
-python3 scripts/orchestrate.py --video /workspace/data/00_raw/<샘플>.mp4 --name <샘플>
+python3 scripts/orchestrate.py --video /vol/data/00_raw/<샘플>.mp4 --name <샘플>
 
 # 두 기계로 나눌 때 — Pod 에서 GPU 구간(Blender 가 없으면 경계에서 종료 코드 2), run 폴더 · 산출물 회수(7절) 뒤 맥북에서
 python3 scripts/orchestrate.py --name <샘플> --resume
@@ -813,8 +813,10 @@ OUTDIR=<결과 폴더> tools/review/bake_character.sh <리그 샘플> x <클립 
 ```
 
 `make_rest_pose.py` 가 `06_rig/<리그 샘플>/rest_pose.json` 과 캐릭터 포인터
-`06_rig/<캐릭터>/character.json` 을 쓴다(리그를 옮기지 않고 가리키기만 한다 — 바꾸기 전
-포인터는 `character_prev_<…>.json` 으로 남긴다). 루트 이동은 신장비(리그 T포즈 키 ÷ 클립 T포즈 키)로
+`06_rig/<캐릭터>/character.json` 을 쓴다(리그를 옮기지 않고 가리키기만 한다). **스크립트는 백업하지 않고
+두 파일을 덮어쓴다** — 바꾸기 전 포인터를 남기려면 `character_prev_<…>.json` 으로 직접 복사해 둔다.
+**이미 v2 설정(`rig_build` · `bake`)이 있는 캐릭터에 돌리면 v1 으로 덮어써 그 설정이 사라진다** — 기존
+`character.json` 을 읽어 합치지 않고 새로 쓴다(`make_rest_pose.py` 95~108행). 루트 이동은 신장비(리그 T포즈 키 ÷ 클립 T포즈 키)로
 맞추므로 **클립마다 5-1 의 T포즈 메쉬가 있어야 한다.** "첫 프레임 가정"(모션 클립의 첫 프레임 =
 리그 클립의 첫 프레임 자세)이 틀어지면 루트 원점만 밀린다.
 

@@ -29,6 +29,7 @@ Storage → 볼륨 → 이 템플릿으로 Deploy. → [RUNBOOK 1-A](RUNBOOK.md#
 
 ```bash
 ssh -p <포트> root@<IP> -i ~/.ssh/id_ed25519
+mkdir -p /vol/data/00_raw /vol/logs                                                          # Pod 에서 (오케스트레이터는 두 폴더를 만들지 않는다)
 rsync -rt -e "ssh -p <포트> -i ~/.ssh/id_ed25519" <영상>.mp4 root@<IP>:/vol/data/00_raw/      # 맥에서
 ```
 
@@ -47,6 +48,9 @@ tail -f /vol/logs/<이름>.log
 
 종료 코드 **0 성공 / 1 실패(로그를 본다) / 2 사람이 정할 차례** — 할 일은
 [RUNBOOK 5.8](RUNBOOK.md#58-check--fail-이-떴을-때--게이트별-대응-2026-11-22-정리), 이어받기는 같은 명령에 `--resume`(`--video` 대신).
+**뒤에서 돌린 실행의 종료 코드는 로그에 남지 않는다.** 로그 끝으로 판단한다 — 성공이면
+`모든 단계 완료. Unity 반입은 수동이다 (RUNBOOK 6절):` 줄이 찍힌다. 멈췄으면 그 위에 `[정지]` · `[종료]` · `[인계]` 로
+시작하는 줄이나 `실패:` · `[오류]` 줄이 사유를 적는다.
 
 **6. 회수 · Terminate (맥에서)** — 결과는 `/vol/data` 에 남는다. 맥 `~/data` 로 내린 뒤 Pod 을 **Terminate**(Stop 은 스토리지 2배 과금).
 → [RUNBOOK 7절](RUNBOOK.md#7-회수--정리)
@@ -62,5 +66,6 @@ done
 
 **그다음 — 같은 캐릭터에 다른 동작 굽기(동작 트랙, 미검증).** 외형 트랙의 리그를 채택하고(`scripts/make_rest_pose.py` →
 `06_rig/<캐릭터>/character.json`) 역할표 `06_rig/<캐릭터>/clip_roles.json` 에 클립 항목(`source` · `role` · `bake.ground_align`)을
-적으면 `--motion --character <캐릭터>` 로 돈다. 새 캐릭터로 이 순서를 돌린 기록은 없다 — [RUNBOOK 1.5](RUNBOOK.md#15-원커맨드-실행--orchestratepy) "동작 트랙"
+적으면 `--motion --character <캐릭터>` 로 돈다. `make_rest_pose.py` 는 **새 캐릭터 전용**이다 — 기존 `character.json` 을
+백업 없이 v1 으로 덮어써, 이미 있는 v2 설정(`rig_build` · `bake`)이 사라진다. 새 캐릭터로 이 순서를 돌린 기록은 없다 — [RUNBOOK 1.5](RUNBOOK.md#15-원커맨드-실행--orchestratepy) "동작 트랙"
 · 5-5 "모션 트랙".
