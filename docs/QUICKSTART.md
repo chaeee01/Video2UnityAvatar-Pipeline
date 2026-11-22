@@ -28,10 +28,11 @@ Storage → 볼륨 → 이 템플릿으로 Deploy. → [RUNBOOK 1-A](RUNBOOK.md#
 ([RUNBOOK 0절](RUNBOOK.md#0-입력-조건-g0g1-수동-적용) · 0-A).
 
 ```bash
-ssh -p <포트> root@<IP> -i ~/.ssh/id_ed25519
-mkdir -p /vol/data/00_raw /vol/logs                                                          # Pod 에서 (오케스트레이터는 두 폴더를 만들지 않는다)
-rsync -rt -e "ssh -p <포트> -i ~/.ssh/id_ed25519" <영상>.mp4 root@<IP>:/vol/data/00_raw/      # 맥에서
+ssh -p <포트> -i ~/.ssh/id_ed25519 root@<IP> 'mkdir -p /vol/data/00_raw /vol/logs'      # 맥에서 — Pod 에 폴더 만들기
+rsync -rt -e "ssh -p <포트> -i ~/.ssh/id_ed25519" <영상>.mp4 root@<IP>:/vol/data/00_raw/   # 맥에서 — 영상 올리기
 ```
+
+오케스트레이터는 두 폴더를 만들지 않는다. 이제 Pod 에 접속한다: `ssh -p <포트> root@<IP> -i ~/.ssh/id_ed25519`
 
 **5. 명령 하나 (Pod 에서)** — SMPL · 캐시를 이미지 경로에 잇고([RUNBOOK 1-A](RUNBOOK.md#1-a-이미지-pod-기본) 3) 돌린다
 ([1.5절](RUNBOOK.md#15-원커맨드-실행--orchestratepy)). 실측 약 6~8분.
