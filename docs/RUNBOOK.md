@@ -6,9 +6,16 @@
 멈췄을 때 어디서 무엇을 확인할지의 근거이기도 하다. 설계 배경은 [PROJECT_STATUS.md](PROJECT_STATUS.md),
 일정은 [ROADMAP.md](ROADMAP.md) 참조.
 
-**소요 시간 기준** — 69프레임 테스트 영상 기준이며, 실전 영상은 길이에 비례해 늘어난다:
-Pod 준비 약 5분 · SAM2 약 2분(모델 로딩 포함) · TRELLIS Space 2-10분(대기열에 따라 변동) ·
-WHAM 수 분 · 리깅 4단계 약 10분 · Unity 약 15분.
+**소요 시간 기준** — 2026-11-21 한 서버(RunPod RTX 4090, v3 이미지)에서 명령 하나로 실행한 벽시계 실측(PROJECT_STATUS 11/21):
+
+| 실행 | 벽시계 | 단계 시간(초) |
+|---|---|---|
+| 외형 트랙 walker_walk_02(192프레임) 1회 | 364초 | S2 28.7 · S5 32.1 · S3 210.5 · 5-4 16.8 · 5-4b 58.7 · 나머지 단계 각 6초 이하 |
+| 〃 2회 | 481초 | S3 326.4 |
+| 〃 3회 | 438초 | S3 276.0 (다른 단계는 기록 없음) |
+| 동작 트랙 listener_hit_01_v2(240프레임) | 117 · 118초 | S2 37.1 · S5 35.7 · BAKE 7.5 · G4 27.7 |
+
+Pod 기동 · Unity 반입: 측정 없음. 처음 따라 해 보는 사람은 [QUICKSTART.md](QUICKSTART.md) 부터.
 
 **전제**: RunPod 계정, Network Volume `pipeline-vol`(250GB,
 EU-RO-1), SMPL/SMPLify 계정 인증 완료. 이미지 Pod(1-A)을 쓰려면 GHCR 비공개 패키지 읽기 권한도 필요하다.
@@ -63,7 +70,27 @@ Pod 에서 GPU 구간만 돌린 뒤 맥북 Blender 로 이어받는 방식(7절 
 - **69프레임짜리로 진행** — 현재 테스트 클립은 90프레임 기준 미달이다. 검증용으로는 쓰되
   실제 에셋 제작에는 5-10초 클립을 새로 구한다.
 
----
+### 0-A. 영상 생성 규칙 (2026-11-22 정리)
+
+**영상 생성은 파이프라인 밖의 일이다** — G0 불합격 안내("영상 재소싱·재생성은 파이프라인 밖의 일이다")와 같은 입장이다.
+아래는 PROJECT_STATUS 에 남은 생성 규칙과 그 근거 사례다. 프롬프트 시트 원문과 요청 기록은 이 레포에 싣지 않는다.
+
+**모델 · 설정 (기록 값).** 2026-10-26 부터 Gemini Omni Flash(`gemini-omni-1.1-flash`) — 240프레임 · 24fps · 1080p, 편당 약 $1.52.
+Veo 3.1 Preview 가 10/22 Gemini API 에서 종료돼 옮겼다(10/26). 그 전 Veo 로 만든 8편은 192프레임 · 24fps · 1080p · 고정 카메라 ·
+회색 배경 · 1명이었다(10/11). 생성 스크립트 `gen_veo_batch.py` 는 main 에 없다. 지금 쓰는 생성 방식(시작 프레임 · 참조)은
+확인 불가 — 아래 표는 규칙마다 기록된 방식만 적는다.
+
+| 규칙 | 근거 사례 | 기록 |
+|---|---|---|
+| **외형** — 신규 캐릭터는 **T포즈 참조 이미지**로 만든다 | player · lurker · oiler: ⑤ 엣지 seed 6판 · 채택 3판 모두 0, 동작 15편 중 14편의 팔 쪽 엣지 0~3(이전 리그 861~1,068) | 10/15 |
+| 외형 — 자세는 프롬프트가 아니라 **참조 이미지에** 넣고 "이 자세를 유지하라" 로 | "팔을 들고 유지하라" 프롬프트는 T포즈로 손이 화면 밖 · 들었다 내림 · 참조 모드에서 팔이 내려감 — 팔을 든 참조 이미지 + 유지 프롬프트는 192프레임 내내 유지 | 10/12 |
+| 외형 — 팔을 37~45° 로 내린 참조는 답이 아니다 | ⑤ 엣지가 각도에 비단조(29° 705 · 37° 1,048 · 52° 469 · 55° 593), 팔을 드는 동작에서 더 나빠짐 | 10/15 |
+| 외형 — 키프레임이 될 프레임에 팔이 몸통에서 떨어지고 · 다리가 벌어지고 · 얼굴이 카메라를 향해야 한다(0절) | char_shuffle f60: 고개를 숙여 얼굴이 가리고 다리 간격 0px → 메쉬에서 두 다리 융합 | 10/01 |
+| **동작** — 눕기 · 넘어지기는 **참조 이미지 + 16:9 옆모습 · 고정 카메라**, get_up 은 fall_back 마지막 프레임에서 시작 | 정면 fall_back: 누운 몸과 선 모습이 겹쳐 WHAM 이 누운 자세를 못 잡음(최대 27°) | 10/26 |
+| 동작 — 참조 방식(`reference_to_video`)이 서 있기만 하면 검증된 first_frame 문장 "The very first frame is already the same wide full-body shot as the reference image" 를 한 줄 더한다 | 시트 원문으로도, 동작 명시 문장을 넣어도 10초 내내 서 있었다(2회). 3/4 뷰 · 이미 걷는 중 시작은 이 문장으로도 미충족 | 11/02 |
+| 동작 — 달리기에 "디딘 발이 러닝머신 벨트처럼 뒤로 쓸려 간다" 는 문장(G4 발 쓸기) | listener run 쓸기 −0.003 / −0.051(게임에서 미끄러짐) → 러닝머신 쓸기를 지시한 run_05 −0.549 / −0.469. stalker run −0.261 → −0.573 이지만 시트의 "두 손 가슴 높이" 자세를 덮었고, walk 는 −0.079 → −0.145 로 미달 | 10/19~21 · 11/02 |
+| 동작 — 다리를 묶는 문구("knees barely bending" · "short strides" · "no airborne moment")를 넣지 않는다 | 엉덩이 스윙이 stalker 의 절반 이하 — 문구를 바꾸자 walker 19° → 42°, listener 16° → 60° | 10/17 |
+| 동작 — 안전 필터에 막히면 표현을 바꾸고 납품 메모에 남긴다 | "보이지 않는 충격으로 넘어짐" · stalker 의 "corpse" 차단 | 10/26 |
 
 ## 1. Pod 준비
 
@@ -224,7 +251,7 @@ micromamba activate wham      # 4·5단계 (python 3.9, torch 2.0.0+cu118)
 
 ```bash
 # 명령 하나 — 1-A v3 통합 이미지 Pod(PIPELINE_VOL=/vol PIPELINE_ENV_ROOT=/workspace, 아래 "루트"). v2 이미지면 BLENDER=<경로> 를 앞에(1-A 6)
-python3 scripts/orchestrate.py --video /workspace/data/00_raw/<샘플>.mp4 --name <샘플>
+python3 scripts/orchestrate.py --video /vol/data/00_raw/<샘플>.mp4 --name <샘플>
 
 # 두 기계로 나눌 때 — Pod 에서 GPU 구간(Blender 가 없으면 경계에서 종료 코드 2), run 폴더 · 산출물 회수(7절) 뒤 맥북에서
 python3 scripts/orchestrate.py --name <샘플> --resume
@@ -786,8 +813,10 @@ OUTDIR=<결과 폴더> tools/review/bake_character.sh <리그 샘플> x <클립 
 ```
 
 `make_rest_pose.py` 가 `06_rig/<리그 샘플>/rest_pose.json` 과 캐릭터 포인터
-`06_rig/<캐릭터>/character.json` 을 쓴다(리그를 옮기지 않고 가리키기만 한다 — 바꾸기 전
-포인터는 `character_prev_<…>.json` 으로 남긴다). 루트 이동은 신장비(리그 T포즈 키 ÷ 클립 T포즈 키)로
+`06_rig/<캐릭터>/character.json` 을 쓴다(리그를 옮기지 않고 가리키기만 한다). **스크립트는 백업하지 않고
+두 파일을 덮어쓴다** — 바꾸기 전 포인터를 남기려면 `character_prev_<…>.json` 으로 직접 복사해 둔다.
+**이미 v2 설정(`rig_build` · `bake`)이 있는 캐릭터에 돌리면 v1 으로 덮어써 그 설정이 사라진다** — 기존
+`character.json` 을 읽어 합치지 않고 새로 쓴다(`make_rest_pose.py` 95~108행). 루트 이동은 신장비(리그 T포즈 키 ÷ 클립 T포즈 키)로
 맞추므로 **클립마다 5-1 의 T포즈 메쉬가 있어야 한다.** "첫 프레임 가정"(모션 클립의 첫 프레임 =
 리그 클립의 첫 프레임 자세)이 틀어지면 루트 원점만 밀린다.
 
@@ -832,7 +861,7 @@ GROUND_ALIGN=1 OUTDIR=<결과 폴더> tools/review/bake_character.sh <리그 샘
 
 ---
 
-## 5.5. 게이트 — 자동 판정 (G0/S2 · G2 · G2r · G3)
+## 5.5. 게이트 — 자동 판정 (G0/S2 · S5 · G2 · G2r · G3)
 
 사람이 눈으로 보던 확인 포인트를 수치 판정으로 대체한다. 세 스크립트 모두 같은 규약을 쓴다 —
 **표준출력에 한 줄 요약, `--out` 아래 JSON, 종료 코드 PASS 0 / FAIL 1.** 쉘에서 바로 분기할 수 있다.
@@ -875,6 +904,7 @@ G2r 의 ①~④ 는 `--transferred <06_rig/샘플/transferred_params.json>` 을 
 | S2 | 커버리지 | < 9.0% 경고 | 성공 사례 최저값. 통과시키되 육안 확인 |
 | S2 | 빈 프레임 | > 0 불합격 | 성공 5건 전부 0, 실패 1건만 54 — 추적 끊김 |
 | S2 | 조각 수 평균 | > 1.5 불합격 | 성공 5건 전부 1.00, 실패 2건 2.48·3.12. **커버리지가 애매할 때 부분 선택을 잡는 유일한 지표** |
+| S5 | 고른 트랙의 길이 ÷ 클립 프레임 수 | < 95% 불합격 | 앞뒤 몇 프레임을 놓친 정도만 허용(192프레임에서 9프레임). 트랙 0개 · 트랙 안 프레임 번호 건너뜀도 불합격, 트랙이 여럿이면 경고(가장 긴 것을 쓴다). **잠정(불량 표본 1건)** — `scripts/gate_s5.py` |
 | G2 | 유효 metallic | > 32 불합격 | 양호 0.155-1.0, 열화 51.5-254.7. 유효 metallic = 텍스처 B 평균 × `metallicFactor` |
 | G2 | 데시메이션 비율 | < 20% 또는 > 110% | 절대 정점 수는 `decimation_target` 상한에 수렴(실측 63-86%)해 판별력이 없다 |
 | G2r | 정렬 스케일 | 0.55-0.65 밖 불합격 | **이상 탐지용**. 값 자체는 TRELLIS 정규화 높이 ÷ 사람 신장이라 인간형이면 늘 이 부근이다 — 재현된다는 사실이 정렬 정확도의 근거는 아니다. 벗어나면 메쉬 잘림·부유 지오메트리로 높이 부풀음·체형 추정 이상을 의심한다 |
@@ -1005,6 +1035,62 @@ CHECK 여도 실행은 멈추지 않는다 — 오케스트레이터가 구간(�
 G3 PASS 로 완주(G3 에 든 시간 약 1초). CHECK 경로는 볼륨의 walker_fall_front_v2 기존 산출물에 게이트를 직접 돌려 맥 역검증과
 판정 · 구간(f110~f129, 20프레임) · 수치가 소수 넷째 자리까지 같았다.
 
+## 5.8. CHECK · FAIL 이 떴을 때 — 게이트별 대응 (2026-11-22 정리)
+
+오케스트레이터(1.5절)가 멈추면 **종료 코드**와 마지막 `[정지]` · `[종료]` 줄이 할 일을 알려 준다. 이 절은 그 안내를 한곳에 모은 것이다 —
+문구와 동작은 `scripts/orchestrate.py` 기준.
+
+- **종료 코드 1** — 단계가 죽었거나 산출물이 없거나 게이트 자체가 죽었다(판정이 아니다), G0 불합격, G3 판정 불가. 출력된 로그를 본다.
+- **종료 코드 2** — 사람이 정할 차례다(아래 표). 고치거나 정한 뒤 `--resume` 으로 이어받는다.
+- **어디에 남나** — run 폴더 `$PIPELINE_VOL/data/runs/run_<이름>_<일시>/`: 판정 JSON `gates/`(시도마다 `gate_s2_try1.json` ·
+  `gate_s5_try1.json` · `gate_g2_try1.json` · `gate_g2r_try1.json` · `gate_g3_try1.json` · `g4_<클립>_try1.json` …), 시도 이력 `attempts.json`,
+  로그 `logs/<단계>_try<n>.log`, 요약 `run.json`.
+
+| 뜬 것 | 뜻 | 오케스트레이터 | 할 일 | 명령 · 자세히 |
+|---|---|---|---|---|
+| `[종료] G0 불합격` | 프레임 90~600 · fps 24~30 · 세로 720 이상 중 하나를 벗어났다(ffprobe 실측) | 종료 코드 1 | 영상을 다시 만든다 — "재소싱·재생성은 파이프라인 밖의 일" | 0절 · 0-A |
+| `[정지] S2 게이트를 통과하지 못했다` | 마스크가 몸 일부만 잡았거나 끊겼다(커버리지 < 7% · 빈 프레임 · 조각 수 > 1.5) | 자동 시도 3회(실루엣 6점 → 10점 → 상자) 뒤 종료 코드 2, 좌표 격자 `02_sam2/<이름>/_grid.png` | 격자에서 몸통 좌표를 읽어 **옷의 겹마다 한 점씩**(머리 · 겉옷 · 속살 · 바지) | `--resume --point "<x>,<y>;<x>,<y>"` (여러 점은 `;` — 셸에서는 따옴표로 감싼다) · 2절 · 5.5 |
+| `[정지] S5 게이트를 통과하지 못했다` | WHAM 이 클립 전체를 한 사람으로 추적하지 못했다(고른 트랙 < 클립의 95% · 프레임 건너뜀 · 트랙 0개) | 시도 1회, 종료 코드 2 | 먼저 마스킹 클립 `02_sam2/<이름>/<이름>_masked.mp4` 를 본다 — 몸 일부만 잡혔으면 S2 부터 다시. 마스크가 맞는데 트랙이 갈렸으면 사람이 보고 트랙 하나 자르기 · 합성 전환 | 5-5 "갈라진 트랙" · 4절 흔한 실패. **주의**: 출력 안내의 `--resume --point` 는 S2 마커가 이미 있으면 S2 를 다시 돌리지 않는다(코드 — `--point` 는 S2 를 돌 때만 쓰인다). S2 를 다시 돌리는 정해진 절차는 없다(확인 불가) |
+| `[정지] G1a — … 다리가 벌어진 프레임이 없는데 동작은 다리를 움직인다` | 다리 간격 있는 프레임이 없고 동작의 다리 움직임이 15° 이상 | 종료 코드 2 (실패가 아니라 인계) | 권고: 다리가 벌어진 프레임이 있는 영상으로 다시 만든다(0-A). 강행하거나 후보에서 직접 고른다 | `--resume --force-keyframe` 또는 `--resume --keyframe <02_sam2/<이름>/keyframes/key<N>_f<번호>.png>` · 4.5절 |
+| `[정지] S3 게이트를 통과하지 못했다` (G2) | 유효 metallic > 32 또는 데시메이션 비율 20~110% 밖 | seed 0 → 1 로 시도 2회(앞 산출물은 `03_trellis2/<이름>_probe1`) 뒤 종료 코드 2 | "모델이 이 입력에서 일관되게 실패" — 다른 키프레임 후보로 | `--resume --keyframe <다른 후보.png>` (후보 `02_sam2/<이름>/keyframes/candidates.json`) · 3절 · 5.5 |
+| `[정지] G2r 불합격 — 자동 재시도 대상이 아니다` | 정렬 · 관절 · 말단 본 이상(5.5 표의 불합격 줄) | 재시도 없이 종료 코드 2 | 같은 입력은 같은 값이 나온다 — 상류(메쉬 잘림, 부유 지오메트리로 높이 부풀음, WHAM 체형 추정 이상)를 본다. 경고(①~⑤ · 폴백)는 멈추지 않는다 | 판정 `gates/gate_g2r_try<n>.json` · 5.5 |
+| `⚠️  CHECK — 불합격이 아니다, 실행은 계속한다` (G3) | 몸 관절 재투영 오차가 키의 5% 를 5프레임 이상 연속으로 넘었다 — WHAM 이 약한 자세 구간(눕기 · 엎드리기 · 기기) | 기록하고 계속(종료 코드 0). 판정을 못 내면 종료 코드 1 | 동작 트랙이면 역할표 `bake.ground_align` 확인(현재 값이 출력된다). 겹침 영상으로 구간을 본다. 서서 하는 클립이면 기준 재보정 대상으로 기록 | 출력된 `overlay_vis.py` 명령 · 5.7 |
+| `[정지] G4 CHECK` · `G4 FAIL` | 늘어남 · 발 쓸기 · 바닥 중 하나(5.6 표) | 클립 FBX 를 내보내지 않고 종료 코드 2 | 아래 "G4 따라 하기" — 고쳐서 다시 굽거나, 보고 받아들인다 | `tools/review/accept_clip.py` + `--resume` · 5.6 |
+| `[정지] … 환경에서 돈다 — 이 기계에 없다` · `[정지] … Blender 구간인데 이 기계에서 실행할 수 없다` | 다음 단계를 이 기계에서 돌릴 수 없다 | 종료 코드 2 | 출력된 두 갈래 — 이 기계에 갖추고 `--resume`, 또는 회수해(7절) 다른 기계에서 `--resume` | 1.5절 "구간 경계" · 1-A 6 |
+
+### G4 따라 하기 — 늘어남 · 발 쓸기 · 바닥
+
+세 경우 모두 순서는 같다: ① 판정 파일 `gates/g4_<클립>_try<n>.json` 에서 어느 항목이 왜 걸렸는지 본다(출력에도 사유가 찍힌다) →
+② 고칠 수 있으면 고치고 **다시 굽는다**(아래) → ③ 고치지 않고 받아들이면 **수용 기록**을 남긴다:
+
+```bash
+python3 tools/review/accept_clip.py --roles ~/data/06_rig/<캐릭터>/clip_roles.json --clip <클립> \
+    --gate edges|sweep|ground --g4 <g4 판정 json> --reason "<사유>"
+python3 scripts/orchestrate.py --motion --character <캐릭터> --name <클립> --resume     # G4 만 다시 판정 → ACCEPTED
+```
+
+수용 기록은 그때 수치와 함께 남고, 다시 돌려 수치가 나빠지면 원래 판정으로 돌아간다(5.6). `--dry-run` 으로 먼저 볼 수 있다.
+
+| 걸린 것 | 고치는 길(기록) | 받아들인 선례 |
+|---|---|---|
+| **늘어남** (`edges`) — 0.10 넘게 늘어난 엣지 > 10 또는 최장 > 0.11 | 리그 경계 스무딩을 한 단계 더한다 — `06_rig/<캐릭터>/character.json` 의 `rig_build.seam_smooth`(5-4b). 10/21 가랑이 → 겨드랑이 → 가슴 Collar 로 격리 클립을 구제했다(PROJECT_STATUS 10/21 · 10/22). 리그가 바뀌면 그 캐릭터의 다른 클립도 다시 판정해 회귀를 본다 | oiler · player 가랑이, stalker 기기 무릎 (5.6 역검증 — ACCEPTED 7편) |
+| **발 쓸기** (`sweep`, 이동용 move 클립만) — 나쁜 발 기준 PASS ≤ −0.45, FAIL > −0.20 | 영상을 다시 만든다 — 러닝머신 문장(0-A). 제자리 연출용이면 역할표 `role` 을 `inplace` 로 둔다(쓸기 판정 대상이 아니다) | 11/02 걷기 9편 + `run_reach` 3편 — 사유 "권장 이동 속도 명기로 납품(11/02), 게임팀 속도 튜닝 전제" |
+| **바닥** (`ground`) — 처음 · 끝이 뜸 > +0.03 또는 묻힘 < −0.05, 또는 −0.05 아래 지속 침하 · −0.08 보다 깊음 | 역할표 그 클립의 `bake.ground_align` 을 `true` 로 하고 다시 굽는다(5-5 바닥 정렬) — 10/26 실결함 2편과 CHECK 12편을 바닥 정렬판으로 바꿔 98편 바닥 PASS(5.6) | 확인 불가 — 바닥만으로 수용한 선례를 기록에서 찾지 못했다 |
+
+**다시 굽기 (역할표 · 리그를 고친 뒤).** 문서에 있는 경로는 5-5 의 `tools/review/bake_character.sh` 하나다:
+
+```bash
+GROUND_ALIGN=1 G4_ROLES=~/data/06_rig/<캐릭터>/clip_roles.json OUTDIR=<결과 폴더> tools/review/bake_character.sh <리그 샘플> x <클립 id>
+```
+
+`GROUND_ALIGN=1` 은 바닥 정렬을 켤 때만 준다. 굽고 나서 G4 를 돌려 `<결과 폴더>/g4/` 에 남긴다. 리그의 `motions/<클립 id>/animated.blend` 를
+**덮어쓴다**(이전 판을 남기지 않는다 — 필요하면 먼저 복사한다). 다시 구운 클립의 FBX 를 내보내는 단독 명령은 이 문서에 없다(오케스트레이터의 CLIPFBX 단계뿐).
+
+**오케스트레이터로 다시 굽기는 지원하지 않는다.** `--resume` 은 완료 마커가 없는 첫 단계부터 돈다 — BAKE 마커가 있으면 BAKE 를 건너뛰고,
+G4 는 PASS · ACCEPTED · EXEMPT · N/A 일 때만 마커를 남기므로 G4 만 다시 판정한다(`scripts/orchestrate.py` `resume_point()` · `g4_verdict()`).
+
+---
+
 ## 6. Unity 반입 (S7)
 
 ```bash
@@ -1063,30 +1149,39 @@ Unity에서:
 
 ## 7. 회수 · 정리
 
-Terminate 전에 **반드시** 결과를 맥북으로 내린다. Pod을 지우면 `/workspace` 밖은 사라진다.
+Terminate 전에 결과를 맥북 `~/data` 미러로 내린다. 이미지 Pod(1-A)은 입출력을 볼륨 **`/vol/data`** 에 쓰므로
+(`PIPELINE_VOL=/vol`, 1.5절 "루트") Pod 을 지워도 볼륨에 남지만, 재생 영상 검수 · Unity 반입(6절)은 맥북에서 한다.
+볼륨 Pod(1-B)이면 아래의 `/vol/data` 를 `/workspace/data` 로 읽는다.
+
+회수는 **`rsync -rt`** 로 한다 — `/vol`(MooseFS)은 chown 이 안 돼 `rsync -a` 는 파일을 옮기고도 종료 코드 23 을 낸다(1-A 4).
 
 ```bash
-mkdir -p ~/data/02_sam2 ~/data/03_trellis ~/data/04_wham ~/data/05_smpl_mesh
-
-scp -r runpod:/workspace/data/02_sam2/<이름>      ~/data/02_sam2/
-scp -r runpod:/workspace/data/03_trellis/<이름>   ~/data/03_trellis/
-scp -r runpod:/workspace/data/04_wham/<이름>      ~/data/04_wham/
-scp -r runpod:/workspace/data/05_smpl_mesh/<이름> ~/data/05_smpl_mesh/
+# 외형 트랙 — <이름> = orchestrate.py 의 --name. 폴더는 오케스트레이터의 단계 산출물 위치(stage_outputs)
+for d in 02_sam2/<이름> 03_trellis2/<이름> 04_wham/<이름>_masked 05_smpl_mesh/<이름> 06_rig/<이름> 07_unity/<이름>; do
+  mkdir -p ~/data/$d && rsync -rt -e "ssh -p <포트> -i ~/.ssh/id_ed25519" root@<IP>:/vol/data/$d/ ~/data/$d/
+done
+# 동작 트랙 — 06_rig/<리그>/motions/<클립> 과 07_unity/<캐릭터> (그 밖은 위와 같이 02_sam2 · 04_wham/<클립>_masked · 05_smpl_mesh)
+# run 폴더 (완료 마커 · 판정 JSON · 로그) — 맥북에서 --resume 하려면 필요하다(1.5절, --runs-dir 로 가리킨다)
+mkdir -p ~/data/runs && rsync -rt -e "ssh -p <포트> -i ~/.ssh/id_ed25519" root@<IP>:/vol/data/runs/ ~/data/runs/
 ```
 
-IP·포트를 명령에 적지 않는다. 접속 정보는 `~/.ssh/config`의 `Host runpod` 한 곳에서만
-관리하고, Pod을 새로 띄우면 그 항목의 `HostName`·`Port`만 갱신한다.
+`<포트>` · `<IP>` 는 1-A 4 의 접속(`ssh -p <포트> root@<IP> -i ~/.ssh/id_ed25519`)과 같다 — 콘솔의 "SSH over exposed TCP".
+`~/.ssh/config` 에 `Host runpod`(HostName · Port · User root · IdentityFile)를 두면 `-e "…"` 와 `root@<IP>:` 를 `runpod:` 로 줄여 쓴다 —
+Pod 을 새로 띄우면 그 항목의 `HostName` · `Port` 만 갱신한다.
 
 회수 목록 체크:
 
-- [ ] SAM2 키프레임 후보 + 마스킹 클립
-- [ ] `wham_output.pkl` + `overlay.mp4`
-- [ ] `smpl_frame<N>.obj`, `smpl_tpose.obj`, `joints_frame<N>.json`
-- [ ] TRELLIS GLB + `textures/` + `params.json`
-- [ ] 최종 `zombie_wham.fbx` + 텍스처 PNG
+- [ ] `02_sam2/<이름>` — 마스크 · 마스킹 클립(`<이름>_masked.mp4`) · 키프레임 후보(`keyframes/candidates.json`)
+- [ ] `04_wham/<이름>_masked` — `wham_output.pkl` · `tracking_results.pth`(G3 입력). 겹침 영상은 WHAM 이 만들지 않는다 —
+      필요하면 `scripts/overlay_vis.py` 로 만든다(5.7절)
+- [ ] `05_smpl_mesh/<이름>` — `smpl_frame<N>.obj`, `smpl_tpose.obj`, `joints_frame<N>.json`
+- [ ] `03_trellis2/<이름>` — GLB + `textures/` + `params.json`
+- [ ] `06_rig/<이름>` — 리그 blend · `animated.blend` / 동작 트랙은 `06_rig/<리그>/motions/<클립>`
+- [ ] `07_unity/<이름>/<이름>_wham.fbx`(외형) · `07_unity/<캐릭터>/<캐릭터>@<클립>.fbx`(동작) + 텍스처 PNG(3단계 `textures/`)
+- [ ] `runs/run_<이름>_<일시>` — 마커 · 판정(`gates/`) · `attempts.json` · 로그
 - [ ] **Pod Terminate** (Stop 아님 — 스토리지 2배 과금)
 
-`/workspace` 안에 둔 것은 볼륨에 남으므로 다시 받을 필요는 없다. 애매하면 내려두는 편이 싸다.
+볼륨(`/vol`)에 둔 것은 Pod 을 지워도 남으므로 다시 받을 수 있다. 애매하면 내려두는 편이 싸다.
 
 ### 흔한 실패
 - **맥북 쪽 권한(TCC)** — macOS가 터미널의 `~/Downloads`·`~/Desktop`·`~/Documents` 접근을 막으면
