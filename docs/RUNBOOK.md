@@ -1063,30 +1063,39 @@ Unity에서:
 
 ## 7. 회수 · 정리
 
-Terminate 전에 **반드시** 결과를 맥북으로 내린다. Pod을 지우면 `/workspace` 밖은 사라진다.
+Terminate 전에 결과를 맥북 `~/data` 미러로 내린다. 이미지 Pod(1-A)은 입출력을 볼륨 **`/vol/data`** 에 쓰므로
+(`PIPELINE_VOL=/vol`, 1.5절 "루트") Pod 을 지워도 볼륨에 남지만, 재생 영상 검수 · Unity 반입(6절)은 맥북에서 한다.
+볼륨 Pod(1-B)이면 아래의 `/vol/data` 를 `/workspace/data` 로 읽는다.
+
+회수는 **`rsync -rt`** 로 한다 — `/vol`(MooseFS)은 chown 이 안 돼 `rsync -a` 는 파일을 옮기고도 종료 코드 23 을 낸다(1-A 4).
 
 ```bash
-mkdir -p ~/data/02_sam2 ~/data/03_trellis ~/data/04_wham ~/data/05_smpl_mesh
-
-scp -r runpod:/workspace/data/02_sam2/<이름>      ~/data/02_sam2/
-scp -r runpod:/workspace/data/03_trellis/<이름>   ~/data/03_trellis/
-scp -r runpod:/workspace/data/04_wham/<이름>      ~/data/04_wham/
-scp -r runpod:/workspace/data/05_smpl_mesh/<이름> ~/data/05_smpl_mesh/
+# 외형 트랙 — <이름> = orchestrate.py 의 --name. 폴더는 오케스트레이터의 단계 산출물 위치(stage_outputs)
+for d in 02_sam2/<이름> 03_trellis2/<이름> 04_wham/<이름>_masked 05_smpl_mesh/<이름> 06_rig/<이름> 07_unity/<이름>; do
+  mkdir -p ~/data/$d && rsync -rt -e "ssh -p <포트> -i ~/.ssh/id_ed25519" root@<IP>:/vol/data/$d/ ~/data/$d/
+done
+# 동작 트랙 — 06_rig/<리그>/motions/<클립> 과 07_unity/<캐릭터> (그 밖은 위와 같이 02_sam2 · 04_wham/<클립>_masked · 05_smpl_mesh)
+# run 폴더 (완료 마커 · 판정 JSON · 로그) — 맥북에서 --resume 하려면 필요하다(1.5절, --runs-dir 로 가리킨다)
+mkdir -p ~/data/runs && rsync -rt -e "ssh -p <포트> -i ~/.ssh/id_ed25519" root@<IP>:/vol/data/runs/ ~/data/runs/
 ```
 
-IP·포트를 명령에 적지 않는다. 접속 정보는 `~/.ssh/config`의 `Host runpod` 한 곳에서만
-관리하고, Pod을 새로 띄우면 그 항목의 `HostName`·`Port`만 갱신한다.
+`<포트>` · `<IP>` 는 1-A 4 의 접속(`ssh -p <포트> root@<IP> -i ~/.ssh/id_ed25519`)과 같다 — 콘솔의 "SSH over exposed TCP".
+`~/.ssh/config` 에 `Host runpod`(HostName · Port · User root · IdentityFile)를 두면 `-e "…"` 와 `root@<IP>:` 를 `runpod:` 로 줄여 쓴다 —
+Pod 을 새로 띄우면 그 항목의 `HostName` · `Port` 만 갱신한다.
 
 회수 목록 체크:
 
-- [ ] SAM2 키프레임 후보 + 마스킹 클립
-- [ ] `wham_output.pkl` + `overlay.mp4`
-- [ ] `smpl_frame<N>.obj`, `smpl_tpose.obj`, `joints_frame<N>.json`
-- [ ] TRELLIS GLB + `textures/` + `params.json`
-- [ ] 최종 `zombie_wham.fbx` + 텍스처 PNG
+- [ ] `02_sam2/<이름>` — 마스크 · 마스킹 클립(`<이름>_masked.mp4`) · 키프레임 후보(`keyframes/candidates.json`)
+- [ ] `04_wham/<이름>_masked` — `wham_output.pkl` · `tracking_results.pth`(G3 입력). 겹침 영상은 WHAM 이 만들지 않는다 —
+      필요하면 `scripts/overlay_vis.py` 로 만든다(5.7절)
+- [ ] `05_smpl_mesh/<이름>` — `smpl_frame<N>.obj`, `smpl_tpose.obj`, `joints_frame<N>.json`
+- [ ] `03_trellis2/<이름>` — GLB + `textures/` + `params.json`
+- [ ] `06_rig/<이름>` — 리그 blend · `animated.blend` / 동작 트랙은 `06_rig/<리그>/motions/<클립>`
+- [ ] `07_unity/<이름>/<이름>_wham.fbx`(외형) · `07_unity/<캐릭터>/<캐릭터>@<클립>.fbx`(동작) + 텍스처 PNG(3단계 `textures/`)
+- [ ] `runs/run_<이름>_<일시>` — 마커 · 판정(`gates/`) · `attempts.json` · 로그
 - [ ] **Pod Terminate** (Stop 아님 — 스토리지 2배 과금)
 
-`/workspace` 안에 둔 것은 볼륨에 남으므로 다시 받을 필요는 없다. 애매하면 내려두는 편이 싸다.
+볼륨(`/vol`)에 둔 것은 Pod 을 지워도 남으므로 다시 받을 수 있다. 애매하면 내려두는 편이 싸다.
 
 ### 흔한 실패
 - **맥북 쪽 권한(TCC)** — macOS가 터미널의 `~/Downloads`·`~/Desktop`·`~/Documents` 접근을 막으면
