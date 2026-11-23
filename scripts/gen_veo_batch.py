@@ -86,6 +86,9 @@ REF_BY_PREFIX = {
     "oiler": "oiler_01.png",
     # 2026-10-16 공통 동작(common_*) — walker 레퍼런스로 생성한다(표준 체형 · 추적 안정). 굽는 리그는 따로 정한다.
     "common": "manor_walker_01_v4_1116.png",
+    # 2026-11-23 학교 좀비 2종 — 엑셀(학교좀비_동작별_프롬프트.xlsx) B열 임베디드 이미지 사본 (00_raw/_school_1123/record.json)
+    "teacher": "school_teacher_01.png",
+    "student": "school_student_01.png",
 }
 
 # 2026-11-23 학교 좀비 — 프롬프트 본문에 길이 문장이 있다(끝문장 아님). 길이는 요청에 보내지 않으므로
