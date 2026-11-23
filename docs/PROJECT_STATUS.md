@@ -1,6 +1,6 @@
 # 좀비 영상 → 유니티 아바타 파이프라인 — 진행 상황 정리
 
-작성일: 2026-08-11 (최종 갱신: 2026-11-20)
+작성일: 2026-08-11 (최종 갱신: 2026-11-23)
 레포: [Video2UnityAvatar-Pipeline](https://github.com/chaeee01/Video2UnityAvatar-Pipeline) — 초기 이름 `3DGS-Character-Generation-Pipeline`에서 개명. SuGaR(3DGS) 기반 복원을 설계에서 제외하면서 이름이 실제 구성과 어긋나 정리함.
 목표: 좀비 영상 한 편을 입력하면 SAM2로 객체를 분리하고, TRELLIS로 외형을, WHAM으로 동작을 복원한 뒤 유니티 에셋(아바타 + 애니메이션)으로 반입하는 파이프라인 구축.
 
@@ -1295,6 +1295,40 @@ WHAM betas(체형) + 키프레임 pose(자세) → 그 좀비와 같은 자세·
 
   **발견(코드, 고치지 않음)** — S5 불합격 안내(`orchestrate.py` 1219~1220)가 `--resume --point` 를 권하지만, S2 완료 마커가 있으면 `--point` 가 쓰이지 않는다(`--point` 는 S2 가 돌 때만 쓰인다). RUNBOOK 5.8 에 경고를 두고 아래 백로그에 올렸다.
 
+- **2026-11-23 — 학교 좀비 2종(teacher · student) 생성 → 외형 · 리깅 → 동작 20편 관통 (`feature/school-zombie`)**:
+
+  **생성.** 설계 엑셀(`학교좀비_동작별_프롬프트.xlsx`, 20행 · B열 A포즈 이미지 2종)을 Gemini Omni Flash(`gemini-omni-1.1-flash`)로 만들었다 —
+  **22편 · 23회 시도 · 약 $35.19**(요약본 단가 기준, 원문 아님. 모두 240프레임 · 24fps · 1080p, 출력 86,880토큰/편). 길이는 보내지 않고(1.1 문서에
+  `duration` 미기재) 10초로 만들며, 프롬프트의 "Requested clip length" 를 10초로 고쳤다 — `gen_veo_batch.py` 의 끝문장 검사를 본문 1회 검사로
+  바꿨다(`0428361`). first_frame 14편은 검증 문장 "The very first frame is already the same wide full-body shot as the reference image" 로
+  시작(A포즈 도입부는 컷하지 않음), 넘어짐 2편은 reference + 16:9 옆모습(10/26 fall_back_c 문구 — 결과는 좌우 반대, 기능 무해로 수용),
+  누운 시작 4편은 stun_fall 의 **f236**(10/26 get_up 시작 이미지 3장과 픽셀 일치로 확인한 추출 프레임)에서 first_frame. 입력 이미지는 10/15
+  후처리(배경 복제 9:16 확장 + 인물 키 53%)를 다시 짜서 적용했다. student_rise 는 머리 잘림으로 1회 재생성(`_v2`, 여백 문장 1개 추가 — 미검증 문구).
+
+  **외형 · 리깅 2종** — 사용자가 ChatGPT(gpt-image)로 만든 T포즈 레퍼런스 → shape 영상(T포즈 240프레임 유지) → 외형 트랙(v3 이미지 Pod, 명령 하나).
+
+  | 리그 | 정렬 스케일 | IoU | 관절–메쉬 | 웨이트 직접 · BFS · 폴백 · 무배정 | G2r | 키프레임 |
+  |---|---|---|---|---|---|---|
+  | teacher_shape_01 | 0.5638 | 0.9854 | 0.0254 | 99.22 · 0.46 · 0.32 · 0% | PASS(손 본 경고 2) | f68 |
+  | student_shape_01 | 0.5676 | 0.9277 | 0.0255 | 99.46 · 0.35 · 0.19 · 0% | PASS(손 본 경고 1) | f86 |
+
+  정렬 스케일은 10/15 T포즈 경로(0.569~0.571)와 같은 대역. `make_rest_pose.py`(v1 설정)로 `06_rig/{teacher,student}/character.json` 을 만들고
+  역할표(walk · run = move, 누운 시작 · hit · stun_fall = ground_align)를 적었다.
+
+  **동작 20편 → FBX 20편.** 동작 트랙 15편 G4 PASS. 보행 3편(teacher walk −0.237 CHECK · student walk −0.173 FAIL · student run −0.428 CHECK)은
+  11/02 형식으로 수용 기록(권장 이동 속도 명기, 게임 속도 튜닝 전제) → ACCEPTED. **권장 이동 속도**(= |쓸기| × 키 × 리그 비율, 키 teacher 2.0 ·
+  student 1.7, 비율 0.8502 · 0.8508): teacher walk 0.40 · run 1.03 / student walk 0.25 · run 0.62 유닛/초 — 엑셀 제안의 14~26%. 비율은
+  `tools/review/rig_head_ankle_ratio.py`(11/02 측정 스크립트 결손을 재현 — walker 기록 1.0003 · 0.8230 과 일치, "Head 본 시작점" 정의 확정)로 쟀다.
+  S5 에서 멈춘 3편은 사용자 승인으로 처리 — rise 2편은 누운 정지 시작을 WHAM 이 못 잡아(teacher f0~18 · student f0~25) **track_select 로
+  검출 구간만**(10/26 walker_fall_back_c2_t0 전례, 221 · 214프레임), student stunned_loop 은 **전 구간 미검출**이라 stun_fall f239 자세를 240프레임
+  유지한 **합성 클립**(`blend_seam.json` `synthetic: true`, 원본 영상 · 실패 run 보존). 납품 메모 `~/data/07_unity/school_zombie_1123_납품메모.md`.
+
+  **발견(코드, 고치지 않음)** ① 동작 트랙 `--resume` 이 BAKE 완료 run 에서 `KeyError: 'name'` 으로 죽는다(`resume_point` 에 `name` 없는 track dict
+  — RUNBOOK 1.5 "수용 → --resume" 경로 불능, 보행 3편은 같은 명령을 직접 호출) ② `blend_track_seam.py` 는 첫 검출 이전 프레임을 음수 인덱스로
+  트랙 끝 자세에서 조용히 가져온다(홀드 용도 불가 — 11/02 walker get_up 홀드는 레포 밖 코드) ③ `accept_clip.py` 백업 이름이 초 단위라 같은 초 두 번
+  기록 시 첫 백업이 덮인다(수용 전 원본은 복원본으로 따로 남김) ④ 시험 `test_gen_veo_batch.py` B 이하가 `make_args` 픽스처 누락(`row_refs` · `aspect`, 54c88c4 · 377c0aa 이후)으로 멈추던 결함 — **수정 완료(커밋 `1b41a08`)**, 33/33 통과 · CI RUN 목록에 넣음.
+  Pod 업로드는 `00_raw/<id>.mp4` 이름이어야 한다 — 맥 파일명(`__omni-ff`)으로 올리면 S2 뒤 "산출물 없음"(1회 실패, 산출물 보존).
+
 ## 9. 다음 단계 (우선순위)
 
 2026-10-21 기준. 이전 목록(8월, SMPL 리깅 1~3단계 · SAM2 이전 · TRELLIS 로컬 설치 · 게이트 · 오케스트레이터)은 모두 끝났다.
@@ -1306,4 +1340,4 @@ WHAM betas(체형) + 키프레임 pose(자세) → 그 좀비와 같은 자세·
 
 **G4 구현 완료(10/22)** — `scripts/gate_g4.py`, RUNBOOK 5.6절. **바닥 판정 · 바닥 정렬 추가(10/26)** — RUNBOOK 5-5 · 5.6절.
 
-백로그: ~~G3 축소판~~(11/21 완료 — 재투영 일관성 PASS/CHECK), ~~README 자동화 사용법~~(11/06 완료), G2 seed 재시도 실전 검증, ~~2트랙 배치 래퍼~~ · ~~**5-4b · G4 오케스트레이터 통합**~~(11/06 완료 — 동작 트랙 · character.json v2), ~~역할표 source 정정 13편~~(11/06 완료 — 실제 15편, 10/26 바닥 교체 14 + walker get_up). 동작 트랙 다시 굽기의 오케스트레이터 경로(지금은 `bake_character.sh` 만 — RUNBOOK 5.8, 11/22), 빈 볼륨 재현 검증(QUICKSTART 3단계 — SMPL 배치 · 모델 첫 다운로드, 11/22), S5 불합격 안내(orchestrate.py 1219~1220)가 `--resume --point` 를 권하지만 S2 마커가 있으면 S2 를 다시 돌리지 않는다 — 안내 문구 또는 재진입 처리 수정(11/22), 새 캐릭터 동작 트랙 검증(`make_rest_pose.py` 의 v1 설정 → `--motion` — 지금까지 `--motion` 은 v2 설정의 listener · walker 로만 돌았다, 11/22), 영상 생성 스크립트 `gen_veo_batch.py` 가 main 에 없음(`feature/veo-batch` 에만 — RUNBOOK 0-A, 11/22), 다시 구운 클립의 FBX 내보내기 단독 경로 없음(클립 FBX 는 오케스트레이터 CLIPFBX 단계에서만 — RUNBOOK 5.8, 11/22).
+백로그: ~~G3 축소판~~(11/21 완료 — 재투영 일관성 PASS/CHECK), ~~README 자동화 사용법~~(11/06 완료), G2 seed 재시도 실전 검증, ~~2트랙 배치 래퍼~~ · ~~**5-4b · G4 오케스트레이터 통합**~~(11/06 완료 — 동작 트랙 · character.json v2), ~~역할표 source 정정 13편~~(11/06 완료 — 실제 15편, 10/26 바닥 교체 14 + walker get_up). 동작 트랙 다시 굽기의 오케스트레이터 경로(지금은 `bake_character.sh` 만 — RUNBOOK 5.8, 11/22), 빈 볼륨 재현 검증(QUICKSTART 3단계 — SMPL 배치 · 모델 첫 다운로드, 11/22), S5 불합격 안내(orchestrate.py 1219~1220)가 `--resume --point` 를 권하지만 S2 마커가 있으면 S2 를 다시 돌리지 않는다 — 안내 문구 또는 재진입 처리 수정(11/22), ~~새 캐릭터 동작 트랙 검증(`make_rest_pose.py` 의 v1 설정 → `--motion` — 지금까지 `--motion` 은 v2 설정의 listener · walker 로만 돌았다, 11/22)~~(11/23 완료 — teacher · student v1 설정으로 20편), ~~영상 생성 스크립트 `gen_veo_batch.py` 가 main 에 없음(`feature/veo-batch` 에만 — RUNBOOK 0-A, 11/22)~~(11/23 main 머지), 다시 구운 클립의 FBX 내보내기 단독 경로 없음(클립 FBX 는 오케스트레이터 CLIPFBX 단계에서만 — RUNBOOK 5.8, 11/22), 동작 트랙 `--resume` KeyError 'name'(BAKE 완료 run, 11/23), `blend_track_seam.py` 첫 검출 이전 음수 인덱스(11/23), `accept_clip.py` 백업 이름 초 단위 충돌(11/23), G0 길이 표기 "90프레임(3초)" — 24fps 에서 3.75초(RUNBOOK 0절 · 5절 표, 11/23), 끝 프레임 추출 f236 절차 · 사유 명문화(11/23), Pod 업로드 이름 규약 `00_raw/<id>.mp4` 명문화(11/23), PROJECT_STATUS 11/02 "권장 이동 속도를 README 에 명기" — 레포 README 에 없음(11/23).

@@ -1,0 +1,740 @@
+#!/usr/bin/env python3
+"""Veo 3.1 (Gemini API) 로 좀비 동작 영상을 일괄 생성한다 — 파이프라인 입력(G0 앞단) 준비.
+
+ORCHESTRATOR_DESIGN 의 S-1 구상을 수동 스크립트로 먼저 만든 것이다. 엑셀의 프롬프트와
+레퍼런스 이미지를 편마다 한 번씩 보내고, 끝나는 즉시 내려받아 ffprobe 로 G0 수치를
+잰다. 맥북에서 돈다 (GPU 불필요).
+
+  PY=~/.venvs/veo-batch/bin/python        # 설치: pip install -r scripts/requirements-veo.txt
+  X=~/Downloads/generated_video/promptys.xlsx
+  R=~/Downloads/generated_video/zombie_reference_images
+
+  $PY gen_veo_batch.py --xlsx $X --refs $R --count-tokens              # 프롬프트 토큰 수
+  $PY gen_veo_batch.py --xlsx $X --refs $R --model fast --dry-run      # 요청 설정표만
+  $PY gen_veo_batch.py --xlsx $X --refs $R --model fast --ids walker_idle,dog_idle
+  $PY gen_veo_batch.py --xlsx $X --refs $R --model fast --mode reference --ids walker_roar
+
+출력 (--out, 기본 ~/data/00_raw):
+  <id>__<모델>-<방식>.mp4            예: walker_idle__fast-ff.mp4, walker_roar__fast-ref.mp4
+  <id>__<모델>-<방식>.params.json    CONVENTIONS 3절 + 요청 설정·operation·결과·G0 실측
+  _refs/<레퍼런스 파일>              입력 이미지 사본 (원본은 건드리지 않는다)
+--refs 폴더에는 접두사별 레퍼런스가 원래 이름이나 <이름>_clean.png (워터마크를 지운 사본)
+중 하나로 있어야 한다. --refs 가 이미 --out 안에 있으면 (예: ~/data/00_raw/_refs_clean)
+복사하지 않고 그 자리의 파일을 쓴다.
+모델 태그는 std · fast, 방식 태그는 ff(시작 프레임) · ref(참조 이미지)다.
+
+동작 규칙:
+  - 이어하기: mp4 와 성공 기록이 함께 있으면 건너뛴다. mp4 만 있고 기록이 없거나, 기록된
+    프롬프트가 이번 엑셀과 다르면 **멈춘다** — 기존 파일을 덮어쓰지 않는다.
+  - 안전 필터 차단·오류는 기록하고 다음 편으로 넘어간다. 오류는 1회만 재시도하고 차단은
+    재시도하지 않는다. 429 는 기다렸다 다시 보낸다 (재시도 횟수에 세지 않는다).
+  - 생성 요청이 접수된 뒤(operation 이 생긴 뒤) 폴링·다운로드가 실패하면 **재생성하지
+    않는다** — 서버에서는 완성돼 과금될 수 있어서다. operation 이름을 기록에 남긴다.
+  - 인증·과금·등급 오류는 다음 편도 똑같이 실패하므로 "FATAL_STOP:" 과 원문을 찍고 즉시
+    종료한다 (코드 2).
+  - --daily-cap N: 이번 실행에서 접수된 생성 요청이 N 건이 되면 남은 편은 보내지 않고
+    "DAILY_CAP_REACHED" 를 찍고 정상 종료한다 (재시도도 1건으로 센다 — 일일 한도 RPD 가
+    요청 수 기준이어서다). Tier 1 의 Veo 3.1 Fast RPD 가 10 이다. 같은 날 앞서 쓴 횟수는
+    세지 않으므로 콘솔에서 RPD 가 0 으로 돌아온 것을 확인하고 돌린다. 기본은 무제한.
+  - 429 중 메시지에 "quota" 가 든 것은 일일 한도 소진으로 보고 "QUOTA_STOP:" 과 원문을
+    찍고 멈춘다 (코드 4). 2026-10-11 에 11번째 요청이 이 응답으로 거절됐다. 한도가 돌아온
+    뒤 같은 명령으로 이어가면 된다.
+  - API 키는 레포 루트 .env 의 GEMINI_API_KEY 에서 읽고, 출력·기록에 쓰지 않는다.
+
+종료 코드: 0 정상 (차단·오류가 섞여도 0, 요약 표를 본다) · 1 인자 오류 · 2 즉시 중단
+(FATAL_STOP — 사람이 봐야 한다, 오케스트레이터의 EXIT_HUMAN 과 같은 값) · 3 토큰 한도 초과
+(--count-tokens) · 4 일일 한도 소진 (QUOTA_STOP).
+"""
+import argparse
+import hashlib
+import json
+import os
+import shutil
+import struct
+import subprocess
+import sys
+import threading
+import time
+import warnings
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from orchestrate import probe_input  # G0 기준을 한 곳에 둔다  # noqa: E402
+
+REPO = Path(__file__).resolve().parent.parent
+
+MODELS = {"std": "veo-3.1-generate-preview", "fast": "veo-3.1-fast-generate-preview",
+          # 2026-10-23 추가. Veo 3.1 Preview 는 Gemini API 에서 2026-10-22 에 종료됐다(공식 폐기 문서의 권고 대체).
+          # Interactions API(REST)로 부른다 — 설치된 google-genai 1.47.0 에는 interactions 가 없다.
+          # 길이 파라미터가 없고(문서 미기재), 이미지 1장은 "모델이 쓰임을 정한다" — 시작 프레임 고정은
+          # 프롬프트 문구("use the image as the starting frame")에 기댄다. first_frame 방식만 받는다.
+          "omni": "gemini-omni-1.1-flash"}
+OMNI_URL = "https://generativelanguage.googleapis.com/v1beta/interactions"
+MODE_TAG = {"first_frame": "ff", "reference": "ref"}
+
+# id 접두사 → 레퍼런스 파일. 엑셀의 ref_image 열이 비어 있어 여기서 정한다.
+# dog 는 가로 구도인 dog_02 를 쓴다 (dog_01 은 세로 구도).
+REF_BY_PREFIX = {
+    "walker": "manor_walker_01_v4_1116.png",
+    "listener": "manor_listener_01_v4_1116.png",
+    "stalker": "manor_stalker_01_v4_1116.png",
+    "dog": "dog_02.png",
+    # 2026-10-15 신규 — 레퍼런스는 9:16 판 (00_raw/_refs_new_1015/README_record.json)
+    "player": "player_01.png",
+    "lurker": "lurker_01.png",
+    "oiler": "oiler_01.png",
+    # 2026-10-16 공통 동작(common_*) — walker 레퍼런스로 생성한다(표준 체형 · 추적 안정). 굽는 리그는 따로 정한다.
+    "common": "manor_walker_01_v4_1116.png",
+    # 2026-11-23 학교 좀비 2종 — 엑셀(학교좀비_동작별_프롬프트.xlsx) B열 임베디드 이미지 사본 (00_raw/_school_1123/record.json)
+    "teacher": "school_teacher_01.png",
+    "student": "school_student_01.png",
+}
+
+# 2026-11-23 학교 좀비 — 프롬프트 본문에 길이 문장이 있다(끝문장 아님). 길이는 요청에 보내지 않으므로
+# (Omni 미지정 = 10초) 문장을 떼지 않고, 정확히 1회 있는지만 검사한다. 다른 문장은 건드리지 않는다.
+PROMPT_LENGTH_SENTENCE = "Requested clip length: 10 seconds."
+PROMPT_TOKEN_LIMIT = 1024  # 공식 문서 Model versions 표의 "Text input 1,024 tokens"
+
+SAFETY_WORDS = ("safety", "responsible ai", "usage guidelines", "violat", "sensitive words")
+BILLING_WORDS = ("billing", "free tier", "free_tier", "limit: 0", "paid tier", "upgrade your plan")
+FATAL_STATUS = ("PERMISSION_DENIED", "UNAUTHENTICATED", "FAILED_PRECONDITION")
+
+_KEY = ""
+
+
+class Fatal(Exception):
+    """다음 편도 똑같이 실패할 오류 — 배치를 멈춘다."""
+
+
+class QuotaStop(Exception):
+    """일일 한도 소진 — 오늘은 더 보낼 수 없다. 과금·인증 오류(Fatal)와 구분한다."""
+
+
+class Budget:
+    """--daily-cap: 이번 실행에서 접수된 생성 요청 수를 센다."""
+
+    def __init__(self, cap):
+        self.cap, self.sent, self._lock = cap, 0, threading.Lock()
+
+    def take(self):
+        with self._lock:
+            if self.cap is not None and self.sent >= self.cap:
+                return False
+            self.sent += 1
+            return True
+
+    def give_back(self):  # 접수되기 전에 거절된 요청은 세지 않는다
+        with self._lock:
+            self.sent -= 1
+
+
+class Parser(argparse.ArgumentParser):
+    """argparse 기본 오류 코드 2 는 즉시 중단(FATAL_STOP)과 겹친다. 인자 오류는 1 로 낸다."""
+
+    def error(self, message):
+        self.print_usage(sys.stderr)
+        self.exit(1, f"{self.prog}: error: {message}\n")
+
+
+def scrub(s):
+    s = str(s)
+    return s.replace(_KEY, "***") if _KEY else s
+
+
+def log(*a):
+    print(time.strftime("%H:%M:%S"), *[scrub(x) for x in a], flush=True)
+
+
+def load_key():
+    env = REPO / ".env"
+    if not env.is_file():
+        sys.exit(f"[중단] {env} 가 없다")
+    for line in env.read_text().splitlines():
+        if line.startswith("GEMINI_API_KEY="):
+            key = line.split("=", 1)[1].strip().strip("'\"")
+            if key:
+                return key
+    sys.exit("[중단] .env 에 GEMINI_API_KEY 가 없다")
+
+
+def git_state():
+    """실행 시점의 HEAD 와 미커밋 변경 여부 — 어느 코드로 만든 영상인지 기록에 남긴다."""
+    def git(*a):
+        r = subprocess.run(["git", "-C", str(REPO), *a], capture_output=True, text=True)
+        if r.returncode != 0:
+            sys.exit(f"[중단] git {' '.join(a)} 실패: {r.stderr.strip()[:200]}")
+        return r.stdout.strip()
+    return git("rev-parse", "HEAD"), bool(git("status", "--porcelain"))
+
+
+def sha256(path):
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def png_size(path):
+    with open(path, "rb") as f:
+        head = f.read(24)
+    if head[:8] != b"\x89PNG\r\n\x1a\n":
+        sys.exit(f"[중단] PNG 가 아니다: {path}")
+    return struct.unpack(">II", head[16:24])
+
+
+def strip_prompt(raw, rid):
+    p = raw.rstrip()
+    n = p.count(PROMPT_LENGTH_SENTENCE)
+    if n != 1:
+        sys.exit(f"[중단] {rid}: 프롬프트에 '{PROMPT_LENGTH_SENTENCE}' 문장이 정확히 1회 있어야 한다 (찾은 횟수 {n})")
+    return p
+
+
+def read_rows(xlsx):
+    import openpyxl
+    ws = openpyxl.load_workbook(xlsx, read_only=True, data_only=True)["prompts"]
+    it = ws.iter_rows(values_only=True)
+    header = [str(c).strip() if c is not None else "" for c in next(it)][:4]
+    if header != ["id", "ref_image", "prompt", "conti"]:
+        sys.exit(f"[중단] 엑셀 머리행이 다르다: {header}")
+    rows = {}
+    for r in it:
+        if not r or not r[0]:
+            continue
+        rid = str(r[0]).strip()
+        if rid in rows:
+            sys.exit(f"[중단] id 중복: {rid}")
+        if not r[2]:
+            sys.exit(f"[중단] {rid}: 프롬프트가 비었다")
+        rows[rid] = str(r[2])
+    return rows
+
+
+def read_row_refs(xlsx):
+    """엑셀 ref_image 열에 적힌 행별 시작 이미지(PNG 경로). 비어 있으면 그 행은 접두사 규칙(REF_BY_PREFIX)을 따른다.
+
+    2026-10-26 추가 — get_up 을 같은 캐릭터 fall_back 영상의 마지막 프레임에서 시작시키기 위해.
+    지금까지의 엑셀은 이 열이 전부 비어 있어 동작이 바뀌지 않는다.
+    """
+    import openpyxl
+    ws = openpyxl.load_workbook(xlsx, read_only=True, data_only=True)["prompts"]
+    out = {}
+    for r in list(ws.iter_rows(values_only=True))[1:]:
+        if r and r[0] and len(r) > 1 and r[1] and str(r[1]).strip():
+            out[str(r[0]).strip()] = str(r[1]).strip()
+    return out
+
+
+def find_ref(refs, name):
+    """<name> 또는 <name>_clean. 둘 다 있으면 어느 쪽인지 정할 수 없으므로 멈춘다."""
+    stem, ext = os.path.splitext(name)
+    hits = [p for p in (refs / name, refs / f"{stem}_clean{ext}") if p.is_file()]
+    if len(hits) != 1:
+        sys.exit(f"[중단] {refs} 에 {name} 또는 {stem}_clean{ext} 가 정확히 하나 있어야 한다 "
+                 f"(찾은 것: {[h.name for h in hits]})")
+    return hits[0]
+
+
+def stem_of(rid, model_tag, mode):
+    return f"{rid}__{model_tag}-{MODE_TAG[mode]}"
+
+
+def build_jobs(args, rows):
+    if args.ids:
+        ids = [s.strip() for s in args.ids.split(",") if s.strip()]
+        missing = [i for i in ids if i not in rows]
+        if missing:
+            sys.exit(f"[중단] 엑셀에 없는 id: {missing}")
+    else:
+        ids = list(rows)
+    jobs = []
+    for rid in ids:
+        prefix = rid.split("_")[0]
+        if prefix not in REF_BY_PREFIX:
+            sys.exit(f"[중단] {rid}: 접두사 '{prefix}' 에 대응하는 레퍼런스가 없다")
+        if rid in args.row_refs:
+            src = Path(args.row_refs[rid]).expanduser().resolve()
+            if not src.is_file() or src.suffix.lower() != ".png":
+                sys.exit(f"[중단] {rid}: ref_image 열의 시작 이미지가 없거나 PNG 가 아니다: {src}")
+        else:
+            src = find_ref(args.refs, REF_BY_PREFIX[prefix])
+        w, h = png_size(src)
+        stem = stem_of(rid, args.model, args.mode)
+        jobs.append({
+            "id": rid, "stem": stem,
+            "prompt": strip_prompt(rows[rid], rid),
+            "ref_src": src, "ref_size": [w, h],
+            # --refs 가 이미 --out 안이면 그 자리의 파일을 쓴다 (복사하지 않는다)
+            "ref": src if args.out in src.parents else args.out / "_refs" / src.name,
+            # Veo 는 16:9 · 9:16 만 받는다. 기본(auto)은 레퍼런스 구도를 따르고, --aspect 로 덮어쓸 수 있다
+            # (2026-10-26 — 세로 레퍼런스로 16:9 옆모습을 만들기 위해. 덮어쓰기는 reference 방식에서만 의미가 있다).
+            "aspect_ratio": args.aspect if args.aspect != "auto" else ("9:16" if h > w else "16:9"),
+            "mp4": args.out / f"{stem}.mp4", "json": args.out / f"{stem}.params.json",
+        })
+    return jobs
+
+
+def prepare_refs(jobs):
+    """레퍼런스를 <out>/_refs 로 복사한다 (이동 아님). 이미 있는데 내용이 다르면 멈춘다."""
+    for src, dst in sorted({(j["ref_src"], j["ref"]) for j in jobs}):
+        if dst == src:
+            continue
+        if dst.exists():
+            if sha256(dst) != sha256(src):
+                sys.exit(f"[중단] {dst} 가 이미 있고 원본과 내용이 다르다 — 덮어쓰지 않는다")
+        else:
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, dst)
+            log(f"[refs] 복사 {src} → {dst}")
+
+
+def request_config(args, job):
+    if args.model == "omni":
+        # Omni 는 길이 · 인물 생성 설정이 없다. 기록 표의 칸을 맞추려고 None 으로 둔다.
+        return {"aspect_ratio": job["aspect_ratio"], "resolution": args.resolution,
+                "duration_seconds": None, "person_generation": None, "number_of_videos": 1,
+                # reference 방식(2026-10-26): 이미지는 외형 참조로만, 시작 구도는 프롬프트로. 동작 설명은 문서에 없다 —
+                # 문서에는 허용값 목록(text_to_video · image_to_video · reference_to_video · edit · extend)만 있다.
+                "task": "reference_to_video" if args.mode == "reference" else "image_to_video"}
+    return {"aspect_ratio": job["aspect_ratio"], "resolution": args.resolution,
+            "duration_seconds": args.duration, "person_generation": "allow_adult",
+            "number_of_videos": 1}
+
+
+def api_error_text(e):
+    return f"{getattr(e, 'code', '?')} {getattr(e, 'status', '?')}: {getattr(e, 'message', e)}"
+
+
+def is_quota(e):
+    return getattr(e, "code", None) == 429 and "quota" in str(getattr(e, "message", e)).lower()
+
+
+def is_fatal(e):
+    msg = str(getattr(e, "message", e)).lower()
+    # 402 Payment Required(선불 크레딧 소진 — 2026-10-16 · 10-26) 도 다음 편이 똑같이 실패하므로 즉시 멈춘다.
+    # 10/26 에는 402 를 일반 오류로 보고 재시도가 1회 나갔다(omni 경로는 HTTP 오류 때 상한 자리를 돌려준다).
+    return (getattr(e, "code", None) in (401, 402, 403) or getattr(e, "status", None) in FATAL_STATUS
+            or any(w in msg for w in BILLING_WORDS))
+
+
+def probe(mp4):
+    """G0 실측. 프레임·fps·해상도와 판정은 orchestrate.probe_input, 길이만 따로 잰다."""
+    m, bad = probe_input(mp4, False)
+    if m is None:
+        return {"verdict": "FAIL", "reasons": bad}
+    r = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration",
+                        "-of", "csv=p=0", str(mp4)], capture_output=True, text=True)
+    m["duration_s"] = round(float(r.stdout.strip()), 3) if r.returncode == 0 else None
+    r = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "a", "-show_entries",
+                        "stream=codec_name", "-of", "csv=p=0", str(mp4)], capture_output=True, text=True)
+    m["audio"] = bool(r.stdout.strip()) if r.returncode == 0 else None
+    m["verdict"] = "FAIL" if bad else "PASS"
+    m["reasons"] = bad
+    return m
+
+
+class _HTTPErr(Exception):
+    def __init__(self, code, status, message):
+        super().__init__(message)
+        self.code, self.status, self.message = code, status, message
+
+
+def attempt_omni(args, job, cfg):
+    """Omni(Interactions API) 생성 1회 — REST 동기 호출. (기록 dict, 재시도해도 되는가).
+
+    요청을 보낸 뒤의 시간 초과 · 응답 해석 실패는 재시도하지 않는다(서버에서 완성돼 과금됐을 수 있다).
+    """
+    import base64
+    import urllib.error
+    import urllib.request
+    a = {"started": time.strftime("%Y-%m-%d %H:%M:%S"), "operation": None, "waits_429": 0}
+    body = {
+        "model": MODELS["omni"],
+        "input": [{"type": "image", "data": base64.b64encode(job["ref"].read_bytes()).decode(), "mime_type": "image/png"},
+                  {"type": "text", "text": job["prompt"]}],
+        "response_format": {"type": "video", "aspect_ratio": cfg["aspect_ratio"], "resolution": cfg["resolution"]},
+        "generation_config": {"video_config": {"task": cfg["task"]}},
+        "background": False, "store": False, "stream": False,
+    }
+    data = json.dumps(body).encode()
+    t0 = time.time()
+    wait = 60
+    while True:
+        req = urllib.request.Request(OMNI_URL, data=data, method="POST",
+                                     headers={"Content-Type": "application/json", "x-goog-api-key": _KEY})
+        try:
+            with urllib.request.urlopen(req, timeout=args.timeout) as r:
+                raw = r.read()
+            break
+        except urllib.error.HTTPError as e:
+            args.budget.give_back()
+            try:
+                err = json.loads(e.read().decode()).get("error", {})
+            except Exception:
+                err = {}
+            he = _HTTPErr(e.code, err.get("status", "?"), err.get("message", str(e)))
+            text = api_error_text(he)
+            if is_quota(he):
+                raise QuotaStop(text)
+            if is_fatal(he):
+                raise Fatal(text)
+            if e.code == 429 and a["waits_429"] < args.max_429_waits:
+                a["waits_429"] += 1
+                log(f"  [{job['stem']}] 429 — {wait}s 대기 ({a['waits_429']}/{args.max_429_waits}): {text[:200]}")
+                time.sleep(wait)
+                wait = min(wait * 2, 480)
+                args.budget.take()
+                continue
+            blocked = any(w in text.lower() for w in SAFETY_WORDS)
+            a.update(status="blocked" if blocked else "error", message=text)
+            return a, (e.code not in (400,) and not blocked)
+        except Exception as e:  # 시간 초과 · 연결 끊김 — 서버에서는 생성됐을 수 있다
+            a.update(status="error", message=f"요청 뒤 응답을 받지 못함(재시도 안 함): {scrub(e)}")
+            return a, False
+    a["generate_s"] = round(time.time() - t0, 1)
+    try:
+        resp = json.loads(raw.decode())
+    except Exception as e:
+        a.update(status="error", message=f"응답 JSON 해석 실패(재시도 안 함): {scrub(e)}")
+        return a, False
+    a["operation"] = resp.get("id") or resp.get("name")
+    vids, meta = [], []
+    for st in resp.get("steps", []) or []:
+        for c in st.get("content", []) or []:
+            if c.get("type") == "video":
+                vids.append(c)
+            meta.append({k: (v if k != "data" else f"<{len(v)} b64>") for k, v in c.items()})
+    a["response_meta"] = {"keys": sorted(resp.keys()), "content": meta[:10], "usage": resp.get("usage") or resp.get("usage_metadata")}
+    if not vids or not vids[0].get("data"):
+        msg = json.dumps(a["response_meta"], ensure_ascii=False)[:800]
+        blocked = any(w in msg.lower() for w in SAFETY_WORDS)
+        a.update(status="blocked" if blocked else "error", message=f"응답에 영상 데이터가 없다(재시도 안 함): {msg}")
+        return a, False
+    t1 = time.time()
+    tmp = job["mp4"].with_name(job["mp4"].name + ".part")
+    tmp.write_bytes(base64.b64decode(vids[0]["data"]))
+    if job["mp4"].exists():
+        raise Fatal(f"{job['mp4']} 가 생성 도중 생겼다 — 덮어쓰지 않는다. 받은 파일은 {tmp}")
+    os.replace(tmp, job["mp4"])
+    a.update(status="success", download_s=round(time.time() - t1, 1), mime_type=vids[0].get("mime_type"))
+    return a, False
+
+
+def attempt(client, types, errors, args, job, cfg):
+    """생성 1회. (기록 dict, 재시도해도 되는가) 를 돌려준다."""
+    if args.model == "omni":
+        return attempt_omni(args, job, cfg)
+    a = {"started": time.strftime("%Y-%m-%d %H:%M:%S"), "operation": None, "waits_429": 0}
+    image = types.Image.from_file(location=str(job["ref"]))
+    kw = dict(cfg)
+    if args.mode == "reference":
+        kw["reference_images"] = [types.VideoGenerationReferenceImage(image=image, reference_type="asset")]
+    call = dict(model=MODELS[args.model], prompt=job["prompt"], config=types.GenerateVideosConfig(**kw))
+    if args.mode == "first_frame":
+        call["image"] = image
+
+    t0 = time.time()
+    wait = 60
+    while True:
+        try:
+            op = client.models.generate_videos(**call)
+            break
+        except errors.APIError as e:
+            args.budget.give_back()
+            text = api_error_text(e)
+            if is_quota(e):
+                raise QuotaStop(text)
+            if is_fatal(e):
+                raise Fatal(text)
+            if getattr(e, "code", None) == 429 and a["waits_429"] < args.max_429_waits:
+                a["waits_429"] += 1
+                log(f"  [{job['stem']}] 429 — {wait}s 대기 ({a['waits_429']}/{args.max_429_waits}): {text[:200]}")
+                time.sleep(wait)
+                wait = min(wait * 2, 480)
+                args.budget.take()  # 방금 돌려준 자리를 다시 잡는다
+                continue
+            a.update(status="error", message=text)
+            # 400 은 같은 요청을 다시 보내도 같은 답이 온다
+            return a, getattr(e, "code", None) != 400
+    a["operation"] = op.name
+    log(f"  [{job['stem']}] 접수 {op.name}")
+
+    poll_fail = 0
+    while not op.done:
+        if time.time() - t0 > args.timeout:
+            a.update(status="error", message=f"{args.timeout}s 안에 끝나지 않았다 (operation 은 살아 있을 수 있다)")
+            return a, False
+        time.sleep(args.poll)
+        try:
+            op = client.operations.get(op)
+            poll_fail = 0
+        except Exception as e:  # 접수된 뒤에는 재생성하지 않고 폴링만 다시 한다
+            poll_fail += 1
+            log(f"  [{job['stem']}] 폴링 실패 {poll_fail}/5: {e}")
+            if poll_fail >= 5:
+                a.update(status="error", message=f"폴링 5회 연속 실패: {scrub(e)}")
+                return a, False
+    a["generate_s"] = round(time.time() - t0, 1)
+
+    if op.error:
+        msg = json.dumps(op.error, ensure_ascii=False) if isinstance(op.error, dict) else str(op.error)
+        blocked = any(w in msg.lower() for w in SAFETY_WORDS)
+        a.update(status="blocked" if blocked else "error", message=msg)
+        return a, not blocked
+    resp = op.response
+    vids = (resp.generated_videos or []) if resp else []
+    if not vids:
+        if resp and resp.rai_media_filtered_count:
+            a.update(status="blocked", rai_reasons=resp.rai_media_filtered_reasons,
+                     message=f"rai_media_filtered_count={resp.rai_media_filtered_count}")
+            return a, False
+        a.update(status="error", message="완료됐지만 영상이 없다 (차단 사유도 없다)")
+        return a, True
+
+    # 서버 보관은 2일이다. 끝나는 즉시 받는다. 임시 이름으로 받아 완성본만 제자리에 둔다.
+    t1 = time.time()
+    tmp = job["mp4"].with_name(job["mp4"].name + ".part")
+    last = None
+    for n in range(3):
+        try:
+            client.files.download(file=vids[0].video)
+            vids[0].video.save(str(tmp))
+            last = None
+            break
+        except Exception as e:
+            last = e
+            log(f"  [{job['stem']}] 다운로드 실패 {n + 1}/3: {e}")
+            time.sleep(10)
+    if last is not None:
+        a.update(status="error", message=f"다운로드 실패 (2일 안에 operation 으로 회수할 것): {scrub(last)}")
+        return a, False
+    if job["mp4"].exists():
+        raise Fatal(f"{job['mp4']} 가 생성 도중 생겼다 — 덮어쓰지 않는다. 받은 파일은 {tmp}")
+    os.replace(tmp, job["mp4"])
+    a.update(status="success", download_s=round(time.time() - t1, 1))
+    return a, False
+
+
+def run_one(client, types, errors, args, job, sdk_version, stop):
+    """한 편을 끝까지 처리하고 요약 행을 돌려준다."""
+    row = {"id": job["id"], "stem": job["stem"], "mode": args.mode, "model": args.model}
+    prior = json.loads(job["json"].read_text()) if job["json"].exists() else None
+    if job["mp4"].exists():
+        if prior and prior.get("result", {}).get("status") == "success":
+            if prior.get("prompt") != job["prompt"]:
+                raise Fatal(f"{job['mp4']} 의 기록된 프롬프트가 이번 엑셀과 다르다 — 건너뛰지도 "
+                            f"덮어쓰지도 않는다. 옛 결과를 옮긴 뒤 다시 실행할 것")
+            g0 = prior.get("g0", {})
+            row.update(status="skip", g0=g0, total_s=None)
+            log(f"[{job['stem']}] 건너뜀 — 이미 있다")
+            return row
+        raise Fatal(f"{job['mp4']} 가 이미 있는데 이 스크립트의 성공 기록이 없다 — 덮어쓰지 않는다")
+    if stop.is_set() or not args.budget.take():
+        row.update(status="not_run", g0={}, total_s=None)
+        return row
+
+    cfg = request_config(args, job)
+    log(f"[{job['stem']}] 생성 시작 — {MODELS[args.model]} {args.mode} {cfg['aspect_ratio']} {cfg['resolution']}")
+    t0 = time.time()
+    attempts = list(prior.get("attempts", [])) if prior else []
+    for n in range(2):  # 오류 재시도는 1회까지
+        a, retry = attempt(client, types, errors, args, job, cfg)
+        attempts.append(a)
+        log(f"  [{job['stem']}] {a['status']}" + (f" — {a.get('message')}" if a["status"] != "success" else ""))
+        if a["status"] == "success" or not retry or n == 1:
+            break
+        if not args.budget.take():
+            log(f"  [{job['stem']}] 재시도하지 않는다 — --daily-cap {args.daily_cap} 도달")
+            break
+        log(f"  [{job['stem']}] 재시도 1회")
+    g0 = probe(job["mp4"]) if a["status"] == "success" else {}
+    total = round(time.time() - t0, 1)
+    params = {
+        "name": job["stem"],
+        "inputs": [str(args.xlsx), str(job["ref"])],
+        "xlsx_sha256": args.xlsx_sha256,
+        "id": job["id"],
+        "model": MODELS[args.model],
+        "mode": args.mode,
+        "prompt": job["prompt"],
+        "prompt_removed_suffix": None,  # 2026-11-23 부터 떼지 않는다 (길이 문장 검사로 교체)
+        "ref_image": str(job["ref"]),
+        "ref_image_source": str(job["ref_src"]),
+        "ref_image_sha256": sha256(job["ref"]),
+        "ref_image_size": job["ref_size"],
+        "request": cfg,
+        "operation": a.get("operation"),
+        "result": {k: a[k] for k in ("status", "message", "rai_reasons") if k in a},
+        "attempts": attempts,
+        "output": str(job["mp4"]) if a["status"] == "success" else None,
+        "g0": g0,
+        "google_genai": sdk_version,
+        "git_commit": args.git_commit,
+        "git_dirty": args.git_dirty,
+        "time_s": {"generate": a.get("generate_s"), "download": a.get("download_s"), "total": total},
+        "date": time.strftime("%Y-%m-%d %H:%M:%S"),
+    }
+    job["json"].write_text(scrub(json.dumps(params, indent=2, ensure_ascii=False)) + "\n")
+    if g0:
+        log(f"  [{job['stem']}] G0 {g0.get('verdict')} — {g0.get('frames')}프레임 {g0.get('fps')}fps "
+            f"{g0.get('width')}x{g0.get('height')} {g0.get('duration_s')}s 오디오 {g0.get('audio')}")
+    row.update(status=a["status"], g0=g0, total_s=total, message=a.get("message"))
+    return row
+
+
+def print_plan(args, jobs):
+    print(f"\n요청 설정표 — {len(jobs)}편 (생성 요청은 보내지 않았다)")
+    print("| 출력 파일 | model | mode | 이미지 전달 | aspectRatio | resolution | durationSeconds "
+          "| personGeneration | 레퍼런스 (WxH) | 프롬프트 글자 수 | 이미 있음 |")
+    print("|---|---|---|---|---|---|---|---|---|---|---|")
+    for src in sorted({j["ref"] for j in jobs}):
+        print(f"레퍼런스: {src}")
+    for j in jobs:
+        c = request_config(args, j)
+        how = (f"input[image]+text (Interactions API, {c.get('task')})" if args.model == "omni"
+               else "image" if args.mode == "first_frame" else "referenceImages[asset] x1")
+        print(f"| {j['mp4'].name} | {MODELS[args.model]} | {args.mode} | {how} | {c['aspect_ratio']} "
+              f"| {c['resolution']} | {c['duration_seconds']} | {c['person_generation']} "
+              f"| {j['ref'].name} ({j['ref_size'][0]}x{j['ref_size'][1]}) | {len(j['prompt'])} "
+              f"| {'예' if j['mp4'].exists() else '아니오'} |")
+
+
+def count_tokens(client, args, rows):
+    """Veo 는 countTokens 를 지원하지 않아 Gemini 텍스트 모델의 토크나이저로 잰다 — 근사다."""
+    print(f"\n토큰 수 — 모델 {args.token_model}, 프롬프트 전문, 한도 {PROMPT_TOKEN_LIMIT}")
+    print("| id | 글자 수 | 토큰 수 |")
+    print("|---|---|---|")
+    out = []
+    for rid, raw in rows.items():
+        p = strip_prompt(raw, rid)
+        n = client.models.count_tokens(model=args.token_model, contents=p).total_tokens
+        out.append((rid, len(p), n))
+        print(f"| {rid} | {len(p)} | {n} |", flush=True)
+    top = max(out, key=lambda x: x[2])
+    over = [o for o in out if o[2] > PROMPT_TOKEN_LIMIT]
+    print(f"\n최댓값: {top[0]} {top[2]}토큰 ({top[1]}자) · 최솟값: {min(o[2] for o in out)}토큰 · {len(out)}편")
+    if over:
+        print(f"[중단] 한도 초과 {len(over)}편: {[o[0] for o in over]}")
+        sys.exit(3)
+    print("한도 초과 없음")
+
+
+def main():
+    global _KEY
+    ap = Parser(description=__doc__.split("\n")[0])
+    ap.add_argument("--xlsx", type=Path, required=True, help="프롬프트 엑셀 (시트 prompts)")
+    ap.add_argument("--refs", type=Path, required=True, help="레퍼런스 이미지 폴더")
+    ap.add_argument("--out", type=Path, default=Path("~/data/00_raw"), help="출력 폴더 (기본 ~/data/00_raw)")
+    ap.add_argument("--model", choices=sorted(MODELS), help="std=Veo 3.1, fast=Veo 3.1 Fast (2026-10-22 종료), omni=Gemini Omni Flash (생성 시 필수)")
+    ap.add_argument("--mode", choices=sorted(MODE_TAG), default="first_frame",
+                    help="first_frame=레퍼런스를 시작 프레임으로, reference=참조 이미지로")
+    ap.add_argument("--ids", help="쉼표로 구분한 id. 생략하면 엑셀 전체")
+    ap.add_argument("--resolution", default="1080p", choices=["720p", "1080p"])
+    ap.add_argument("--aspect", default="auto", choices=["auto", "9:16", "16:9"],
+                    help="auto=레퍼런스 구도를 따름(기본). reference 방식에서만 덮어쓸 수 있다")
+    ap.add_argument("--duration", type=int, default=8, choices=[4, 6, 8],
+                    help="1080p 와 reference 는 8초만 된다")
+    ap.add_argument("--concurrency", type=int, default=1)
+    ap.add_argument("--poll", type=int, default=10, help="폴링 간격(초)")
+    ap.add_argument("--timeout", type=int, default=900, help="편당 생성 대기 한도(초)")
+    ap.add_argument("--max-429-waits", type=int, default=5, help="편당 429 대기 횟수 한도")
+    ap.add_argument("--daily-cap", type=int, help="이번 실행에서 접수시킬 생성 요청 수 한도 (일일 한도 RPD 대응)")
+    ap.add_argument("--dry-run", action="store_true", help="요청 설정표만 찍는다. 아무것도 쓰지 않는다")
+    ap.add_argument("--count-tokens", action="store_true", help="전 편 프롬프트 토큰 수만 잰다 (무과금)")
+    ap.add_argument("--token-model", default="gemini-3.8-flash", help="countTokens 에 쓸 모델")
+    args = ap.parse_args()
+    args.xlsx = args.xlsx.expanduser().resolve()
+    args.refs = args.refs.expanduser().resolve()
+    args.out = args.out.expanduser().resolve()
+
+    rows = read_rows(args.xlsx)
+    args.row_refs = read_row_refs(args.xlsx)
+    if not args.count_tokens:
+        if not args.model:
+            ap.error("--model 이 필요하다")
+        if args.daily_cap is not None and args.daily_cap < 1:
+            ap.error("--daily-cap 은 1 이상이어야 한다")
+        if args.aspect != "auto" and args.mode == "first_frame":
+            ap.error("--aspect 덮어쓰기는 --mode reference 에서만 된다 (first_frame 은 시작 이미지의 구도를 따른다)")
+        if args.duration != 8 and (args.resolution == "1080p" or args.mode == "reference"):
+            ap.error("1080p 와 reference 는 --duration 8 만 된다")
+        jobs = build_jobs(args, rows)
+        if args.dry_run:
+            print_plan(args, jobs)
+            return
+
+    warnings.filterwarnings("ignore")  # google-auth 의 Python 3.9 EOL 경고가 로그를 덮는다
+    from google import genai
+    from google.genai import errors, types
+    _KEY = load_key()
+    client = genai.Client(api_key=_KEY)
+
+    if args.count_tokens:
+        count_tokens(client, args, rows)
+        return
+
+    args.git_commit, args.git_dirty = git_state()
+    args.xlsx_sha256 = sha256(args.xlsx)
+    args.budget = Budget(args.daily_cap)
+    args.out.mkdir(parents=True, exist_ok=True)
+    prepare_refs(jobs)
+    log(f"시작 — {len(jobs)}편, {MODELS[args.model]}, {args.mode}, 동시 {args.concurrency}, "
+        f"HEAD {args.git_commit[:7]}{' (dirty)' if args.git_dirty else ''}")
+    stop = threading.Event()
+    fatal, quota = [], []
+
+    def guarded(job):
+        try:
+            return run_one(client, types, errors, args, job, genai.__version__, stop)
+        except QuotaStop as e:
+            stop.set()
+            quota.append(scrub(e))
+            log(f"QUOTA_STOP: [{job['stem']}] {e}")
+            return {"id": job["id"], "stem": job["stem"], "mode": args.mode, "model": args.model,
+                    "status": "quota", "g0": {}, "total_s": None, "message": scrub(e)}
+        except Fatal as e:
+            stop.set()
+            fatal.append(scrub(e))
+            log(f"FATAL_STOP: [{job['stem']}] {e}")
+            return {"id": job["id"], "stem": job["stem"], "mode": args.mode, "model": args.model,
+                    "status": "fatal", "g0": {}, "total_s": None, "message": scrub(e)}
+
+    with ThreadPoolExecutor(max_workers=args.concurrency) as ex:
+        results = list(ex.map(guarded, jobs))
+
+    print("\n| id | model | mode | 결과 | 프레임 수 | fps | 해상도 | 길이(s) | G0 | 소요(s) |")
+    print("|---|---|---|---|---|---|---|---|---|---|")
+    for r in results:
+        g = r["g0"]
+        res = f"{g.get('width')}x{g.get('height')}" if g.get("width") else "-"
+        print(f"| {r['id']} | {r['model']} | {r['mode']} | {r['status']} | {g.get('frames', '-')} "
+              f"| {g.get('fps', '-')} | {res} | {g.get('duration_s', '-')} | {g.get('verdict', '-')} "
+              f"| {r['total_s'] if r['total_s'] is not None else '-'} |")
+    for label, key in (("안전 필터 차단", "blocked"), ("오류", "error")):
+        hit = [r for r in results if r["status"] == key]
+        if hit:
+            print(f"\n{label} {len(hit)}편:")
+            for r in hit:
+                print(f"  {r['stem']}: {scrub(r.get('message'))}")
+    g0_fail = [r for r in results if r["g0"].get("verdict") == "FAIL"]
+    if g0_fail:
+        print(f"\nG0 미달 {len(g0_fail)}편:")
+        for r in g0_fail:
+            print(f"  {r['stem']}: {r['g0'].get('reasons')}")
+    left = [r["id"] for r in results if r["status"] in ("not_run", "quota")]
+    if left:
+        print(f"\n남은 {len(left)}편: {', '.join(left)}", flush=True)
+    if left and not fatal and not quota:
+        print(f"DAILY_CAP_REACHED: 생성 요청 {args.budget.sent}건 접수 (한도 {args.daily_cap})", flush=True)
+    if quota and not fatal:
+        print(f"QUOTA_STOP: {quota[0]}", flush=True)
+        sys.exit(4)
+    if fatal:
+        print(f"\nFATAL_STOP: {fatal[0]}", flush=True)
+        sys.exit(2)
+
+
+if __name__ == "__main__":
+    main()

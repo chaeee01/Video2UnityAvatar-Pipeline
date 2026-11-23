@@ -1,0 +1,5 @@
+# gen_veo_batch.py 전용 (맥북 로컬). 가상환경은 레포 밖에 둔다:
+#   python3 -m venv ~/.venvs/veo-batch && ~/.venvs/veo-batch/bin/pip install -r scripts/requirements-veo.txt
+# 버전은 2026-10-09 맥북 시스템 Python 3.9.6 에서 pip 가 고른 것을 고정했다.
+google-genai==1.47.0
+openpyxl==3.1.5

@@ -124,9 +124,9 @@ WHAM 의 SMPL 몸(체형 포함)을 외형 경로의 리깅에 그대로 사용�
 | 경로 | 내용 |
 |---|---|
 | `docs/` | 프로젝트 문서 — 읽는 순서는 위 "문서 길잡이" |
-| `scripts/` | 파이프라인 단계 스크립트(SAM2 · TRELLIS.2 · WHAM · 리깅 · 베이크), 게이트(`gate_*.py`), 오케스트레이터(`orchestrate.py`), 환경 setup |
+| `scripts/` | 파이프라인 단계 스크립트(SAM2 · TRELLIS.2 · WHAM · 리깅 · 베이크), 게이트(`gate_*.py`), 오케스트레이터(`orchestrate.py`), 환경 setup, 입력 영상 일괄 생성(`gen_veo_batch.py` — Veo 3.1 · Gemini Omni) |
 | `scripts/deprecated/` | 폐기된 시도 — SMPL→Mixamo 리타겟팅 계열 |
-| `tools/review/` | 검토 · 일괄 베이크 도구(`bake_character.sh`, G4 모아 보기 등) |
+| `tools/review/` | 검토 · 일괄 베이크 도구(`bake_character.sh`, G4 모아 보기, 수용 기록 `accept_clip.py`, 리그 머리–발목 비율 `rig_head_ankle_ratio.py` 등) |
 | `tools/site/` | 공개 페이지 소재 생성 · 조립 |
 | `site/` | 공개 페이지(GitHub Pages, `.github/workflows/pages.yml` 로 자동 배포) |
 | `.github/workflows/` | `pages.yml` 공개 페이지 배포 · `tests.yml` 시험 자동 실행(push 마다, ubuntu-24.04 · Python 3.9) |
