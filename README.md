@@ -4,7 +4,7 @@
 
 [Software Maestro] 좀비 영상 한 편을 입력하면 유니티 아바타 에셋(캐릭터 + 애니메이션)으로 자동 변환하는 파이프라인.
 
-**공개 페이지**: <https://chaeee01.github.io/Video2UnityAvatar-Pipeline/> — 파이프라인 한 바퀴 · 납품 캐릭터 10종 · 실제 게임 내 플레이 장면 · 품질 개선 기록 (`site/`)
+**공개 페이지**: <https://chaeee01.github.io/Video2UnityAvatar-Pipeline/> — 파이프라인 한 바퀴 · 제작 캐릭터 12종 · 실제 게임 내 플레이 장면 · 품질 개선 기록 (`site/`)
 
 **납품처 게임**: [Empty House (Steam)](https://store.steampowered.com/app/5029430/Empty_House/?l=koreana) — 캐릭터 · 동작 에셋 납품처 (실제 게임 내 장면은 공개 페이지)
 
@@ -18,8 +18,8 @@
 
 - 시간: 한 서버에서 명령 하나로 실행한 벽시계 실측(2026-11-21, 캐릭터 3회 364 · 481 · 438초 · 동작 클립 2회 117 · 118초) — 영상 생성과 서버 기동은 제외.
   메쉬 생성(TRELLIS.2) 단계가 실행마다 달라진다(2026-11-21 210 · 326 · 276초, 11/07 457초 — GPU 구간만 10.1분)
-- GPU $0.90/시간(전 기간 RunPod 총 $132: GPU $95 + 스토리지 $37) · 영상 생성 편당 $1.52(Omni, 현행; 제공 종료 전 Veo $0.80)
-- 레시피 확립 후 생성 성공률 100% (11월 17/17, 전체 기간 92%)
+- GPU $0.90/시간(전 기간 2026.07–11.23 RunPod 총 $147: GPU $100 + 스토리지 $47 — 2026-11-23 조회 기준, 당일분 일부 미집계) · 영상 생성 편당 $1.52(Omni, 현행; 제공 종료 전 Veo $0.80)
+- 레시피 확립 후 생성 성공률 100% (11월 40/40), 전체 기간 93% (158/170)
 - 출처·상세: 공개 페이지 링크 (https://chaeee01.github.io/Video2UnityAvatar-Pipeline/)
 
 ## 문서 길잡이
@@ -175,20 +175,20 @@ GPU 단계(S2 · S3 · S5, 리깅 5-1 SMPL 메쉬 생성)와 Blender 단계(리�
 - 검증 완료: WHAM 동작 복원, TRELLIS 외형 복원, **SMPL 골격 직접 리깅(S4)**, 유니티 에셋 반입.
   영상 한 편이 Unity 에셋까지 관통하는 수동 파이프라인이 완성됐다 (M1, 8/28)
 - 검증 완료: **TRELLIS 로컬 설치**(9/9 TRELLIS.2 전환), **품질 게이트**(G0/S2·G2·G2r 9/15, S5 트랙 10/12, G4 늘어남·발 쓸기 10/22 + 바닥 10/26), **원커맨드 E2E 오케스트레이터**(10/11)
-- **납품 현황 (2026-11-02)**: 캐릭터 10종(좀비 6 · 플레이어 4, char_shuffle = 플레이어 4번), **동작 클립 115편** — walker 26 · stalker 35 · listener 27 · player 14 · lurker 4 · oiler 4 · char_shuffle 1 · dog 4(Mixamo). 10/17 게임팀 Unity 반입 확인, 10/26 피격 · 넘어짐 · 일어나기 12편, 11/02 걷기 · 달리기 13편 추가
+- **납품 현황 (2026-11-23)**: 캐릭터 12종(좀비 8 · 플레이어 4, char_shuffle = 플레이어 4번), **동작 클립 135편** — walker 26 · stalker 35 · listener 27 · player 14 · lurker 4 · oiler 4 · char_shuffle 1 · dog 4(Mixamo) · teacher 11 · student 9. 10/17 게임팀 Unity 반입 확인, 10/26 피격 · 넘어짐 · 일어나기 12편, 11/02 걷기 · 달리기 13편 추가, 11/23 학교 좀비 2종(teacher · student) 20편 추가 · 게임 적용
 - 검증 완료: **환경 이미지 3종**(EH-229, 11/05) — GHCR 비공개, 이미지 Pod 에서 S2 마스크 · S5 pkl 완전 일치, S3 정점 일치
-- **공개 페이지**(11/06 공개, 11/08 v17) — GitHub Pages, 소재 34점(페이지 사용 30) · 6.79 MB (2026-11-21 `site/assets/` 재집계)
+- **공개 페이지**(11/06 공개, 11/08 v17) — GitHub Pages, 소재 41점(페이지 사용 32) · 7.45 MB (2026-11-23 `site/assets/manifest.json` 기준)
 - 백로그: EH-211 T포즈 rest 통일, gate_s2 보강
 
 ## 검증 결과
 
 ### 최신 결과 (2026-10~11)
 
-#### 납품 캐릭터 10종
-![납품 캐릭터 10종](site/assets/lineup_meshes.jpg)
+#### 제작 캐릭터 12종
+![제작 캐릭터 12종](site/assets/lineup_meshes_12.jpg)
 
-좀비 6종(walker · listener · stalker · lurker · oiler · dog)과 플레이어 4종의 TRELLIS.2 메쉬 — 같은 조명 · 정면.
-동작 클립은 115편을 납품했다(2026-11-02 기준). 실제 게임 내 재생 장면은 공개 페이지에 있다.
+좀비 8종(walker · listener · stalker · lurker · oiler · dog · teacher · student)과 플레이어 4종의 TRELLIS.2 메쉬 — 같은 조명 · 정면.
+동작 클립은 135편을 제작해 게임에 적용했다(2026-11-23 기준). 실제 게임 내 재생 장면은 공개 페이지에 있다.
 
 #### 품질 게이트와 수리
 G4 클립 품질 게이트(`scripts/gate_g4.py`)로 납품 클립을 역검증했다 — 10/22 늘어남 · 발 쓸기 판정: 납품 86편(dog 제외) PASS 78 · ACCEPTED 8 · CHECK 0 · FAIL 0.

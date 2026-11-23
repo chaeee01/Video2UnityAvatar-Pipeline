@@ -5,7 +5,7 @@
   "image": "JPEG q80, long side ≤1200 px",
   "overrides": "items[].encoding_override"
  },
- "total_bytes": 7187305,
+ "total_bytes": 7446681,
  "items": [
   {
    "id": "pipeline_v4",
@@ -41,6 +41,27 @@
    "character": "walker · listener · stalker · lurker · oiler · dog · player_01~04",
    "stage": "S3 외형",
    "caption": "납품 캐릭터 10종의 TRELLIS 메쉬 — 좀비 6종(위 5 · 아래 첫 칸 dog) 뒤에 플레이어 4종 (정면, 같은 조명)",
+   "pair": null,
+   "placeholder": false,
+   "encoding_override": {
+    "long": 1600,
+    "q": 85
+   },
+   "replaces": null,
+   "used_on_page": false
+  },
+  {
+   "id": "lineup_meshes_12",
+   "file": "assets/lineup_meshes_12.jpg",
+   "kind": "image",
+   "width": 1600,
+   "height": 533,
+   "bytes": 111241,
+   "sha256_16": "9de28de58d6ca27a",
+   "source": "~/data/site_raw_1106/lineup12.png",
+   "character": "walker · listener · stalker · lurker · oiler · dog · teacher · student · player_01~04",
+   "stage": "S3 외형",
+   "caption": "제작 캐릭터 12종의 TRELLIS 메쉬 — 위 줄 좀비 6종, 아래 줄 학교 좀비 2종(teacher · student) 뒤에 플레이어 4종 (정면, 같은 조명, 2026-11-23)",
    "pair": null,
    "placeholder": false,
    "encoding_override": {
@@ -326,6 +347,42 @@
    "character": "dog",
    "stage": "S3 외형",
    "caption": "dog 메쉬 (골격 · 동작은 Mixamo)",
+   "pair": null,
+   "placeholder": false,
+   "encoding_override": null,
+   "replaces": null,
+   "used_on_page": true
+  },
+  {
+   "id": "s3_mesh_teacher",
+   "file": "assets/s3_mesh_teacher.jpg",
+   "kind": "image",
+   "width": 1200,
+   "height": 1200,
+   "bytes": 70885,
+   "sha256_16": "1cf66fe55d270b39",
+   "source": "~/data/site_raw_1106/mesh_teacher.png (← ~/data/site_raw_1106/school_1123/<샘플>.glb ← tools/site/site_blend_to_glb.py, site_render_glb.py --res 1200)",
+   "character": "teacher",
+   "stage": "S3 외형",
+   "caption": "teacher(학교 좀비) 메쉬 — transferred.blend 의 TRELLIS 메쉬를 GLB 로 내보내 렌더 (2026-11-23)",
+   "pair": null,
+   "placeholder": false,
+   "encoding_override": null,
+   "replaces": null,
+   "used_on_page": true
+  },
+  {
+   "id": "s3_mesh_student",
+   "file": "assets/s3_mesh_student.jpg",
+   "kind": "image",
+   "width": 1200,
+   "height": 1200,
+   "bytes": 77250,
+   "sha256_16": "1748f84db4049bf5",
+   "source": "~/data/site_raw_1106/mesh_student.png (← ~/data/site_raw_1106/school_1123/<샘플>.glb ← tools/site/site_blend_to_glb.py, site_render_glb.py --res 1200)",
+   "character": "student",
+   "stage": "S3 외형",
+   "caption": "student(학교 좀비) 메쉬 — transferred.blend 의 TRELLIS 메쉬를 GLB 로 내보내 렌더 (2026-11-23)",
    "pair": null,
    "placeholder": false,
    "encoding_override": null,
@@ -894,5 +951,5 @@
    "used_on_page": true
   }
  ],
- "updated": "2026-11-21 — 구조도 pipeline_v4.jpg 를 지금 구현된 모습으로 다시 그린 판으로 교체(make_pipeline_v4_current.py). 이전: 5-4b 근접 그림 seam_*_listener(_s) 추가, ba_weight_* 영상 [미사용]"
+ "updated": "2026-11-23 — 학교 좀비 2종 메쉬 타일 s3_mesh_teacher · s3_mesh_student(페이지 제작 캐릭터 절) · 12종 라인업 lineup_meshes_12(README 용) 추가. 이전: 2026-11-21 — 구조도 pipeline_v4.jpg 를 지금 구현된 모습으로 다시 그린 판으로 교체(make_pipeline_v4_current.py). 이전: 5-4b 근접 그림 seam_*_listener(_s) 추가, ba_weight_* 영상 [미사용]"
 }
