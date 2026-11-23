@@ -66,7 +66,9 @@ def make_args(tmp, **kw):
     d = dict(ids=None, model="fast", mode="first_frame", refs=refs, out=Path(tmp) / "out",
              resolution="1080p", duration=8, xlsx=Path(tmp) / "p.xlsx",
              git_commit="0" * 40, git_dirty=False, xlsx_sha256="0" * 64,
-             daily_cap=None, budget=g.Budget(None))
+             daily_cap=None, budget=g.Budget(None),
+             # 54c88c4(행별 ref_image) · 377c0aa(--aspect) 가 build_jobs 에 더한 속성 — 기본값(비어 있음 · auto)
+             row_refs={}, aspect="auto")
     d.update(kw)
     return argparse.Namespace(**d)
 
