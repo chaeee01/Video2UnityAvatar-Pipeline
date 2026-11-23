@@ -18,6 +18,7 @@ D = f"{H}/data"
 ITEMS = [
     ("pipeline_v4", "image", f"{R}/pipeline_v4_current.png", "-", "개요", "파이프라인 v4 — 영상 한 편에서 외형(TRELLIS.2)과 동작(WHAM)을 따로 뽑아 SMPL 골격 하나로 합친다", None, 0),
     ("lineup_meshes", "image", f"{X}/lineup10.png", "walker · listener · stalker · lurker · oiler · dog · player_01~04", "S3 외형", "납품 캐릭터 10종의 TRELLIS 메쉬 — 좀비 6종(위 5 · 아래 첫 칸 dog) 뒤에 플레이어 4종 (정면, 같은 조명)", None, 0),
+    ("lineup_meshes_12", "image", f"{X}/lineup12.png", "walker · listener · stalker · lurker · oiler · dog · teacher · student · player_01~04", "S3 외형", "제작 캐릭터 12종의 TRELLIS 메쉬 — 위 줄 좀비 6종, 아래 줄 학교 좀비 2종(teacher · student) 뒤에 플레이어 4종 (정면, 같은 조명, 2026-11-23)", None, 0),
     ("input_ref_walker", "image", f"{D}/00_raw/_refs_clean/manor_walker_01_v4_1116_clean.png", "walker", "입력", "입력 ① 캐릭터 참조 이미지 (영상 생성의 시작 프레임)", None, 0),
     ("input_video_walker", "video", f"{D}/00_raw/walker_walk_02__fast-ff.mp4", "walker", "입력", "입력 ② 생성 영상 — 걷기 (9:16, 24fps)", None, 0),
     ("s2_mask_walker", "video", f"{D}/02_sam2/walker_walk_02/walker_walk_02_masked.mp4", "walker", "S2 분할", "SAM2 마스크 — 배경을 지우고 몸만 남긴 클립을 다음 단계로 넘긴다", None, 0),
@@ -33,6 +34,8 @@ ITEMS = [
     ("s3_mesh_player_03", "image", f"{X}/mesh_player_03.png", "player_03", "S3 외형", "플레이어 캐릭터 3 메쉬 (char3.glb) — 구 s3_mesh_player(player_apose)와 같은 캐릭터", None, 0),
     ("s3_mesh_player_04", "image", f"{X}/mesh_player_04.png", "player_04", "S3 외형", "플레이어 캐릭터 4 메쉬 (char4.glb) — 구 s3_mesh_char_shuffle 과 같은 캐릭터", None, 0),
     ("s3_mesh_dog", "image", f"{X}/mesh_dog.png", "dog", "S3 외형", "dog 메쉬 (골격 · 동작은 Mixamo)", None, 0),
+    ("s3_mesh_teacher", "image", f"{X}/mesh_teacher.png", "teacher", "S3 외형", "teacher(학교 좀비) 메쉬 — transferred.blend 의 TRELLIS 메쉬를 GLB 로 내보내 렌더 (2026-11-23)", None, 0),
+    ("s3_mesh_student", "image", f"{X}/mesh_student.png", "student", "S3 외형", "student(학교 좀비) 메쉬 — transferred.blend 의 TRELLIS 메쉬를 GLB 로 내보내 렌더 (2026-11-23)", None, 0),
     ("s4_align_walker", "image", f"{R}/align_check_frame.png", "walker", "S4 리깅", "SMPL 몸을 TRELLIS 메쉬에 정렬한 결과 — 골격이 메쉬 안에 들어오는지 확인", None, 0),
     ("s4_transfer_walker", "image", f"{R}/transfer_constraint_f138.png", "walker", "S4 리깅", "웨이트 전이의 부위 제약 — 팔 · 다리가 서로 붙지 않게", None, 0),
     ("bake_walker_hit", "video", f"{X}/bake_walker_hit_eq.mp4", "walker", "S7 결합", "원본 영상(왼쪽)과 리그에 구운 동작(오른쪽, 고해상도 재렌더에서 원본과 같은 몸 키 · 발 높이 창을 잘라냄) — 리타게팅 없이 같은 SMPL 골격", None, 0),
@@ -54,6 +57,7 @@ ITEMS = [
 OPTS = {
     "pipeline_v4": {"width": 1600, "q": 85},     # 2026-11-21 — make_pipeline_v4_current.py --jpg 와 같은 sips 값
     "lineup_meshes": {"long": 1600, "q": 85},
+    "lineup_meshes_12": {"long": 1600, "q": 85},
     "input_video_walker": {"h": 720, "crf": 26},
     "s2_mask_walker": {"h": 720, "crf": 26},
     "s5_wham_overlay_walker": {"h": 720, "crf": 26},

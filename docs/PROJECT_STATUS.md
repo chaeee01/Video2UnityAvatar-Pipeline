@@ -1322,12 +1322,23 @@ WHAM betas(체형) + 키프레임 pose(자세) → 그 좀비와 같은 자세·
   S5 에서 멈춘 3편은 사용자 승인으로 처리 — rise 2편은 누운 정지 시작을 WHAM 이 못 잡아(teacher f0~18 · student f0~25) **track_select 로
   검출 구간만**(10/26 walker_fall_back_c2_t0 전례, 221 · 214프레임), student stunned_loop 은 **전 구간 미검출**이라 stun_fall f239 자세를 240프레임
   유지한 **합성 클립**(`blend_seam.json` `synthetic: true`, 원본 영상 · 실패 run 보존). 납품 메모 `~/data/07_unity/school_zombie_1123_납품메모.md`.
+  **신규 2종 게임 반입 · 적용 — 사용자 확인(11/23).**
 
   **발견(코드, 고치지 않음)** ① 동작 트랙 `--resume` 이 BAKE 완료 run 에서 `KeyError: 'name'` 으로 죽는다(`resume_point` 에 `name` 없는 track dict
   — RUNBOOK 1.5 "수용 → --resume" 경로 불능, 보행 3편은 같은 명령을 직접 호출) ② `blend_track_seam.py` 는 첫 검출 이전 프레임을 음수 인덱스로
   트랙 끝 자세에서 조용히 가져온다(홀드 용도 불가 — 11/02 walker get_up 홀드는 레포 밖 코드) ③ `accept_clip.py` 백업 이름이 초 단위라 같은 초 두 번
   기록 시 첫 백업이 덮인다(수용 전 원본은 복원본으로 따로 남김) ④ 시험 `test_gen_veo_batch.py` B 이하가 `make_args` 픽스처 누락(`row_refs` · `aspect`, 54c88c4 · 377c0aa 이후)으로 멈추던 결함 — **수정 완료(커밋 `1b41a08`)**, 33/33 통과 · CI RUN 목록에 넣음.
   Pod 업로드는 `00_raw/<id>.mp4` 이름이어야 한다 — 맥 파일명(`__omni-ff`)으로 올리면 S2 뒤 "산출물 없음"(1회 실패, 산출물 보존).
+
+- **2026-11-23 — 공개 페이지 · README 12종 · 135편 반영 (`docs/site-school-zombie`)**: 첫 화면 카드 10종 → 12종 · 115편 → 135편(2026-11-23 기준),
+  OUT 단계 문단에 신규 2종 · 20편 하루 추가 제작 한 문장, 제작 캐릭터 절에 teacher · student 메쉬 타일(`s3_mesh_teacher.jpg` · `s3_mesh_student.jpg`),
+  README 라인업을 12종판 `lineup_meshes_12.jpg` 로(10종판 보존). 타일은 TRELLIS GLB 가 맥에 없어 리그 `transferred.blend` 의 같은 메쉬 · 패킹 텍스처를
+  `tools/site/site_blend_to_glb.py` 로 GLB 로 되살려 `site_render_glb.py --res 1200` 으로 렌더했다(기존 10종의 렌더 명령은 기록 없음 — 해상도만
+  `site_compose.py` 주석). `site_assemble.py` 는 임시 사본에서 돌려 기존 소재가 바이트 동일함을 확인하고 새 3개만 들였다(매니페스트는 손 기록이 있어 행만 추가).
+  생성 성공률(README): gen_veo_batch params.json · 시도 기준 **158/170 = 92.9%**, 11월 **40/40** — 기존 135/147 · 17/17 이 같은 기준으로 재현된다.
+  RunPod 총비용 **$146.82(GPU $100.03 + 스토리지 $46.79)**, 2026-07-31~11-23 일별 청구 CSV 두 개를 직접 합산(기존 $132.21 은 07-31~11-07 CSV 합과
+  정확히 일치 — 11/07 스토리지는 부분일 0.354, 새 CSV 0.597. 11/23 도 부분일 — 카드 · README 에 "2026-11-23 조회 기준, 당일분 일부 미집계" 병기).
+  README 공개 페이지 소재 수 "34점(페이지 사용 30) · 6.79 MB"(manifest 38개와 불일치하던 값)를 manifest 기준 **41점(페이지 사용 32) · 7.45 MB** 로 정정.
 
 ## 9. 다음 단계 (우선순위)
 
