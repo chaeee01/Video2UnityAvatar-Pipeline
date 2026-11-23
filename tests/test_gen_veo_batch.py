@@ -1,6 +1,6 @@
 """gen_veo_batch 의 요청 조립·판정 로직 시험 — API 를 부르지 않는다.
 
-  A. 프롬프트 전처리 — 끝의 "10 seconds." 만 떼고 나머지는 한 글자도 바꾸지 않는가.
+  A. 프롬프트 전처리 — "Requested clip length: 10 seconds." 가 정확히 1회일 때만 받고, 본문은 한 글자도 바꾸지 않는가.
   B. 요청 조립 — 접두사별 레퍼런스·비율·출력 이름이 맞는가 (임시 PNG 로 만든다).
   C. 오류 분류 — 인증·과금 오류는 FATAL, "quota" 가 든 429 는 QUOTA, 일반 429·400 은 계속.
   D. 이어하기 — 기록 없는 mp4, 프롬프트가 바뀐 mp4 를 만나면 덮어쓰지 않고 멈추는가.
@@ -35,23 +35,27 @@ class Err(Exception):
 
 def run_prompt():
     body = "Plain motion reference footage.  Two  spaces kept. No other objects."
+    s = "Requested clip length: 10 seconds."
     cases = [
-        ("끝 문구 제거", body + " 10 seconds.", body),
-        ("뒤 공백·개행", body + " 10 seconds. \n", body),
-        ("본문 안의 10 seconds 는 보존", "Holds for 10 seconds. Then stops. 10 seconds.", "Holds for 10 seconds. Then stops."),
+        ("문장 1회 · 본문 그대로", f"{body}\n\n{s} Begin already moving.", f"{body}\n\n{s} Begin already moving."),
+        ("뒤 공백·개행만 정리", f"{body} {s} \n", f"{body} {s}"),
     ]
     ok = 0
     for name, raw, expect in cases:
         good = g.strip_prompt(raw, "t") == expect
         ok += good
         print(f"   {name:28s} {'✅' if good else '❌'}")
-    try:
-        g.strip_prompt(body, "t")
-        print(f"   {'끝 문구 없음 → 중단':28s} ❌ (통과시켰다)")
-    except SystemExit:
-        ok += 1
-        print(f"   {'끝 문구 없음 → 중단':28s} ✅")
-    return ok == len(cases) + 1
+    bad = [("길이 문장 없음 → 중단", body + " 10 seconds."),
+           ("다른 초 → 중단", body + " Requested clip length: 6 seconds."),
+           ("2회 → 중단", f"{body} {s} {s}")]
+    for name, raw in bad:
+        try:
+            g.strip_prompt(raw, "t")
+            print(f"   {name:28s} ❌ (통과시켰다)")
+        except SystemExit:
+            ok += 1
+            print(f"   {name:28s} ✅")
+    return ok == len(cases) + len(bad)
 
 
 def make_args(tmp, **kw):
@@ -68,7 +72,7 @@ def make_args(tmp, **kw):
 
 
 def run_jobs(tmp):
-    rows = {i: "x. 10 seconds." for i in ("walker_idle", "listener_roar_02", "stalker_attack", "dog_idle")}
+    rows = {i: "x. Requested clip length: 10 seconds." for i in ("walker_idle", "listener_roar_02", "stalker_attack", "dog_idle")}
     expect = {"walker_idle": ("manor_walker_01_v4_1116.png", "9:16"),
               "listener_roar_02": ("manor_listener_01_v4_1116.png", "9:16"),
               "stalker_attack": ("manor_stalker_01_v4_1116.png", "9:16"),
@@ -118,7 +122,7 @@ def run_fatal():
 
 def run_resume(tmp):
     args = make_args(tmp, ids="walker_idle")
-    job = g.build_jobs(args, {"walker_idle": "x. 10 seconds."})[0]
+    job = g.build_jobs(args, {"walker_idle": "x. Requested clip length: 10 seconds."})[0]
     args.out.mkdir(exist_ok=True)
     job["mp4"].write_bytes(b"foreign")
     stop = threading.Event()
@@ -159,7 +163,7 @@ def run_exit_code():
 def run_daily_cap(tmp):
     """attempt() 를 가짜로 바꿔 API 없이 한도 계산만 본다."""
     ids = ["walker_idle", "walker_idle_02", "walker_walk_fwd", "walker_run_fwd", "walker_roar"]
-    rows = {i: "x. 10 seconds." for i in ids}
+    rows = {i: "x. Requested clip length: 10 seconds." for i in ids}
     real_attempt, real_probe = g.attempt, g.probe
     calls = []
 
@@ -203,7 +207,7 @@ def run_daily_cap(tmp):
 
 
 def run_refs(tmp):
-    rows = {"walker_idle": "x. 10 seconds.", "dog_idle": "x. 10 seconds."}
+    rows = {"walker_idle": "x. Requested clip length: 10 seconds.", "dog_idle": "x. Requested clip length: 10 seconds."}
     out = Path(tmp) / "o"
     clean = out / "_refs_clean"
     clean.mkdir(parents=True)

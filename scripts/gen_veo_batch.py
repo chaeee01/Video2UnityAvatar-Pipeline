@@ -88,9 +88,9 @@ REF_BY_PREFIX = {
     "common": "manor_walker_01_v4_1116.png",
 }
 
-# 엑셀 프롬프트는 웹 UI(10초) 용으로 쓰였다. API 는 1080p 에서 8초만 받으므로 길이 문구만
-# 뗀다. 다른 문장은 건드리지 않는다.
-PROMPT_SUFFIX = "10 seconds."
+# 2026-11-23 학교 좀비 — 프롬프트 본문에 길이 문장이 있다(끝문장 아님). 길이는 요청에 보내지 않으므로
+# (Omni 미지정 = 10초) 문장을 떼지 않고, 정확히 1회 있는지만 검사한다. 다른 문장은 건드리지 않는다.
+PROMPT_LENGTH_SENTENCE = "Requested clip length: 10 seconds."
 PROMPT_TOKEN_LIMIT = 1024  # 공식 문서 Model versions 표의 "Text input 1,024 tokens"
 
 SAFETY_WORDS = ("safety", "responsible ai", "usage guidelines", "violat", "sensitive words")
@@ -183,9 +183,10 @@ def png_size(path):
 
 def strip_prompt(raw, rid):
     p = raw.rstrip()
-    if not p.endswith(PROMPT_SUFFIX):
-        sys.exit(f"[중단] {rid}: 프롬프트가 '{PROMPT_SUFFIX}' 로 끝나지 않는다")
-    return p[:-len(PROMPT_SUFFIX)].rstrip()
+    n = p.count(PROMPT_LENGTH_SENTENCE)
+    if n != 1:
+        sys.exit(f"[중단] {rid}: 프롬프트에 '{PROMPT_LENGTH_SENTENCE}' 문장이 정확히 1회 있어야 한다 (찾은 횟수 {n})")
+    return p
 
 
 def read_rows(xlsx):
@@ -555,7 +556,7 @@ def run_one(client, types, errors, args, job, sdk_version, stop):
         "model": MODELS[args.model],
         "mode": args.mode,
         "prompt": job["prompt"],
-        "prompt_removed_suffix": PROMPT_SUFFIX,
+        "prompt_removed_suffix": None,  # 2026-11-23 부터 떼지 않는다 (길이 문장 검사로 교체)
         "ref_image": str(job["ref"]),
         "ref_image_source": str(job["ref_src"]),
         "ref_image_sha256": sha256(job["ref"]),
@@ -599,7 +600,7 @@ def print_plan(args, jobs):
 
 def count_tokens(client, args, rows):
     """Veo 는 countTokens 를 지원하지 않아 Gemini 텍스트 모델의 토크나이저로 잰다 — 근사다."""
-    print(f"\n토큰 수 — 모델 {args.token_model}, '{PROMPT_SUFFIX}' 제거 후, 한도 {PROMPT_TOKEN_LIMIT}")
+    print(f"\n토큰 수 — 모델 {args.token_model}, 프롬프트 전문, 한도 {PROMPT_TOKEN_LIMIT}")
     print("| id | 글자 수 | 토큰 수 |")
     print("|---|---|---|")
     out = []
