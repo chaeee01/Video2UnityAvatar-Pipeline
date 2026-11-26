@@ -20,6 +20,14 @@
   python orchestrate.py --motion --character listener --name <클립> --resume             # 맥: BAKE → G4 → CLIPFBX
   G4 가 CHECK/FAIL 이면 클립 FBX 를 내보내지 않고 종료 코드 2 로 멈춘다. 사람이 보고 받아들이면
   tools/review/accept_clip.py 로 수용 기록을 남긴 뒤 --resume (G4 만 다시 판정한다).
+  역할표 · 리그를 고친 뒤 다시 굽기: --resume --from BAKE (FBX 만 다시: --from CLIPFBX).
+
+  --from <단계> (2026-11-26~) — 그 단계부터 다시 돈다 (--resume · --run 과 함께). 그 단계와 뒤 단계의 마커는
+  done/<단계>.done.superseded_<일시> 로, 다시 돌 단계가 덮을 산출물은 <이름>_from<일시> 로 옮겨 보존한다(지우지 않는다).
+  옮기기 전에 그 단계를 이 기계에서 돌 수 있는지 먼저 판정하고(환경 · Blender 구간 — 안 되면 아무것도 바꾸지 않고 종료 코드 2),
+  run.json 의 from 에 계획(planned) → 이동 → 완료(done) 순서로 남긴다. 외형 트랙에서 채택된 리그(06_rig/*/character.json 의
+  rig_dir)를 다시 만드는 --from(5-2 ~ 5-4b 포함)은 종료 코드 1. 예: S5 불합격 뒤 마스크를 다시 뽑기 --resume --from S2 --point x,y.
+  이미 마친 단계라 쓰이지 않을 인자(--point · --keyframe · --force-keyframe · --until)는 조용히 무시하지 않고 종료 코드 1 + 맞는 명령 안내.
   5-1(2026-11-21~)은 BAKE 의 신장비에 쓰는 클립 T포즈 메쉬(05_smpl_mesh/<클립>/smpl_tpose.obj)를 만든다
   (--frame 0 — 10/26 · 11/02 생산 큐와 같은 호출). 이 변경 전에 만든 동작 run(run.json 에 motion_51 이 없다)은
   예전 단계 목록 그대로 돌고 5-1 을 건너뛴다 — BAKE 는 지금처럼 T포즈 메쉬, 없으면 bake.fallback_height 를 쓴다.
@@ -205,6 +213,9 @@ class Run:
         # --dry-run 이면 True. 기록(마커 · 시도 · 메타)을 쓰지 않는다 — 2026-10-13 에 dry-run 이
         # 5-1.done 을 남겨, 이어진 실제 실행이 "마커는 있는데 산출물이 없다" 로 멈췄다.
         self.dry = False
+        # --from 으로 다시 돌 단계. 실제 실행에서는 마커를 .superseded_ 로 옮기지만, dry-run 은 아무것도 옮기지 않으므로
+        # 계획을 실제 실행과 같게 보이려고 이 집합의 단계를 "미완료" 로 본다.
+        self.redo = set()
         self.done = root / "done"
         self.gates = root / "gates"
         self.logs = root / "logs"
@@ -259,7 +270,7 @@ class Run:
         }, indent=2, ensure_ascii=False))
 
     def is_done(self, key):
-        return (self.done / f"{key}.done").exists()
+        return key not in self.redo and (self.done / f"{key}.done").exists()
 
     def marker(self, key):
         f = self.done / f"{key}.done"
@@ -615,6 +626,140 @@ def resume_point(run: Run, name, section_filter=None, stages=None, c=None):
     return None, skipped, None
 
 
+# ---------------------------------------------------------------- 다시 돌기 (--from, 2026-11-26)
+# 종료 코드 2 뒤의 조치가 명령 하나가 되게 한다. 지우지 않는다 — 마커는 .superseded_<일시>, 산출물은 <이름>_from<일시> 로 옮긴다
+# (실패 산출물은 게이트 시험지다 — 9/10 교훈 · preserve_probe 와 같은 원칙). 보존본을 자동으로 지우는 기능은 두지 않는다.
+RIG_STAGES = ("5-2", "5-3", "5-4", "5-4b")       # 외형 트랙에서 06_rig/<샘플>/ 의 리그 파일을 바꾸는 단계
+
+
+def from_units(key, name, c):
+    """--from 으로 다시 돌 단계 key 가 덮어쓸 자리 — 옮겨 보존할 단위. 선언 산출물(stage_outputs)이 기본이고,
+    S5 는 tracking_results.pth 까지 덮이므로 WHAM 출력 폴더째, S3 는 재시도 보존(preserve_probe)과 같이 TRELLIS 폴더째 옮긴다.
+    BAKE 는 animated.blend 파일만 — 굽기 폴더의 고정 npz 표지(track_select.json · blend_seam.json)는 그대로 둔다."""
+    if key == "S5":
+        return [data("04_wham", f"{name}_masked")]
+    if key == "S3":
+        return [data("03_trellis2", name)]
+    return [Path(p) for p in stage_outputs(key, name, c)]
+
+
+def _size(p: Path):
+    if p.is_dir():
+        return sum(f.stat().st_size for f in p.rglob("*") if f.is_file())
+    return p.stat().st_size
+
+
+def resume_hint(a, c, extra=""):
+    """이어받기 명령 한 줄 (동작 트랙이면 --motion --character 포함)."""
+    return resume_cmd(a, c) + (f" {extra}" if extra else "")
+
+
+def unused_args(a, c, keys, run: "Run"):
+    """이미 완료라 쓰이지 않을 인자 — 조용히 무시하지 않는다. (메시지, 안내 명령) 또는 None.
+    run.redo 가 반영된 is_done 으로 본다 — --from 으로 다시 돌 단계는 '돈다'."""
+    motion = c.get("track") == "motion"
+    runs = lambda k: k in keys and not run.is_done(k)
+    if a.until and a.until not in keys:
+        return (f"--until {a.until} — 이 트랙의 단계가 아니다 (단계: {' · '.join(keys)})", None)
+    if a.until and not runs(a.until):
+        return (f"--until {a.until} — 그 단계는 이미 마쳤다. 다시 돌리려면 --from 을 함께 준다",
+                resume_hint(a, c, f"--from {a.until} --until {a.until}"))
+    if a.point and not runs("S2"):
+        return ("--point 는 S2 를 돌 때만 쓰인다 — 이 run 은 S2 를 이미 마쳤다(마스크를 다시 뽑지 않는다)",
+                resume_hint(a, c, f"--from S2 --point {a.point}"))
+    if a.force_keyframe:
+        if motion:
+            return ("--force-keyframe 는 외형 트랙(G1a)에서만 쓰인다 — 동작 트랙에는 키프레임 선정이 없다", None)
+        if not runs("G1a"):
+            return ("--force-keyframe 는 G1a 를 돌 때만 쓰인다 — 이 run 은 G1a 를 이미 마쳤다",
+                    resume_hint(a, c, "--from G1a --force-keyframe"))
+    if a.keyframe:
+        if motion:
+            return ("--keyframe 은 외형 트랙(S3)에서만 쓰인다 — 동작 트랙에는 키프레임이 없다", None)
+        if not runs("S3"):
+            # S3 를 건너뛰고 뒤 단계(5-1 · 5-2 · 5-3)만 새 프레임으로 돌면 메쉬와 SMPL 자세가 서로 다른 프레임이 된다
+            return ("--keyframe 은 S3 를 돌 때만 쓰인다 — 이 run 은 S3 를 이미 마쳤다(메쉬와 SMPL 프레임이 어긋난다)",
+                    resume_hint(a, c, f"--from S3 --keyframe {a.keyframe}"))
+    return None
+
+
+def adopted_by(name):
+    """06_rig/*/character.json 중 rig_dir 이 06_rig/<name> 인 캐릭터 — 이 리그를 채택해 클립을 굽고 있다."""
+    out = []
+    for f in sorted(data("06_rig").glob("*/character.json")):
+        try:
+            cfg = json.loads(f.read_text())
+        except (OSError, ValueError):
+            continue
+        if cfg.get("rig_dir") == f"06_rig/{name}":
+            out.append((cfg.get("character", f.parent.name), f))
+    return out
+
+
+def from_precheck(s):
+    """--from 의 첫 단계를 이 기계에서 돌 수 있는가 — run_stage · main 의 기존 정지 조건과 같은 검사.
+    (ok, 사유). 아무것도 쓰지 않는다 (attempts.json 기록도 하지 않는다 — 바꾸기 전 판정이다)."""
+    envs = ENV_ROOT / "micromamba" / "envs"
+    if s["env"] and envs.is_dir() and not (envs / s["env"]).exists():
+        return False, f"{s['key']} 는 {s['env']} 환경에서 돈다 — 이 기계({envs})에 없다"
+    if s["section"] == MAC:
+        ok, why = blender_section_ready()
+        if not ok:
+            return False, f"{s['key']} 는 Blender 구간인데 이 기계에서 실행할 수 없다 — {why}"
+    return True, ""
+
+
+def from_plan(run: "Run", name, c, redo_keys):
+    """무효화할 마커 · 옮길 산출물(원래 → 보존) 목록. 아무것도 바꾸지 않는다."""
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    markers = [(run.done / f"{k}.done", run.done / f"{k}.done.superseded_{stamp}")
+               for k in redo_keys if (run.done / f"{k}.done").exists()]
+    moves, seen = [], set()
+    for k in redo_keys:
+        for p in from_units(k, name, c):
+            p = Path(p)
+            # 앞 단위(예: S2 의 keyframes 폴더) 안에 있는 것은 그 폴더와 함께 옮겨진다
+            if not p.exists() or p in seen or any(q in p.parents for q in seen):
+                continue
+            seen.add(p)
+            moves.append((k, p, p.with_name(f"{p.name}_from{stamp}")))
+    return stamp, markers, moves
+
+
+def apply_from(run: "Run", a, c, redo_keys, dry):
+    """--from 실행. 순서: run.json 에 계획(planned) → 마커 · 산출물 이동 → 완료(done) 표시 → attempts.json.
+    중간에 죽으면 run.json 의 planned 기록과 실제 파일을 대조해 상태를 읽을 수 있다."""
+    stamp, markers, moves = from_plan(run, a.name, c, redo_keys)
+    print(f"\n[--from {a.from_stage}] {'계획 (dry-run — 아무것도 옮기지 않는다)' if dry else '다시 돌기 준비'}")
+    print(f"  무효화할 마커: {', '.join(m[0].name for m in markers) or '(없음)'}")
+    if markers:
+        print(f"    → done/<단계>.done.superseded_{stamp} 로 옮긴다")
+    print("  옮길 산출물 (보존):" if moves else "  옮길 산출물: (없음)")
+    for k, src, dst in moves:
+        print(f"    [{k}] {src} → {dst.name}")
+    print(f"  다시 돌 단계: {' → '.join(redo_keys)}")
+    if dry:
+        return
+    entry = {"stage": a.from_stage, "at": datetime.now().isoformat(timespec="seconds"), "status": "planned",
+             "redo": list(redo_keys), "markers": [[str(s), str(d)] for s, d in markers],
+             "moves": [[str(s), str(d)] for _, s, d in moves]}
+    hist = run.meta().get("from") or []
+    run.write_meta({"from": hist + [entry]})
+    for src, dst in markers:
+        src.rename(dst)
+    sizes = []
+    for k, src, dst in moves:
+        n = _size(src)
+        src.rename(dst)
+        sizes.append(n)
+        print(f"    옮김: {dst}  ({n:,} B)")
+    entry.update(status="done", sizes=sizes)
+    run.write_meta({"from": hist + [entry]})
+    run.add_attempt({"stage": a.from_stage, "verdict": "FROM(사람 지시)", "redo": list(redo_keys),
+                     "markers": [str(d) for _, d in markers], "moves": [[str(s), str(d)] for _, s, d in moves],
+                     "at": entry["at"]})
+
+
 # ---------------------------------------------------------------- main
 def parse_args():
     ap = argparse.ArgumentParser(description="파이프라인 오케스트레이터 (v1 골격)")
@@ -633,6 +778,10 @@ def parse_args():
                     help="이 구간만 돈다 (기본: 마커가 가리키는 다음 단계부터)")
     ap.add_argument("--until", metavar="STAGE",
                     help="이 단계까지만 돌고 멈춘다 (단계별 확인용, 예: 5-2)")
+    ap.add_argument("--from", dest="from_stage", metavar="STAGE",
+                    help="이 단계부터 다시 돈다 (--resume · --run 과 함께). 그 단계와 뒤 단계의 마커는 "
+                         "done/<단계>.done.superseded_<일시> 로, 산출물은 <이름>_from<일시> 로 옮겨 보존한다 "
+                         "(예: 역할표 · 리그를 고친 뒤 --from BAKE, 마스크를 다시 뽑을 때 --from S2 --point x,y)")
     ap.add_argument("--dry-run", action="store_true",
                     help="실행할 명령과 분기만 출력한다")
     ap.add_argument("--motion", action="store_true",
@@ -682,6 +831,9 @@ def main():
     runs_dir.mkdir(parents=True, exist_ok=True)
 
     # --- run 폴더 확보 ---
+    if a.from_stage and not (a.run or a.resume):
+        print("[오류] --from 은 이어받는 run 에서만 쓴다 — --resume 또는 --run <폴더> 와 함께 준다")
+        return EXIT_FAIL
     if a.run:
         run = Run(Path(a.run), a.name)
         if not run.root.exists():
@@ -715,10 +867,47 @@ def main():
         # run(dry-run 이 남긴 빈 run 포함)은 아직 Pod 구간이 남았으니 새 목록으로 이어 돌고 표지를 남긴다.
         flagged = bool(run.meta().get("motion_51"))
         track["motion_legacy"] = not created and not flagged and run.is_done("S5")
-        if not track["motion_legacy"] and not flagged:
-            run.write_meta({"motion_51": True})
     stages = stages_for(track)
+    keys = [s["key"] for s in stages]
+
+    # --- 바꾸기 전 판정 (2026-11-26) — 여기서 멈추면 run 폴더 · 산출물은 한 바이트도 바뀌지 않는다 ---
+    redo_keys = []
+    if a.from_stage:
+        if a.from_stage not in keys:
+            why = ("이 run 은 5-1 이 들어가기 전(2026-11-21)의 동작 트랙 run 이다 — 단계 목록에 5-1 이 없다. "
+                   if track.get("motion_legacy") and a.from_stage == "5-1" else "")
+            print(f"[오류] --from {a.from_stage} — 이 트랙의 단계가 아니다. {why}단계: {' · '.join(keys)}")
+            return EXIT_FAIL
+        redo_keys = keys[keys.index(a.from_stage):]
+        run.redo = set(redo_keys)
+    bad = unused_args(a, track, keys, run)
+    if bad:
+        msg, hint = bad
+        print(f"[오류] {msg}")
+        if hint:
+            print(f"  다시 돌리려면:\n    {hint}")
+        return EXIT_FAIL
+    if a.from_stage:
+        rig_redo = [k for k in redo_keys if k in RIG_STAGES]
+        if track.get("track") != "motion" and rig_redo:
+            users = adopted_by(a.name)
+            if users:
+                print(f"[오류] --from {a.from_stage} 은 리그 06_rig/{a.name} 를 다시 만든다({', '.join(rig_redo)}) — "
+                      "이 리그는 채택돼 있다:")
+                for ch, f in users:
+                    print(f"    {ch}  ({f})")
+                print("  그 리그에 구운 동작 클립이 모두 낡게 된다. 다른 이름(--name)의 새 run 으로 리그를 만들어 비교한 뒤 바꾼다.")
+                return EXIT_FAIL
+        ok, why = from_precheck(STAGE_BY_KEY[a.from_stage])
+        if not ok:
+            print(f"\n[정지] --from {a.from_stage}: {why}")
+            print("  아무것도 옮기지 않았다(마커 · 산출물 · run 기록 그대로). 이 단계를 돌 수 있는 기계에서 같은 명령을 준다:")
+            print(f"    {resume_hint(a, track, '--from ' + a.from_stage)}")
+            return EXIT_HUMAN
+
     if track.get("track") == "motion":
+        if not track["motion_legacy"] and not run.meta().get("motion_51"):
+            run.write_meta({"motion_51": True})
         print(f"트랙: 동작 — 캐릭터 {track['character']} (리그 {track['rig_dir']}), 납품 이름 {track['clip_key']}")
         if track["motion_legacy"]:
             print("5-1: 이 run 은 동작 트랙에 5-1 이 들어가기 전(2026-11-21) 것이다 — 건너뛴다 "
@@ -731,8 +920,13 @@ def main():
         print(f"5-4b 설정 없음 — 건너뜀 ({track['seam_skip']})")
         run.write_meta({"seam_smooth_5_4b": {"applied": False, "reason": track["seam_skip"]}})
 
+    if a.from_stage:
+        apply_from(run, a, dict(track, name=a.name), redo_keys, a.dry_run)
+
     # --- 어디서부터? ---
-    start, skipped, problem = resume_point(run, a.name, a.section, stages, track)
+    # track 에는 name 이 없다 — 동작 트랙의 stage_outputs(BAKE · G4) 가 motion_dir(c) 로 c["name"] 을 읽는다
+    # (2026-11-23 BAKE 완료 run 의 --resume 이 KeyError: 'name' 으로 죽었다)
+    start, skipped, problem = resume_point(run, a.name, a.section, stages, dict(track, name=a.name))
     if skipped:
         print(f"건너뜀 (완료됨): {', '.join(skipped)}")
     if problem:
@@ -740,7 +934,8 @@ def main():
         for m in problem["missing"]:
             print(f"  없음: {m}")
         print("\n  Pod 에서 회수하지 않았거나 산출물이 지워졌다.")
-        print(f"  회수했다면 다시 --resume, 다시 돌리려면 {run.done}/{problem['stage']}.done 을 지운다.")
+        print(f"  회수했다면 다시 --resume, 그 단계부터 다시 돌리려면 (마커 · 남은 산출물은 지우지 않고 보존):")
+        print(f"    {resume_hint(a, track, '--from ' + problem['stage'])}")
         return EXIT_HUMAN
     if start is None:
         print("\n모든 단계 완료. Unity 반입은 수동이다 (RUNBOOK 6절).")
@@ -849,7 +1044,8 @@ def handoff(here, s, c, run: Run, a, why):
             print(f"    {p}")
         print(f"\n    {resume_cmd(a, c)}")
     else:
-        print(f"\n    python scripts/orchestrate.py --name {a.name} --resume")
+        # 2026-11-26 — 동작 트랙인데 --motion --character 없이 출력하던 줄
+        print(f"\n    {resume_cmd(a, c)}")
     if why and not a.section:
         run.add_attempt({"stage": s["key"], "verdict": "HUMAN(Blender 구간 실행 불가)", "reason": why})
     return EXIT_HUMAN
@@ -1159,6 +1355,8 @@ def g4_verdict(c, run: "Run", tag, elapsed, dry):
         print(f"    python3 tools/review/accept_clip.py --roles {c['roles_path']} --clip {c['name']} "
               f"--gate {p} --g4 {gj} --reason \"<사유>\"")
     print(f"    python scripts/orchestrate.py --motion --character {c['character']} --name {c['name']} --resume")
+    print("  역할표(bake.ground_align 등) · 리그를 고쳐 다시 굽는다면 (이전 판 · 판정은 _from<일시> 로 보존):")
+    print(f"    python scripts/orchestrate.py --motion --character {c['character']} --name {c['name']} --resume --from BAKE")
     return EXIT_HUMAN
 
 
@@ -1208,7 +1406,7 @@ def exhausted(key, c, run: Run):
         print(f"\n  좌표 격자: {grid}" if rc == 0 else
               f"\n  (격자 생성 실패 — {run.logs / 'frame_grid.log'})")
         print(f"  이 그림에서 대상 몸통의 픽셀 좌표를 읽어:")
-        print(f"    python orchestrate.py --name {c['name']} --resume --point <x>,<y>")
+        print(f"    python scripts/orchestrate.py {_motion_args(c)}--name {c['name']} --resume --point <x>,<y>")
         print("  여러 점은 ';' 로 잇는다: --point 540,250;380,520;540,1190")
         print("  자동 프롬프트(실루엣 6점 → 10점 → 상자)가 모두 불합격한 경우다 — 옷의 겹마다")
         print("  한 점씩(머리 · 겉옷 · 속살 · 바지) 찍어 준다.")
@@ -1216,8 +1414,8 @@ def exhausted(key, c, run: Run):
         print("\n  WHAM 이 클립 전체를 한 사람으로 추적하지 못했다. 다시 돌려도 같은 결과다.")
         print("  먼저 마스크를 본다 — 몸의 일부만 잡힌 마스크에서 이렇게 된다 (listener 사례):")
         print(f"    {data('02_sam2', c['name'], c['name'] + '_masked.mp4')}")
-        print("  마스크가 틀렸으면 S2 부터 다시:")
-        print(f"    python orchestrate.py --name {c['name']} --resume --point <x>,<y>[;<x>,<y>...]")
+        print("  마스크가 틀렸으면 S2 부터 다시 (S2 이후 마커 · 산출물은 지우지 않고 보존한다):")
+        print(f"    python scripts/orchestrate.py {_motion_args(c)}--name {c['name']} --resume --from S2 --point <x>,<y>[;<x>,<y>...]")
     elif key == "S3":
         print(f"\n  seed 를 바꿔도 같은 실패가 반복됐다. 모델이 이 입력에서 일관되게")
         print("  실패하는 것이라 다른 키프레임을 시도하는 편이 낫다:")
@@ -1225,6 +1423,10 @@ def exhausted(key, c, run: Run):
         print(f"  후보 목록: {data('02_sam2', c['name'], 'keyframes', 'candidates.json')}")
     print(f"\n  시도 이력: {run.root / 'attempts.json'}")
     return EXIT_HUMAN
+
+
+def _motion_args(c):
+    return f"--motion --character {c['character']} " if c.get("track") == "motion" else ""
 
 
 def frame_from_name(path):

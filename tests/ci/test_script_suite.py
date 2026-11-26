@@ -32,6 +32,7 @@ RUN = [
     "test_orch_character.py",
     "test_orch_boundary.py",
     "test_orch_motion51.py",
+    "test_orch_reentry.py",       # 2026-11-26 — --from · 재진입 (끝까지 실행, 가짜 run · 가짜 Blender)
     "test_part_islands.py",
     "test_restore_probe.py",
     "test_s2_prompt.py",

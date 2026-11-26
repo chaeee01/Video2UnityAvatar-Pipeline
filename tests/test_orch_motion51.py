@@ -185,7 +185,9 @@ def main():
         rc, out = orch(vol, fake_blender(tmp), "--resume", "--dry-run")
         check("dry-run: 5-1 이 계획에 있다", rc == 0 and "5-1" in stage_lines(out), stage_lines(out))
         check("  dry-run 은 표지를 쓰지 않는다", "motion_51" not in json.loads((run.root / "run.json").read_text()))
-        rc, out = orch(vol, fake_blender(tmp), "--resume", "--until", "G0")
+        # --until 은 아직 돌지 않은 단계여야 한다(2026-11-26 — 이미 마친 단계의 --until 은 조용히 무시하지 않고 종료 코드 1).
+        # 이전에는 --until G0 이 무시돼 S2 부터 돌았다 — 같은 경로를 --until S2 로 준다.
+        rc, out = orch(vol, fake_blender(tmp), "--resume", "--until", "S2")
         check("실제 실행이면 표지를 남긴다", json.loads((run.root / "run.json").read_text()).get("motion_51") is True, rc)
 
     print("── 새로 만든 run 은 표지를 남긴다 (실제 실행)")
